@@ -1,0 +1,70 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(ls:*)",
+      "Bash(pwd:*)",
+      "Bash(find:*)",
+      "Bash(file:*)",
+      "Bash(stat:*)",
+      "Bash(wc:*)",
+      "Bash(head:*)",
+      "Bash(tail:*)",
+      "Bash(cat:*)",
+      "Bash(tree:*)",
+
+      "Bash(git status:*)",
+      "Bash(git log:*)",
+      "Bash(git diff:*)",
+      "Bash(git show:*)",
+      "Bash(git branch:*)",
+      "Bash(git remote:*)",
+      "Bash(git tag:*)",
+      "Bash(git stash list:*)",
+      "Bash(git rev-parse:*)",
+
+      "Bash(gh pr view:*)",
+      "Bash(gh pr list:*)",
+      "Bash(gh pr checks:*)",
+      "Bash(gh pr diff:*)",
+      "Bash(gh issue view:*)",
+      "Bash(gh issue list:*)",
+      "Bash(gh run view:*)",
+      "Bash(gh run list:*)",
+      "Bash(gh run logs:*)",
+      "Bash(gh repo view:*)",
+      "Bash(gh api:*)",
+
+      "Bash(node --version:*)",
+      "Bash(npm list:*)",
+      "Bash(npm view:*)",
+      "Bash(npm outdated:*)",
+      "Bash(tsc --version:*)",
+
+      "Bash(npx create-next-app@latest:*)",
+      "Bash(npm install:*)",
+      "Bash(npm run build:*)",
+      "Bash(pkill:*)",
+      "Bash(npm run dev:*)",
+
+      "WebFetch(domain:docs.anthropic.com)",
+      "WebFetch(domain:docs.sentry.io)",
+      "WebFetch(domain:develop.sentry.dev)",
+      "WebFetch(domain:docs.github.com)",
+      "WebFetch(domain:cli.github.com)",
+      "WebFetch(domain:nextjs.org)",
+      "WebFetch(domain:react.dev)",
+      "WebFetch(domain:tailwindcss.com)",
+      "WebFetch(domain:vercel.com)",
+      "WebFetch(domain:docs.cursor.com)",
+
+      "Skill(sentry-skills:commit)",
+      "Skill(sentry-skills:create-pr)",
+      "Skill(sentry-skills:code-review)",
+      "Skill(sentry-skills:find-bugs)",
+      "Skill(sentry-skills:deslop)",
+      "Skill(sentry-skills:iterate-pr)",
+      "Skill(sentry-skills:claude-settings-audit)"
+    ],
+    "deny": []
+  }
+}
