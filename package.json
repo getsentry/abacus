@@ -8,6 +8,7 @@
     "start": "next start",
     "lint": "eslint",
     "backfill": "tsx scripts/backfill.ts",
+    "cli": "tsx scripts/cli.ts",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:push": "drizzle-kit push",
