@@ -34,6 +34,12 @@ function getCursorAuthHeader(): string | null {
   return `Basic ${Buffer.from(credentials).toString('base64')}`;
 }
 
+interface AggregatedRecord {
+  inputTokens: number;
+  outputTokens: number;
+  cost: number;
+}
+
 export async function syncCursorUsage(
   startDate: string,
   endDate: string
@@ -78,6 +84,9 @@ export async function syncCursorUsage(
 
     const data: CursorUsageResponse = await response.json();
 
+    // Aggregate by (date, email, model) since Cursor has multiple events per day
+    const aggregated = new Map<string, AggregatedRecord>();
+
     for (const event of data.events || []) {
       // Skip events with no tokens
       const totalTokens = (event.inputTokens || 0) + (event.outputTokens || 0);
@@ -87,18 +96,36 @@ export async function syncCursorUsage(
       }
 
       const date = event.createdAt.split('T')[0];
+      const key = `${date}|${event.user}|${event.model}`;
 
+      const existing = aggregated.get(key);
+      if (existing) {
+        existing.inputTokens += event.inputTokens || 0;
+        existing.outputTokens += event.outputTokens || 0;
+        existing.cost += event.cost || 0;
+      } else {
+        aggregated.set(key, {
+          inputTokens: event.inputTokens || 0,
+          outputTokens: event.outputTokens || 0,
+          cost: event.cost || 0
+        });
+      }
+    }
+
+    // Insert aggregated records
+    for (const [key, data] of aggregated) {
+      const [date, email, model] = key.split('|');
       try {
         await insertUsageRecord({
           date,
-          email: event.user,
+          email,
           tool: 'cursor',
-          model: event.model,
-          inputTokens: event.inputTokens || 0,
+          model,
+          inputTokens: data.inputTokens,
           cacheWriteTokens: 0, // Cursor API doesn't break down cache tokens
           cacheReadTokens: 0,
-          outputTokens: event.outputTokens || 0,
-          cost: event.cost || 0
+          outputTokens: data.outputTokens,
+          cost: data.cost
         });
         result.recordsImported++;
       } catch (err) {

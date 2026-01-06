@@ -423,6 +423,13 @@ export async function insertUsageRecord(record: {
   await sql`
     INSERT INTO usage_records (date, email, tool, model, input_tokens, cache_write_tokens, cache_read_tokens, output_tokens, cost, raw_api_key)
     VALUES (${record.date}, ${record.email}, ${record.tool}, ${record.model}, ${record.inputTokens}, ${record.cacheWriteTokens}, ${record.cacheReadTokens}, ${record.outputTokens}, ${record.cost}, ${record.rawApiKey || null})
+    ON CONFLICT (date, email, tool, model, COALESCE(raw_api_key, ''))
+    DO UPDATE SET
+      input_tokens = EXCLUDED.input_tokens,
+      cache_write_tokens = EXCLUDED.cache_write_tokens,
+      cache_read_tokens = EXCLUDED.cache_read_tokens,
+      output_tokens = EXCLUDED.output_tokens,
+      cost = EXCLUDED.cost
   `;
 }
 

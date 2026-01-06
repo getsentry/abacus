@@ -78,6 +78,17 @@ export default function Dashboard() {
   const [authRedirect, setAuthRedirect] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [unmappedCount, setUnmappedCount] = useState(0);
+  const [isAdmin, setIsAdmin] = useState(false);
+
+  // Check auth status on mount
+  useEffect(() => {
+    fetch('/api/auth')
+      .then(res => res.json())
+      .then(data => {
+        setIsAdmin(!data.authEnabled || data.authenticated);
+      })
+      .catch(() => setIsAdmin(false));
+  }, []);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -135,24 +146,28 @@ export default function Dashboard() {
               onChange={setSearchQuery}
               placeholder="Search users..."
             />
-            <button
-              onClick={() => setIsImportOpen(true)}
-              className="rounded-lg bg-amber-500 px-4 py-2 font-mono text-xs text-black hover:bg-amber-400 transition-colors"
-            >
-              Import CSV
-            </button>
+            {isAdmin && (
+              <button
+                onClick={() => setIsImportOpen(true)}
+                className="rounded-lg bg-amber-500 px-4 py-2 font-mono text-xs text-black hover:bg-amber-400 transition-colors"
+              >
+                Import CSV
+              </button>
+            )}
             <Link
               href="/users"
               className="rounded-lg border border-white/10 px-4 py-2 font-mono text-xs text-white/60 hover:bg-white/5 hover:text-white transition-colors"
             >
               All Users
             </Link>
-            <Link
-              href="/settings"
-              className="rounded-lg border border-white/10 px-4 py-2 font-mono text-xs text-white/60 hover:bg-white/5 hover:text-white transition-colors"
-            >
-              Settings
-            </Link>
+            {isAdmin && (
+              <Link
+                href="/settings"
+                className="rounded-lg border border-white/10 px-4 py-2 font-mono text-xs text-white/60 hover:bg-white/5 hover:text-white transition-colors"
+              >
+                Settings
+              </Link>
+            )}
             <div className="flex items-center gap-4 ml-4 border-l border-white/10 pl-4">
               <div className="flex items-center gap-1.5">
                 <div className="h-2 w-2 rounded-full bg-amber-500" />
@@ -177,18 +192,22 @@ export default function Dashboard() {
           <div className="flex flex-col items-center justify-center py-20">
             <div className="text-6xl mb-4">📊</div>
             <h2 className="font-display text-2xl text-white mb-2">No usage data yet</h2>
-            <p className="font-mono text-sm text-white/40 mb-6">Import a CSV export from Claude Code or Cursor to get started</p>
-            <button
-              onClick={() => setIsImportOpen(true)}
-              className="rounded-lg bg-amber-500 px-6 py-3 font-mono text-sm text-black hover:bg-amber-400 transition-colors"
-            >
-              Import Your First CSV
-            </button>
+            <p className="font-mono text-sm text-white/40 mb-6">
+              {isAdmin ? 'Import a CSV export from Claude Code or Cursor to get started' : 'Usage data will appear here once synced'}
+            </p>
+            {isAdmin && (
+              <button
+                onClick={() => setIsImportOpen(true)}
+                className="rounded-lg bg-amber-500 px-6 py-3 font-mono text-sm text-black hover:bg-amber-400 transition-colors"
+              >
+                Import Your First CSV
+              </button>
+            )}
           </div>
         ) : (
           <div className="space-y-6">
-            {/* Unmapped Keys Alert */}
-            {unmappedCount > 0 && (
+            {/* Unmapped Keys Alert (admin only) */}
+            {isAdmin && unmappedCount > 0 && (
               <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3 flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <span className="text-amber-400 text-lg">⚠</span>

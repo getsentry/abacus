@@ -1,4 +1,13 @@
 import { sql } from '@vercel/postgres';
+import { neonConfig } from '@neondatabase/serverless';
+
+// Configure for local development
+if (!process.env.VERCEL_ENV) {
+  neonConfig.wsProxy = (host) => `${host}:5433/v1`;
+  neonConfig.useSecureWebSocket = false;
+  neonConfig.pipelineTLS = false;
+  neonConfig.pipelineConnect = false;
+}
 
 let schemaInitialized = false;
 
@@ -35,6 +44,9 @@ export async function initializeSchema() {
   await sql`CREATE INDEX IF NOT EXISTS idx_usage_tool ON usage_records(tool)`;
   await sql`CREATE INDEX IF NOT EXISTS idx_usage_model ON usage_records(model)`;
   await sql`CREATE INDEX IF NOT EXISTS idx_usage_date_email ON usage_records(date, email)`;
+
+  // Unique constraint for deduplication (COALESCE handles NULL raw_api_key)
+  await sql`CREATE UNIQUE INDEX IF NOT EXISTS idx_usage_unique ON usage_records(date, email, tool, model, COALESCE(raw_api_key, ''))`;
 
   await sql`
     CREATE TABLE IF NOT EXISTS sync_state (
