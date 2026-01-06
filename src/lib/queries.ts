@@ -1,5 +1,5 @@
 import { sql } from '@vercel/postgres';
-import { initializeSchema } from './db';
+
 
 export interface UsageStats {
   totalTokens: number;
@@ -36,7 +36,6 @@ export interface DailyUsage {
 }
 
 export async function getOverallStats(startDate?: string, endDate?: string): Promise<UsageStats> {
-  await initializeSchema();
 
   let result;
   if (startDate && endDate) {
@@ -100,7 +99,6 @@ export async function getOverallStats(startDate?: string, endDate?: string): Pro
 }
 
 export async function getUserSummaries(limit = 50, offset = 0, search?: string): Promise<UserSummary[]> {
-  await initializeSchema();
 
   const searchPattern = search ? `%${search}%` : null;
 
@@ -157,7 +155,6 @@ export async function getUserSummaries(limit = 50, offset = 0, search?: string):
 }
 
 export async function getUserDetails(email: string) {
-  await initializeSchema();
 
   const summaryResult = await sql`
     SELECT
@@ -204,7 +201,6 @@ export async function getUserDetails(email: string) {
 }
 
 export async function getModelBreakdown(): Promise<ModelBreakdown[]> {
-  await initializeSchema();
 
   const result = await sql`
     SELECT
@@ -227,7 +223,6 @@ export async function getModelBreakdown(): Promise<ModelBreakdown[]> {
 }
 
 export async function getDailyUsage(days = 14): Promise<DailyUsage[]> {
-  await initializeSchema();
 
   const result = await sql`
     SELECT
@@ -244,7 +239,6 @@ export async function getDailyUsage(days = 14): Promise<DailyUsage[]> {
 }
 
 export async function getUnmappedApiKeys(): Promise<{ api_key: string; usage_count: number }[]> {
-  await initializeSchema();
 
   const result = await sql`
     SELECT
@@ -262,13 +256,11 @@ export async function getUnmappedApiKeys(): Promise<{ api_key: string; usage_cou
 }
 
 export async function getApiKeyMappings(): Promise<{ api_key: string; email: string }[]> {
-  await initializeSchema();
   const result = await sql`SELECT api_key, email FROM api_key_mappings`;
   return result.rows as { api_key: string; email: string }[];
 }
 
 export async function setApiKeyMapping(apiKey: string, email: string): Promise<void> {
-  await initializeSchema();
 
   await sql`
     INSERT INTO api_key_mappings (api_key, email)
@@ -282,12 +274,10 @@ export async function setApiKeyMapping(apiKey: string, email: string): Promise<v
 }
 
 export async function deleteApiKeyMapping(apiKey: string): Promise<void> {
-  await initializeSchema();
   await sql`DELETE FROM api_key_mappings WHERE api_key = ${apiKey}`;
 }
 
 export async function getKnownEmails(): Promise<string[]> {
-  await initializeSchema();
 
   const result = await sql`
     SELECT DISTINCT email FROM (
@@ -333,7 +323,6 @@ export async function getAllUsersPivot(
   sortDir: 'asc' | 'desc' = 'desc',
   search?: string
 ): Promise<UserPivotData[]> {
-  await initializeSchema();
 
   const validSortColumns = [
     'email', 'totalTokens', 'totalCost', 'claudeCodeTokens', 'cursorTokens',
@@ -418,7 +407,6 @@ export async function insertUsageRecord(record: {
   cost: number;
   rawApiKey?: string;
 }): Promise<void> {
-  await initializeSchema();
 
   await sql`
     INSERT INTO usage_records (date, email, tool, model, input_tokens, cache_write_tokens, cache_read_tokens, output_tokens, cost, raw_api_key)
@@ -435,7 +423,6 @@ export async function insertUsageRecord(record: {
 
 // Get existing mapping for an API key
 export async function getApiKeyMapping(apiKey: string): Promise<string | null> {
-  await initializeSchema();
   const result = await sql`SELECT email FROM api_key_mappings WHERE api_key = ${apiKey}`;
   return result.rows[0]?.email || null;
 }

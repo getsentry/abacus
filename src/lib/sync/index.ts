@@ -2,7 +2,6 @@ import { syncAnthropicUsage, SyncResult as AnthropicResult } from './anthropic';
 import { syncCursorUsage, SyncResult as CursorResult } from './cursor';
 import { syncAnthropicApiKeyMappings, MappingResult } from './anthropic-mappings';
 import { sql } from '@vercel/postgres';
-import { initializeSchema } from '../db';
 
 export interface FullSyncResult {
   anthropic: AnthropicResult;
@@ -11,7 +10,6 @@ export interface FullSyncResult {
 }
 
 export async function getSyncState(id: string): Promise<{ lastSyncAt: string | null; lastCursor: string | null }> {
-  await initializeSchema();
   const result = await sql`SELECT last_sync_at, last_cursor FROM sync_state WHERE id = ${id}`;
   if (result.rows.length === 0) {
     return { lastSyncAt: null, lastCursor: null };
@@ -23,7 +21,6 @@ export async function getSyncState(id: string): Promise<{ lastSyncAt: string | n
 }
 
 export async function updateSyncState(id: string, lastSyncAt: string, lastCursor?: string): Promise<void> {
-  await initializeSchema();
   await sql`
     INSERT INTO sync_state (id, last_sync_at, last_cursor)
     VALUES (${id}, ${lastSyncAt}, ${lastCursor || null})
