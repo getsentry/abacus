@@ -28,11 +28,23 @@ export interface ImportResult {
 }
 
 interface AggregatedRecord {
+  email: string;
+  model: string;
   inputTokens: number;
   cacheWriteTokens: number;
   cacheReadTokens: number;
   outputTokens: number;
   cost: number;
+}
+
+// Create a composite key that's safe to split (uses null character separator)
+function makeKey(date: string, email: string, model: string): string {
+  return [date, email, model].join('\0');
+}
+
+function parseKey(key: string): { date: string; email: string; model: string } {
+  const [date, email, model] = key.split('\0');
+  return { date, email, model };
 }
 
 export async function importCursorCsv(csvContent: string): Promise<ImportResult> {
@@ -65,7 +77,7 @@ export async function importCursorCsv(csvContent: string): Promise<ImportResult>
 
     // Parse the ISO date to just the date part
     const date = row.Date.split('T')[0];
-    const key = `${date}|${row.User}|${row.Model}`;
+    const key = makeKey(date, row.User, row.Model);
 
     const inputWithCache = parseInt(row['Input (w/ Cache Write)'] || '0', 10);
     const inputWithoutCache = parseInt(row['Input (w/o Cache Write)'] || '0', 10);
@@ -83,6 +95,8 @@ export async function importCursorCsv(csvContent: string): Promise<ImportResult>
       existing.cost += cost;
     } else {
       aggregated.set(key, {
+        email: row.User,
+        model: row.Model,
         inputTokens: inputWithoutCache,
         cacheWriteTokens,
         cacheReadTokens: cacheRead,
@@ -95,12 +109,12 @@ export async function importCursorCsv(csvContent: string): Promise<ImportResult>
   // Insert aggregated records
   for (const [key, data] of aggregated) {
     try {
-      const [date, email, model] = key.split('|');
+      const { date } = parseKey(key);
       await insertUsageRecord({
         date,
-        email,
+        email: data.email,
         tool: 'cursor',
-        model,
+        model: data.model,
         inputTokens: data.inputTokens,
         cacheWriteTokens: data.cacheWriteTokens,
         cacheReadTokens: data.cacheReadTokens,

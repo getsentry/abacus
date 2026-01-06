@@ -35,9 +35,21 @@ function getCursorAuthHeader(): string | null {
 }
 
 interface AggregatedRecord {
+  email: string;
+  model: string;
   inputTokens: number;
   outputTokens: number;
   cost: number;
+}
+
+// Create a composite key that's safe to split (uses null character separator)
+function makeKey(date: string, email: string, model: string): string {
+  return [date, email, model].join('\0');
+}
+
+function parseKey(key: string): { date: string; email: string; model: string } {
+  const [date, email, model] = key.split('\0');
+  return { date, email, model };
 }
 
 export async function syncCursorUsage(
@@ -96,7 +108,7 @@ export async function syncCursorUsage(
       }
 
       const date = event.createdAt.split('T')[0];
-      const key = `${date}|${event.user}|${event.model}`;
+      const key = makeKey(date, event.user, event.model);
 
       const existing = aggregated.get(key);
       if (existing) {
@@ -105,6 +117,8 @@ export async function syncCursorUsage(
         existing.cost += event.cost || 0;
       } else {
         aggregated.set(key, {
+          email: event.user,
+          model: event.model,
           inputTokens: event.inputTokens || 0,
           outputTokens: event.outputTokens || 0,
           cost: event.cost || 0
@@ -113,19 +127,19 @@ export async function syncCursorUsage(
     }
 
     // Insert aggregated records
-    for (const [key, data] of aggregated) {
-      const [date, email, model] = key.split('|');
+    for (const [key, aggData] of aggregated) {
+      const { date } = parseKey(key);
       try {
         await insertUsageRecord({
           date,
-          email,
+          email: aggData.email,
           tool: 'cursor',
-          model,
-          inputTokens: data.inputTokens,
+          model: aggData.model,
+          inputTokens: aggData.inputTokens,
           cacheWriteTokens: 0, // Cursor API doesn't break down cache tokens
           cacheReadTokens: 0,
-          outputTokens: data.outputTokens,
-          cost: data.cost
+          outputTokens: aggData.outputTokens,
+          cost: aggData.cost
         });
         result.recordsImported++;
       } catch (err) {

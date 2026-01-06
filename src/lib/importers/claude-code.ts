@@ -40,6 +40,26 @@ export interface ImportResult {
   errors: string[];
 }
 
+interface AggregatedRecord {
+  email: string;
+  model: string;
+  rawApiKey: string;
+  inputTokens: number;
+  cacheWriteTokens: number;
+  cacheReadTokens: number;
+  outputTokens: number;
+}
+
+// Create a composite key that's safe to split (uses null character separator)
+function makeKey(date: string, email: string, model: string, apiKey: string): string {
+  return [date, email, model, apiKey].join('\0');
+}
+
+function parseKey(key: string): { date: string; email: string; model: string; apiKey: string } {
+  const [date, email, model, apiKey] = key.split('\0');
+  return { date, email, model, apiKey };
+}
+
 export async function importClaudeCodeCsv(csvContent: string): Promise<ImportResult> {
   const result: ImportResult = {
     success: true,
@@ -66,41 +86,68 @@ export async function importClaudeCodeCsv(csvContent: string): Promise<ImportRes
 
   const unmappedKeysSet = new Set<string>();
 
+  // Aggregate by (date, email, model, api_key) since CSV may have multiple rows per combination
+  const aggregated = new Map<string, AggregatedRecord>();
+
   for (const row of parsed.data) {
-    try {
-      // Skip non-Claude Code workspace entries unless they have the key pattern
-      if (row.workspace !== 'Claude Code' && !row.api_key.startsWith('claude_code_key_')) {
-        result.recordsSkipped++;
-        continue;
-      }
+    // Skip non-Claude Code workspace entries unless they have the key pattern
+    if (row.workspace !== 'Claude Code' && !row.api_key.startsWith('claude_code_key_')) {
+      result.recordsSkipped++;
+      continue;
+    }
 
-      // Resolve email
-      let email = mappings.get(row.api_key) || extractEmailFromApiKey(row.api_key);
+    // Resolve email
+    let email = mappings.get(row.api_key) || extractEmailFromApiKey(row.api_key);
 
-      if (!email) {
-        email = 'unknown';
-        unmappedKeysSet.add(row.api_key);
-      }
+    if (!email) {
+      email = 'unknown';
+      unmappedKeysSet.add(row.api_key);
+    }
 
-      const inputTokens = parseInt(row.usage_input_tokens_no_cache || '0', 10);
-      const cacheWriteTokens = parseInt(row.usage_input_tokens_cache_write_5m || '0', 10) +
-                               parseInt(row.usage_input_tokens_cache_write_1h || '0', 10);
-      const cacheReadTokens = parseInt(row.usage_input_tokens_cache_read || '0', 10);
-      const outputTokens = parseInt(row.usage_output_tokens || '0', 10);
+    const inputTokens = parseInt(row.usage_input_tokens_no_cache || '0', 10);
+    const cacheWriteTokens = parseInt(row.usage_input_tokens_cache_write_5m || '0', 10) +
+                             parseInt(row.usage_input_tokens_cache_write_1h || '0', 10);
+    const cacheReadTokens = parseInt(row.usage_input_tokens_cache_read || '0', 10);
+    const outputTokens = parseInt(row.usage_output_tokens || '0', 10);
 
-      const cost = calculateCost(row.model_version, inputTokens + cacheWriteTokens, outputTokens);
+    const key = makeKey(row.usage_date_utc, email, row.model_version, row.api_key);
+    const existing = aggregated.get(key);
 
-      await insertUsageRecord({
-        date: row.usage_date_utc,
+    if (existing) {
+      existing.inputTokens += inputTokens;
+      existing.cacheWriteTokens += cacheWriteTokens;
+      existing.cacheReadTokens += cacheReadTokens;
+      existing.outputTokens += outputTokens;
+    } else {
+      aggregated.set(key, {
         email,
-        tool: 'claude_code',
         model: row.model_version,
+        rawApiKey: row.api_key,
         inputTokens,
         cacheWriteTokens,
         cacheReadTokens,
-        outputTokens,
+        outputTokens
+      });
+    }
+  }
+
+  // Insert aggregated records
+  for (const [key, data] of aggregated) {
+    try {
+      const { date } = parseKey(key);
+      const cost = calculateCost(data.model, data.inputTokens + data.cacheWriteTokens, data.outputTokens);
+
+      await insertUsageRecord({
+        date,
+        email: data.email,
+        tool: 'claude_code',
+        model: data.model,
+        inputTokens: data.inputTokens,
+        cacheWriteTokens: data.cacheWriteTokens,
+        cacheReadTokens: data.cacheReadTokens,
+        outputTokens: data.outputTokens,
         cost,
-        rawApiKey: row.api_key
+        rawApiKey: data.rawApiKey
       });
 
       result.recordsImported++;
