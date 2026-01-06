@@ -24,6 +24,7 @@ export interface ImportResult {
   success: boolean;
   recordsImported: number;
   recordsSkipped: number;
+  unmappedKeys?: string[];
   errors: string[];
 }
 

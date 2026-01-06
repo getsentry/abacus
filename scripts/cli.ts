@@ -52,7 +52,7 @@ Usage:
   npx tsx scripts/cli.ts <command> [options]
 
 Commands:
-  sync [--days N]       Sync recent usage data (default: last 7 days)
+  sync [tool] [--days N] Sync recent usage data (tool: anthropic|cursor, default: both)
   backfill [--service]  Backfill all historical data
   import <file>         Import a CSV file (auto-detects Claude Code or Cursor)
   import:dir <dir>      Import all CSVs from a directory
@@ -159,24 +159,29 @@ async function cmdMappingsFix() {
   console.log('\nDone!');
 }
 
-async function cmdSync(days: number = 7) {
+async function cmdSync(days: number = 7, tools: ('anthropic' | 'cursor')[] = ['anthropic', 'cursor']) {
   const endDate = new Date().toISOString().split('T')[0];
   const startDate = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
 
   console.log(`🔄 Syncing usage data from ${startDate} to ${endDate}\n`);
 
-  console.log('Syncing Anthropic...');
-  const anthropicResult = await syncAnthropicUsage(startDate, endDate);
-  console.log(`  Imported: ${anthropicResult.recordsImported}, Skipped: ${anthropicResult.recordsSkipped}`);
-  if (anthropicResult.errors.length > 0) {
-    console.log(`  Errors: ${anthropicResult.errors.slice(0, 3).join(', ')}`);
+  if (tools.includes('anthropic')) {
+    console.log('Syncing Anthropic...');
+    const anthropicResult = await syncAnthropicUsage(startDate, endDate);
+    console.log(`  Imported: ${anthropicResult.recordsImported}, Skipped: ${anthropicResult.recordsSkipped}`);
+    if (anthropicResult.errors.length > 0) {
+      console.log(`  Errors: ${anthropicResult.errors.slice(0, 3).join(', ')}`);
+    }
   }
 
-  console.log('\nSyncing Cursor...');
-  const cursorResult = await syncCursorUsage(startDate, endDate);
-  console.log(`  Imported: ${cursorResult.recordsImported}, Skipped: ${cursorResult.recordsSkipped}`);
-  if (cursorResult.errors.length > 0) {
-    console.log(`  Errors: ${cursorResult.errors.slice(0, 3).join(', ')}`);
+  if (tools.includes('cursor')) {
+    if (tools.includes('anthropic')) console.log('');
+    console.log('Syncing Cursor...');
+    const cursorResult = await syncCursorUsage(startDate, endDate);
+    console.log(`  Imported: ${cursorResult.recordsImported}, Skipped: ${cursorResult.recordsSkipped}`);
+    if (cursorResult.errors.length > 0) {
+      console.log(`  Errors: ${cursorResult.errors.slice(0, 3).join(', ')}`);
+    }
   }
 
   console.log('\n✓ Sync complete!');
@@ -242,31 +247,37 @@ async function cmdDebugAnthropic() {
 async function cmdDebugCursor() {
   console.log('🔍 Debugging Cursor API\n');
 
-  const teamSlug = process.env.CURSOR_TEAM_SLUG;
   const adminKey = process.env.CURSOR_ADMIN_KEY;
 
-  if (!teamSlug || !adminKey) {
-    console.log('Error: CURSOR_TEAM_SLUG and CURSOR_ADMIN_KEY not set');
+  if (!adminKey) {
+    console.log('Error: CURSOR_ADMIN_KEY not set');
     return;
   }
 
-  const endDate = new Date().toISOString().split('T')[0];
-  const startDate = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+  // Use epoch milliseconds
+  const endMs = Date.now();
+  const startMs = endMs - 30 * 24 * 60 * 60 * 1000;
 
-  console.log(`Fetching usage from ${startDate} to ${endDate}\n`);
+  console.log(`Fetching usage from ${new Date(startMs).toISOString().split('T')[0]} to ${new Date(endMs).toISOString().split('T')[0]}\n`);
 
-  const credentials = `${teamSlug}:${adminKey}`;
+  // Cursor API uses Basic auth with API key as username, empty password
+  const credentials = `${adminKey}:`;
   const authHeader = `Basic ${Buffer.from(credentials).toString('base64')}`;
 
   const response = await fetch(
-    'https://www.cursor.com/api/dashboard/teams/filtered-usage-events',
+    'https://api.cursor.com/teams/filtered-usage-events',
     {
       method: 'POST',
       headers: {
         'Authorization': authHeader,
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify({ startDate, endDate })
+      body: JSON.stringify({
+        startDate: startMs,
+        endDate: endMs,
+        page: 1,
+        pageSize: 10
+      })
     }
   );
 
@@ -278,16 +289,21 @@ async function cmdDebugCursor() {
   }
 
   const data = await response.json();
-  console.log('Events:', data.events?.length || 0);
+  console.log('Response keys:', Object.keys(data));
+  console.log('Total events:', data.totalUsageEventsCount || 0);
+  console.log('usageEvents:', data.usageEvents?.length || 0);
+  console.log('Pagination:', JSON.stringify(data.pagination || {}));
 
-  if (data.events?.length > 0) {
-    const byUser = new Map<string, number>();
-    for (const e of data.events) {
-      byUser.set(e.user, (byUser.get(e.user) || 0) + 1);
+  if (data.usageEvents?.length > 0) {
+    console.log('\nSample event:', JSON.stringify(data.usageEvents[0], null, 2));
+
+    const byEmail = new Map<string, number>();
+    for (const e of data.usageEvents) {
+      byEmail.set(e.email, (byEmail.get(e.email) || 0) + 1);
     }
-    console.log('\nBy user:');
-    for (const [user, count] of Array.from(byUser.entries()).slice(0, 10)) {
-      console.log(`  ${user}: ${count} events`);
+    console.log('\nBy email:');
+    for (const [email, count] of Array.from(byEmail.entries()).slice(0, 10)) {
+      console.log(`  ${email}: ${count} events`);
     }
   }
 }
@@ -338,7 +354,7 @@ async function cmdImport(filePath: string, dryRun: boolean = false) {
   if (result.errors.length > 0) {
     console.log(`  Errors: ${result.errors.slice(0, 5).join(', ')}`);
   }
-  if ('unmappedKeys' in result && result.unmappedKeys.length > 0) {
+  if (result.unmappedKeys && result.unmappedKeys.length > 0) {
     console.log(`\n  Unmapped API keys: ${result.unmappedKeys.length}`);
     console.log(`  Run 'mappings:fix' to map them to emails`);
   }
@@ -430,7 +446,15 @@ async function main() {
       case 'sync': {
         const daysIdx = args.indexOf('--days');
         const days = daysIdx >= 0 ? parseInt(args[daysIdx + 1]) : 7;
-        await cmdSync(days);
+        // Parse tool filter: sync [anthropic|cursor] --days N
+        const toolArg = args[1];
+        let tools: ('anthropic' | 'cursor')[] = ['anthropic', 'cursor'];
+        if (toolArg === 'anthropic') {
+          tools = ['anthropic'];
+        } else if (toolArg === 'cursor') {
+          tools = ['cursor'];
+        }
+        await cmdSync(days, tools);
         break;
       }
       case 'import': {

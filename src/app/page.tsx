@@ -19,6 +19,10 @@ interface Stats {
   activeUsers: number;
   claudeCodeTokens: number;
   cursorTokens: number;
+  unattributed?: {
+    totalTokens: number;
+    totalCost: number;
+  };
 }
 
 interface UserSummary {
@@ -206,17 +210,17 @@ export default function Dashboard() {
           </div>
         ) : (
           <div className="space-y-6">
-            {/* Unmapped Keys Alert (admin only) */}
-            {isAdmin && unmappedCount > 0 && (
+            {/* Unattributed Usage Alert (admin only) */}
+            {isAdmin && stats.unattributed && stats.unattributed.totalTokens > 0 && (
               <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3 flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <span className="text-amber-400 text-lg">⚠</span>
                   <div>
                     <p className="font-mono text-sm text-amber-400">
-                      {unmappedCount} unmapped API key{unmappedCount !== 1 ? 's' : ''}
+                      {formatTokens(stats.unattributed.totalTokens)} unattributed tokens ({formatCurrency(stats.unattributed.totalCost)})
                     </p>
                     <p className="font-mono text-xs text-white/50">
-                      Some Claude Code usage can't be attributed to users
+                      {unmappedCount > 0 ? `${unmappedCount} unmapped API key${unmappedCount !== 1 ? 's' : ''} - ` : ''}Usage can't be attributed to specific users
                     </p>
                   </div>
                 </div>

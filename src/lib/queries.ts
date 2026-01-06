@@ -98,6 +98,22 @@ export async function getOverallStats(startDate?: string, endDate?: string): Pro
   return result.rows[0] as UsageStats;
 }
 
+export interface UnattributedStats {
+  totalTokens: number;
+  totalCost: number;
+}
+
+export async function getUnattributedStats(): Promise<UnattributedStats> {
+  const result = await sql`
+    SELECT
+      COALESCE(SUM(input_tokens + cache_write_tokens + output_tokens), 0)::int as "totalTokens",
+      COALESCE(SUM(cost), 0)::float as "totalCost"
+    FROM usage_records
+    WHERE email = 'unknown'
+  `;
+  return result.rows[0] as UnattributedStats;
+}
+
 export async function getUserSummaries(limit = 50, offset = 0, search?: string): Promise<UserSummary[]> {
 
   const searchPattern = search ? `%${search}%` : null;
@@ -112,7 +128,7 @@ export async function getUserSummaries(limit = 50, offset = 0, search?: string):
           SUM(CASE WHEN tool = 'cursor' THEN input_tokens + cache_write_tokens + output_tokens ELSE 0 END)::int as "cursorTokens",
           MAX(date)::text as "lastActive"
         FROM usage_records
-        WHERE email LIKE ${searchPattern}
+        WHERE email LIKE ${searchPattern} AND email != 'unknown'
         GROUP BY email
         ORDER BY "totalTokens" DESC
         LIMIT ${limit} OFFSET ${offset}
@@ -126,6 +142,7 @@ export async function getUserSummaries(limit = 50, offset = 0, search?: string):
           SUM(CASE WHEN tool = 'cursor' THEN input_tokens + cache_write_tokens + output_tokens ELSE 0 END)::int as "cursorTokens",
           MAX(date)::text as "lastActive"
         FROM usage_records
+        WHERE email != 'unknown'
         GROUP BY email
         ORDER BY "totalTokens" DESC
         LIMIT ${limit} OFFSET ${offset}

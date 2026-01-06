@@ -1,18 +1,30 @@
 import { insertUsageRecord } from '../queries';
 
 interface CursorUsageEvent {
-  user: string;
+  userEmail: string;
   model: string;
-  inputTokens: number;
-  outputTokens: number;
-  cost: number;
-  createdAt: string;
-  maxMode?: boolean;
+  timestamp: string;  // epoch milliseconds as string
   kind?: string;
+  maxMode?: boolean;
+  requestsCosts?: number;
+  tokenUsage?: {
+    inputTokens: number;
+    outputTokens: number;
+    cacheWriteTokens?: number;
+    cacheReadTokens?: number;
+    totalCents?: number;
+  };
 }
 
 interface CursorUsageResponse {
-  events: CursorUsageEvent[];
+  usageEvents: CursorUsageEvent[];
+  totalUsageEventsCount: number;
+  pagination: {
+    numPages: number;
+    currentPage: number;
+    pageSize: number;
+    hasNextPage: boolean;
+  };
 }
 
 export interface SyncResult {
@@ -23,14 +35,14 @@ export interface SyncResult {
 }
 
 function getCursorAuthHeader(): string | null {
-  const teamSlug = process.env.CURSOR_TEAM_SLUG;
   const adminKey = process.env.CURSOR_ADMIN_KEY;
 
-  if (!teamSlug || !adminKey) {
+  if (!adminKey) {
     return null;
   }
 
-  const credentials = `${teamSlug}:${adminKey}`;
+  // Cursor API uses Basic auth with API key as username, empty password
+  const credentials = `${adminKey}:`;
   return `Basic ${Buffer.from(credentials).toString('base64')}`;
 }
 
@@ -39,6 +51,8 @@ interface AggregatedRecord {
   model: string;
   inputTokens: number;
   outputTokens: number;
+  cacheWriteTokens: number;
+  cacheReadTokens: number;
   cost: number;
 }
 
@@ -62,7 +76,7 @@ export async function syncCursorUsage(
       success: false,
       recordsImported: 0,
       recordsSkipped: 0,
-      errors: ['CURSOR_TEAM_SLUG and CURSOR_ADMIN_KEY not configured']
+      errors: ['CURSOR_ADMIN_KEY not configured']
     };
   }
 
@@ -74,55 +88,89 @@ export async function syncCursorUsage(
   };
 
   try {
-    const response = await fetch(
-      'https://www.cursor.com/api/dashboard/teams/filtered-usage-events',
-      {
-        method: 'POST',
-        headers: {
-          'Authorization': authHeader,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          startDate,
-          endDate
-        })
-      }
-    );
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Cursor API error: ${response.status} - ${errorText}`);
-    }
-
-    const data: CursorUsageResponse = await response.json();
+    // Convert ISO date strings to epoch milliseconds
+    const startMs = new Date(startDate).getTime();
+    const endMs = new Date(endDate).getTime();
 
     // Aggregate by (date, email, model) since Cursor has multiple events per day
     const aggregated = new Map<string, AggregatedRecord>();
 
-    for (const event of data.events || []) {
-      // Skip events with no tokens
-      const totalTokens = (event.inputTokens || 0) + (event.outputTokens || 0);
-      if (totalTokens === 0) {
-        result.recordsSkipped++;
-        continue;
+    // Paginate through all results
+    let page = 1;
+    const pageSize = 1000; // Max out page size to reduce API calls
+    let hasMore = true;
+
+    while (hasMore) {
+      const response = await fetch(
+        'https://api.cursor.com/teams/filtered-usage-events',
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': authHeader,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            startDate: startMs,
+            endDate: endMs,
+            page,
+            pageSize
+          })
+        }
+      );
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Cursor API error: ${response.status} - ${errorText}`);
       }
 
-      const date = event.createdAt.split('T')[0];
-      const key = makeKey(date, event.user, event.model);
+      const data: CursorUsageResponse = await response.json();
+      const events = data.usageEvents || [];
 
-      const existing = aggregated.get(key);
-      if (existing) {
-        existing.inputTokens += event.inputTokens || 0;
-        existing.outputTokens += event.outputTokens || 0;
-        existing.cost += event.cost || 0;
+      for (const event of events) {
+        const tokenUsage = event.tokenUsage;
+
+        // Skip events with no tokens at all (including cache)
+        const totalTokens = (tokenUsage?.inputTokens || 0) +
+          (tokenUsage?.outputTokens || 0) +
+          (tokenUsage?.cacheWriteTokens || 0) +
+          (tokenUsage?.cacheReadTokens || 0);
+        if (totalTokens === 0) {
+          result.recordsSkipped++;
+          continue;
+        }
+
+        // Convert timestamp string to date
+        const date = new Date(parseInt(event.timestamp)).toISOString().split('T')[0];
+        const email = event.userEmail;
+        const key = makeKey(date, email, event.model);
+
+        const existing = aggregated.get(key);
+        if (existing) {
+          existing.inputTokens += tokenUsage?.inputTokens || 0;
+          existing.outputTokens += tokenUsage?.outputTokens || 0;
+          existing.cacheWriteTokens += tokenUsage?.cacheWriteTokens || 0;
+          existing.cacheReadTokens += tokenUsage?.cacheReadTokens || 0;
+          existing.cost += (tokenUsage?.totalCents || 0) / 100; // Convert cents to dollars
+        } else {
+          aggregated.set(key, {
+            email,
+            model: event.model,
+            inputTokens: tokenUsage?.inputTokens || 0,
+            outputTokens: tokenUsage?.outputTokens || 0,
+            cacheWriteTokens: tokenUsage?.cacheWriteTokens || 0,
+            cacheReadTokens: tokenUsage?.cacheReadTokens || 0,
+            cost: (tokenUsage?.totalCents || 0) / 100
+          });
+        }
+      }
+
+      // Check if there are more pages
+      if (data.pagination?.hasNextPage) {
+        page++;
+        // Rate limit: 20 requests per minute = 3 seconds between requests
+        await new Promise(resolve => setTimeout(resolve, 3000));
       } else {
-        aggregated.set(key, {
-          email: event.user,
-          model: event.model,
-          inputTokens: event.inputTokens || 0,
-          outputTokens: event.outputTokens || 0,
-          cost: event.cost || 0
-        });
+        hasMore = false;
       }
     }
 
@@ -136,8 +184,8 @@ export async function syncCursorUsage(
           tool: 'cursor',
           model: aggData.model,
           inputTokens: aggData.inputTokens,
-          cacheWriteTokens: 0, // Cursor API doesn't break down cache tokens
-          cacheReadTokens: 0,
+          cacheWriteTokens: aggData.cacheWriteTokens,
+          cacheReadTokens: aggData.cacheReadTokens,
           outputTokens: aggData.outputTokens,
           cost: aggData.cost
         });

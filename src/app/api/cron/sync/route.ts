@@ -15,7 +15,7 @@ export async function GET(request: Request) {
     const endDate = new Date().toISOString().split('T')[0];
     const startDate = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
 
-    const result = await runFullSync(startDate, endDate);
+    const result = await runFullSync(startDate, endDate, { includeMappings: true });
 
     return NextResponse.json({
       success: true,

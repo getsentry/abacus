@@ -26,6 +26,12 @@
     "react-dom": "19.2.3",
     "recharts": "^3.6.0"
   },
+  "simple-git-hooks": {
+    "pre-commit": "npx lint-staged"
+  },
+  "lint-staged": {
+    "*.{ts,tsx}": "bash -c 'npx tsc --noEmit --skipLibCheck'"
+  },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
     "@types/node": "^25.0.3",
@@ -35,6 +41,8 @@
     "drizzle-kit": "^0.31.8",
     "eslint": "^9",
     "eslint-config-next": "16.1.1",
+    "lint-staged": "^16.2.7",
+    "simple-git-hooks": "^2.13.1",
     "tailwindcss": "^4",
     "tsx": "^4.21.0",
     "typescript": "^5"
