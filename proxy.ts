@@ -21,7 +21,7 @@ function isAuthenticated(request: NextRequest): boolean {
   return authCookie.value === expectedToken;
 }
 
-export function middleware(request: NextRequest) {
+export function proxy(request: NextRequest) {
   const { pathname, searchParams } = request.nextUrl;
 
   // Protected API routes (write operations)
