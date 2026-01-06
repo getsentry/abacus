@@ -42,3 +42,6 @@ next-env.d.ts
 
 # database
 /data/
+
+# Sentry Config File
+.env.sentry-build-plugin

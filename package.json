@@ -10,6 +10,7 @@
     "backfill": "tsx scripts/backfill.ts"
   },
   "dependencies": {
+    "@sentry/nextjs": "^10.32.1",
     "@vercel/postgres": "^0.10.0",
     "dotenv": "^17.2.3",
     "framer-motion": "^12.24.7",
