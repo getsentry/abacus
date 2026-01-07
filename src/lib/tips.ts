@@ -107,6 +107,18 @@ export const TIPS: Tip[] = [
     text: 'Use CLAUDE.md or .cursorrules to encode project conventions the agent should follow',
     guide: 'project-config',
   },
+
+  // MCP
+  {
+    id: 'mcp-intro',
+    text: 'Connect MCP servers to give Claude access to external tools like Sentry, GitHub, and databases',
+    guide: 'mcp',
+  },
+  {
+    id: 'mcp-sentry',
+    text: 'Add Sentry MCP to debug issues directly - Claude can search errors and trigger root cause analysis',
+    guide: 'mcp',
+  },
 ];
 
 // Detailed guides rendered at /tips/[slug]
@@ -641,6 +653,73 @@ Claude automatically:
 | Claude Code | \`CLAUDE.md\` |
 
 Create \`AGENTS.md\` as your source of truth, then symlink \`CLAUDE.md\` to it for Claude Code compatibility.
+    `,
+  },
+
+  'mcp': {
+    slug: 'mcp',
+    title: 'MCP Servers',
+    description: 'Connect Claude to external tools and services',
+    externalDocs: 'https://code.claude.com/docs/en/mcp',
+    tools: ['claude-code'],
+    content: `
+## What is MCP?
+
+Model Context Protocol (MCP) lets Claude connect to external tools, databases, and APIs. Add an MCP server and Claude gains new capabilities without leaving your terminal.
+
+## Try It: Add Sentry MCP
+
+**Scenario**: You want Claude to help debug Sentry issues directly.
+
+**Step 1**: Add the Sentry MCP server:
+\`\`\`bash
+claude mcp add --transport http sentry https://mcp.sentry.dev/mcp
+\`\`\`
+
+**Step 2**: Authenticate (opens browser):
+\`\`\`
+/mcp
+\`\`\`
+
+**Step 3**: Now ask Claude about your errors:
+\`\`\`
+What are the most common errors in my project this week?
+\`\`\`
+
+Claude searches Sentry, analyzes the issues, and can even trigger Seer for root cause analysis.
+
+## Managing MCP Servers
+
+\`\`\`bash
+claude mcp list              # See all configured servers
+claude mcp remove sentry     # Remove a server
+\`\`\`
+
+## Configuration Scopes
+
+| Scope | Location | Who sees it |
+|-------|----------|-------------|
+| Local | \`~/.claude.json\` | Just you, this project |
+| Project | \`.mcp.json\` | Team (checked into git) |
+| User | \`~/.claude.json\` | Just you, all projects |
+
+**Share with your team** using project scope:
+\`\`\`bash
+claude mcp add --transport http sentry --scope project https://mcp.sentry.dev/mcp
+\`\`\`
+
+This creates a \`.mcp.json\` file you can commit.
+
+## Popular MCP Servers
+
+| Server | What it does |
+|--------|--------------|
+| Sentry | Search errors, analyze issues, trigger fixes |
+| GitHub | Manage issues, PRs, repos |
+| Postgres | Query databases directly |
+| Slack | Search and send messages |
+
+Find more at [MCP Server Registry](https://github.com/modelcontextprotocol/servers).
     `,
   },
 };

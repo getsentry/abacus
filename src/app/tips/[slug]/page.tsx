@@ -3,7 +3,7 @@
 import { Suspense } from 'react';
 import { useParams } from 'next/navigation';
 import { motion } from 'framer-motion';
-import { ExternalLink, Compass, RefreshCw, Command, MapPin, Cpu, MessageSquare, GitBranch, Users, FileCode } from 'lucide-react';
+import { ExternalLink, Compass, RefreshCw, Command, MapPin, Cpu, MessageSquare, GitBranch, Users, FileCode, Plug } from 'lucide-react';
 import { AppLink } from '@/components/AppLink';
 import { MainNav } from '@/components/MainNav';
 import { UserMenu } from '@/components/UserMenu';
@@ -23,6 +23,7 @@ const GUIDE_ICONS: Record<string, typeof Compass> = {
   'git-workflow': GitBranch,
   'multi-agent': Users,
   'project-config': FileCode,
+  'mcp': Plug,
 };
 
 const TOOL_LABELS = {

@@ -2,7 +2,7 @@
 
 import { Suspense } from 'react';
 import { motion } from 'framer-motion';
-import { ArrowRight, Compass, RefreshCw, Command, MapPin, Cpu, MessageSquare, GitBranch, Users, FileCode } from 'lucide-react';
+import { ArrowRight, Compass, RefreshCw, Command, MapPin, Cpu, MessageSquare, GitBranch, Users, FileCode, Plug } from 'lucide-react';
 import { AppLink } from '@/components/AppLink';
 import { MainNav } from '@/components/MainNav';
 import { UserMenu } from '@/components/UserMenu';
@@ -20,6 +20,7 @@ const GUIDE_ICONS: Record<string, typeof Compass> = {
   'git-workflow': GitBranch,
   'multi-agent': Users,
   'project-config': FileCode,
+  'mcp': Plug,
 };
 
 const GUIDE_COLORS: Record<string, { bg: string; border: string; text: string; glow: string }> = {
@@ -32,6 +33,7 @@ const GUIDE_COLORS: Record<string, { bg: string; border: string; text: string; g
   'git-workflow': { bg: 'bg-orange-500/10', border: 'border-orange-500/20', text: 'text-orange-400', glow: 'group-hover:shadow-orange-500/10' },
   'multi-agent': { bg: 'bg-pink-500/10', border: 'border-pink-500/20', text: 'text-pink-400', glow: 'group-hover:shadow-pink-500/10' },
   'project-config': { bg: 'bg-teal-500/10', border: 'border-teal-500/20', text: 'text-teal-400', glow: 'group-hover:shadow-teal-500/10' },
+  'mcp': { bg: 'bg-indigo-500/10', border: 'border-indigo-500/20', text: 'text-indigo-400', glow: 'group-hover:shadow-indigo-500/10' },
 };
 
 // Categorize guides
@@ -44,7 +46,7 @@ const CATEGORIES = [
   {
     name: 'Power Features',
     description: 'Advanced capabilities to boost your workflow',
-    guides: ['plan-mode', 'subagents', 'skills'],
+    guides: ['plan-mode', 'subagents', 'skills', 'mcp'],
   },
   {
     name: 'Scaling Up',
