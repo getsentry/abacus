@@ -143,6 +143,7 @@ Commands:
   backfill:complete <tool>
                         Mark backfill as complete for a tool (anthropic|cursor)
   backfill:reset <tool> Reset backfill status for a tool (allows re-backfilling)
+  gaps [tool]           Check for gaps in usage data (tool: anthropic|cursor, default: both)
   mappings              List API key mappings
   mappings:sync [--full] Sync API key mappings from Anthropic (--full for all keys)
   mappings:fix          Interactive fix for unmapped API keys
@@ -673,6 +674,69 @@ async function main() {
           await resetCursorBackfillComplete();
         }
         console.log(`✓ ${tool} backfill status reset (can now re-backfill)`);
+        break;
+      }
+      case 'gaps': {
+        const toolArg = args[1];
+        const toolsToCheck: string[] = toolArg && ['anthropic', 'cursor', 'claude_code'].includes(toolArg)
+          ? [toolArg === 'anthropic' ? 'claude_code' : toolArg]
+          : ['claude_code', 'cursor'];
+
+        for (const tool of toolsToCheck) {
+          const displayName = tool === 'claude_code' ? 'Claude Code (anthropic)' : 'Cursor';
+          console.log(`\n📊 ${displayName} Data Gap Analysis\n`);
+
+          const result = await sql`
+            SELECT DISTINCT date::text as date
+            FROM usage_records
+            WHERE tool = ${tool}
+            ORDER BY date ASC
+          `;
+
+          const dates = result.rows.map((r) => r.date as string);
+
+          if (dates.length === 0) {
+            console.log('No data found.');
+            continue;
+          }
+
+          console.log(`First date: ${dates[0]}`);
+          console.log(`Last date: ${dates[dates.length - 1]}`);
+          console.log(`Days with data: ${dates.length}`);
+
+          // Find gaps
+          const gaps: { after: string; before: string; missingDays: number }[] = [];
+          for (let i = 1; i < dates.length; i++) {
+            const prev = new Date(dates[i - 1]);
+            const curr = new Date(dates[i]);
+            const diffDays = Math.round((curr.getTime() - prev.getTime()) / (24 * 60 * 60 * 1000));
+            if (diffDays > 1) {
+              gaps.push({
+                after: dates[i - 1],
+                before: dates[i],
+                missingDays: diffDays - 1
+              });
+            }
+          }
+
+          if (gaps.length === 0) {
+            console.log('\n✓ No gaps found! Data is continuous.');
+          } else {
+            console.log(`\n⚠️  Found ${gaps.length} gap(s):`);
+            for (const gap of gaps) {
+              console.log(`  ${gap.after} → ${gap.before} (${gap.missingDays} days missing)`);
+            }
+          }
+
+          // Summary
+          const firstDate = new Date(dates[0]);
+          const lastDate = new Date(dates[dates.length - 1]);
+          const expectedDays = Math.round((lastDate.getTime() - firstDate.getTime()) / (24 * 60 * 60 * 1000)) + 1;
+          const totalMissing = expectedDays - dates.length;
+          if (totalMissing > 0) {
+            console.log(`\nTotal missing days: ${totalMissing} out of ${expectedDays} expected`);
+          }
+        }
         break;
       }
       case 'import:cursor-csv': {
