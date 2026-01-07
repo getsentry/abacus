@@ -2,15 +2,6 @@
 
 Track and analyze AI coding tool usage across your team. Supports multiple providers with a modular architecture.
 
-## Supported Providers
-
-| Provider | Data Source | Features |
-|----------|-------------|----------|
-| **Claude Code** | Anthropic Admin API | Token usage, costs, model breakdown, API key mapping |
-| **Cursor** | Cursor Admin API or CSV | Token usage, costs, model breakdown |
-
-Each provider is **optional** - configure only the ones you use.
-
 ## Features
 
 - **Dashboard**: Token consumption, costs, model breakdown, top users
@@ -19,6 +10,17 @@ Each provider is **optional** - configure only the ones you use.
 - **Multi-Provider**: Mix and match Claude Code, Cursor, or add your own
 - **Automated Sync**: Cron jobs for continuous data fetching
 - **CSV Import**: Manual import when APIs are unavailable or for backfills
+
+### Supported Providers
+
+| Provider | Data Source | Features |
+|----------|-------------|----------|
+| **Claude Code** | Anthropic Admin API | Token usage, costs, model breakdown, API key mapping |
+| **Cursor** | Cursor Admin API or CSV | Token usage, costs, model breakdown |
+
+Each provider is optional—configure only the ones you use.
+
+---
 
 ## Quick Start
 
@@ -32,74 +34,93 @@ Each provider is **optional** - configure only the ones you use.
 vercel storage create postgres
 ```
 
-### 3. Configure Required Variables
+This automatically sets `POSTGRES_URL` in your environment.
 
-Set these in Vercel project settings (Settings → Environment Variables):
+### 3. Set Up Google OAuth
 
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `POSTGRES_URL` | Yes | Auto-set when creating Vercel Postgres |
-| `BETTER_AUTH_SECRET` | Yes | `openssl rand -base64 32` |
-| `GOOGLE_CLIENT_ID` | Yes | Google OAuth client ID |
-| `GOOGLE_CLIENT_SECRET` | Yes | Google OAuth client secret |
-| `NEXT_PUBLIC_DOMAIN` | Yes | Email domain to restrict access (e.g., `sentry.io`) |
-| `CRON_SECRET` | Yes | `openssl rand -hex 32` - required for cron jobs |
+1. Go to [Google Cloud Console](https://console.cloud.google.com/) → **APIs & Services → Credentials**
+2. Create an OAuth 2.0 Client ID (Web application)
+3. Add redirect URI: `https://your-app.vercel.app/api/auth/callback/google`
+4. Copy the Client ID and Client Secret
 
-### 4. Configure Providers (Optional)
+### 4. Configure Environment Variables
 
-Add credentials for the providers you want to use:
-
-| Variable | Provider | Description |
-|----------|----------|-------------|
-| `ANTHROPIC_ADMIN_KEY` | Claude Code | Anthropic Admin API key |
-| `CURSOR_ADMIN_KEY` | Cursor | Cursor Admin API key |
-
-See [Provider Setup](#provider-setup) for detailed instructions.
-
-### 5. Configure Error Tracking (Optional)
+Set these in Vercel project settings (**Settings → Environment Variables**):
 
 | Variable | Description |
 |----------|-------------|
-| `NEXT_PUBLIC_SENTRY_DSN` | Sentry DSN for error tracking |
+| `GOOGLE_CLIENT_ID` | From step 3 |
+| `GOOGLE_CLIENT_SECRET` | From step 3 |
+| `NEXT_PUBLIC_DOMAIN` | Email domain to restrict access (e.g., `sentry.io`) |
+| `BETTER_AUTH_SECRET` | Run: `openssl rand -base64 32` |
+| `CRON_SECRET` | Run: `openssl rand -hex 32` |
+
+### 5. Configure Providers
+
+Add credentials for the providers you want to use:
+
+| Variable | Provider |
+|----------|----------|
+| `ANTHROPIC_ADMIN_KEY` | Claude Code ([how to get](#claude-code)) |
+| `CURSOR_ADMIN_KEY` | Cursor ([how to get](#cursor)) |
+
+### 6. Deploy
+
+Redeploy to apply environment variables. Migrations run automatically on build.
+
+---
+
+## Local Development
+
+```bash
+npm install
+
+# Create .env.local with your credentials
+cat > .env.local << 'EOF'
+POSTGRES_URL=postgres://...
+BETTER_AUTH_SECRET=your-secret-here
+GOOGLE_CLIENT_ID=your-client-id
+GOOGLE_CLIENT_SECRET=your-client-secret
+NEXT_PUBLIC_DOMAIN=yourcompany.com
+CRON_SECRET=your-cron-secret
+
+# Providers (optional)
+ANTHROPIC_ADMIN_KEY=sk-admin-...
+CURSOR_ADMIN_KEY=...
+EOF
+
+npm run cli db:migrate
+npm run dev
+```
+
+Open [http://localhost:3000](http://localhost:3000).
+
+> Add `http://localhost:3000/api/auth/callback/google` to your Google OAuth redirect URIs.
 
 ---
 
 ## Provider Setup
 
-### Claude Code (Anthropic)
+### Claude Code
 
 Claude Code usage is tracked via the Anthropic Admin API.
 
 #### Getting the API Key
 
-1. Go to the [Anthropic Console](https://console.anthropic.com/)
-2. Navigate to **Settings → Admin API keys** (requires org admin access)
-3. Click **Create Key** and name it "Abacus Usage Sync"
-4. Copy the key (starts with `sk-admin-`)
+1. Go to [Anthropic Console](https://console.anthropic.com/) → **Settings → Admin API keys**
+2. Click **Create Key** (requires org admin access)
+3. Copy the key (starts with `sk-admin-`)
 
-#### Environment Variables
+#### Sync Behavior
 
-```bash
-ANTHROPIC_ADMIN_KEY=sk-admin-...
-```
-
-#### How It Works
-
-- **Sync Frequency**: Daily at 6 AM UTC via cron
-- **Data Collected**: Token counts (input, output, cache), model, API key ID
-- **User Identification**: API keys are mapped to emails via the Anthropic API or manual mapping
-
-#### API Key Mapping
-
-Claude Code API keys need to be mapped to user emails. This happens automatically during sync by querying the Anthropic API for key metadata. Keys without associated emails appear in the "Unmapped API Keys" section for manual assignment.
+- **Schedule**: Daily at 6 AM UTC
+- **Data**: Token counts, model, cost, API key ID
+- **User Mapping**: API keys are mapped to emails via the Anthropic API. Unmapped keys appear in the UI for manual assignment.
 
 #### Manual Sync
 
 ```bash
-# Sync last 7 days
 npm run cli sync anthropic --days 7
-
-# Backfill historical data
 npm run cli backfill anthropic --from 2025-01-01 --to 2025-06-01
 ```
 
@@ -107,70 +128,31 @@ npm run cli backfill anthropic --from 2025-01-01 --to 2025-06-01
 
 ### Cursor
 
-Cursor usage can be imported via API or CSV export.
+Cursor usage can be imported via API or CSV.
 
-#### Option A: API Sync (Recommended for ongoing sync)
+#### Option A: API Sync
 
-##### Getting the API Key
+1. Go to [Cursor Team Settings](https://cursor.com/settings/team)
+2. Request admin API access from Cursor support
+3. Set `CURSOR_ADMIN_KEY` in your environment
 
-1. Go to your [Cursor Team Settings](https://cursor.com/settings/team)
-2. Navigate to the API section or contact Cursor support
-3. Request admin API access for usage analytics
-4. You'll receive a `CURSOR_ADMIN_KEY`
-
-##### Environment Variables
-
-```bash
-CURSOR_ADMIN_KEY=your-admin-key
-```
-
-##### How It Works
-
-- **Sync Frequency**: Hourly via cron
-- **Data Collected**: Token counts, model, user email, cost
-- **Rate Limits**: 20 requests/minute, 3-second delays between pages
-
-##### Manual Sync
+**Sync Behavior**:
+- **Schedule**: Hourly
+- **Data**: Token counts, model, user email, cost
 
 ```bash
-# Sync last 7 days
 npm run cli sync cursor --days 7
-
-# Check sync status
-npm run cli cursor:status
 ```
 
-#### Option B: CSV Import (Recommended for backfills)
+#### Option B: CSV Import
 
-The API can be slow for large historical imports. CSV export is much faster.
+Faster for large historical imports.
 
-##### Exporting from Cursor
-
-1. Log into your Cursor team dashboard
-2. Navigate to Usage/Analytics
-3. Export usage data as CSV for your desired date range
-
-Or use the direct URL (adjust dates as epoch milliseconds):
-```
-https://cursor.com/api/dashboard/export-usage-events-csv?teamId=YOUR_TEAM_ID&startDate=START_MS&endDate=END_MS&strategy=tokens
-```
-
-##### Importing the CSV
+1. Export from Cursor team dashboard → Usage/Analytics → Export CSV
+2. Import:
 
 ```bash
-npm run cli import:cursor-csv /path/to/cursor-export.csv
-```
-
-The import:
-- Aggregates events by date/email/model
-- Skips duplicates automatically
-- Shows progress per day
-
-##### CSV Format
-
-The CSV should have these columns:
-```
-Date,User,Kind,Model,Max Mode,Input (w/ Cache Write),Input (w/o Cache Write),Cache Read,Output Tokens,Total Tokens,Cost
+npm run cli import:cursor-csv /path/to/export.csv
 ```
 
 ---
@@ -186,7 +168,7 @@ npm run cli sync                    # Sync all providers (last 7 days)
 npm run cli sync anthropic --days 30
 npm run cli sync cursor --days 7
 
-# Backfill (API-based, with progress tracking)
+# Backfill (historical data)
 npm run cli backfill anthropic --from 2025-01-01 --to 2025-06-01
 npm run cli backfill cursor --from 2025-01-01 --to 2025-06-01
 npm run cli backfill:complete anthropic  # Mark backfill as complete
@@ -202,8 +184,8 @@ npm run cli mappings:fix           # Interactive unmapped key assignment
 
 # Data Analysis
 npm run cli gaps                   # Check for gaps in usage data
-npm run cli gaps anthropic         # Check Claude Code only
-npm run cli gaps cursor            # Check Cursor only
+npm run cli gaps anthropic
+npm run cli gaps cursor
 
 # Status
 npm run cli anthropic:status       # Show Claude Code sync state
@@ -213,81 +195,18 @@ npm run cli stats                  # Database statistics
 
 ---
 
-## Automated Sync (Cron Jobs)
+## Automated Sync
 
-Vercel cron jobs keep data up-to-date automatically:
+Vercel cron jobs keep data current:
 
-| Job | Schedule | Description |
-|-----|----------|-------------|
-| `/api/cron/sync-anthropic` | Daily 6 AM UTC | Sync Claude Code usage |
-| `/api/cron/sync-cursor` | Hourly | Sync Cursor usage |
-| `/api/cron/backfill-anthropic` | Every 6 hours | Backfill historical Claude Code data |
-| `/api/cron/backfill-cursor` | Every 6 hours | Backfill historical Cursor data |
+| Endpoint | Schedule | Purpose |
+|----------|----------|---------|
+| `/api/cron/sync-anthropic` | Daily 6 AM UTC | Sync recent Claude Code usage |
+| `/api/cron/sync-cursor` | Hourly | Sync recent Cursor usage |
+| `/api/cron/backfill-anthropic` | Every 6 hours | Backfill historical data |
+| `/api/cron/backfill-cursor` | Every 6 hours | Backfill historical data |
 
-Cron jobs require `CRON_SECRET` to be set. Vercel automatically sends the secret in the Authorization header.
-
----
-
-## Local Development
-
-```bash
-# Install dependencies
-npm install
-
-# Create .env.local
-cat > .env.local << 'EOF'
-POSTGRES_URL=postgres://...
-BETTER_AUTH_SECRET=generate-with-openssl-rand-base64-32
-GOOGLE_CLIENT_ID=your-google-client-id
-GOOGLE_CLIENT_SECRET=your-google-client-secret
-NEXT_PUBLIC_DOMAIN=yourcompany.com
-CRON_SECRET=generate-with-openssl-rand-hex-32
-
-# Optional: Add providers you want to use
-ANTHROPIC_ADMIN_KEY=sk-admin-...
-CURSOR_ADMIN_KEY=...
-
-# Optional: Error tracking
-# NEXT_PUBLIC_SENTRY_DSN=https://...@....ingest.sentry.io/...
-EOF
-
-# Run migrations
-npm run cli db:migrate
-
-# Start dev server
-npm run dev
-```
-
-Open [http://localhost:3000](http://localhost:3000).
-
-> **Note**: Add `http://localhost:3000/api/auth/callback/google` to your Google OAuth redirect URIs.
-
----
-
-## Obtaining Credentials
-
-### Google OAuth
-
-1. Go to [Google Cloud Console](https://console.cloud.google.com/)
-2. Create/select a project
-3. Navigate to **APIs & Services → Credentials**
-4. Click **Create Credentials → OAuth client ID**
-5. Configure OAuth consent screen (Internal for org-only access)
-6. Create Web application credentials with redirect URIs:
-   - `https://your-app.vercel.app/api/auth/callback/google`
-   - `http://localhost:3000/api/auth/callback/google` (for local dev)
-
-### BETTER_AUTH_SECRET
-
-```bash
-openssl rand -base64 32
-```
-
-### CRON_SECRET
-
-```bash
-openssl rand -hex 32
-```
+Requires `CRON_SECRET` to be set.
 
 ---
 
@@ -297,23 +216,18 @@ openssl rand -hex 32
 src/
 ├── app/
 │   ├── page.tsx              # Main dashboard
-│   ├── users/                # Users pivot table
+│   ├── users/                # Users list and profiles
 │   ├── status/               # Sync status page
 │   └── api/
-│       ├── auth/             # Authentication
-│       ├── cron/             # Cron job endpoints
-│       │   ├── sync-anthropic/
-│       │   ├── sync-cursor/
-│       │   ├── backfill-anthropic/
-│       │   └── backfill-cursor/
-│       └── ...
+│       ├── auth/             # Authentication (better-auth)
+│       └── cron/             # Cron job endpoints
 ├── lib/
 │   ├── queries.ts            # Database queries
 │   ├── sync/                 # Provider sync modules
-│   │   ├── anthropic.ts      # Claude Code sync
-│   │   ├── cursor.ts         # Cursor sync
-│   │   └── index.ts          # Unified sync interface
-│   └── utils.ts              # Shared utilities
+│   │   ├── anthropic.ts
+│   │   ├── cursor.ts
+│   │   └── index.ts
+│   └── utils.ts
 └── scripts/
     └── cli.ts                # CLI tool
 ```
@@ -322,18 +236,23 @@ src/
 
 ## Adding New Providers
 
-The system is designed to be extensible. To add a new provider:
-
-1. Create a sync module in `src/lib/sync/your-provider.ts`
-2. Implement the standard sync interface (see `anthropic.ts` or `cursor.ts`)
-3. Add cron routes in `src/app/api/cron/`
-4. Add CLI commands in `scripts/cli.ts`
-5. Update the status page to show the new provider
+1. Create `src/lib/sync/your-provider.ts` implementing the sync interface
+2. Add cron routes in `src/app/api/cron/`
+3. Add CLI commands in `scripts/cli.ts`
+4. Update the status page
 
 Each provider should:
 - Store data in `usage_records` with a unique `tool` identifier
 - Aggregate by date/email/model before inserting
 - Handle deduplication via the existing upsert logic
+
+---
+
+## Optional Configuration
+
+| Variable | Description |
+|----------|-------------|
+| `NEXT_PUBLIC_SENTRY_DSN` | Sentry DSN for error tracking |
 
 ---
 
