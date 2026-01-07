@@ -14,7 +14,7 @@
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --font-mono: 'JetBrains Mono', monospace;
-  --font-display: 'Playfair Display', serif;
+  --font-display: 'Inter', sans-serif;
 }
 
 body {

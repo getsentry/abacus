@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { authClient } from '@/lib/auth-client';
+import { ExcaliburLogo } from '@/components/ExcaliburLogo';
 
 interface NavItem {
   label: string;
@@ -47,12 +48,10 @@ export function MainNav({ days }: MainNavProps) {
   return (
     <nav className="flex items-center gap-8">
       {/* App Title */}
-      <Link href={`/?days=${days}`} className="flex items-baseline gap-2 group">
-        <span className="font-display text-lg font-light tracking-tight text-white group-hover:text-white/90 transition-colors">
-          AI Usage
-        </span>
-        <span className="font-display text-lg font-light tracking-tight text-amber-500 group-hover:text-amber-400 transition-colors">
-          Tracker
+      <Link href={`/?days=${days}`} className="flex items-center gap-2.5 group">
+        <ExcaliburLogo className="w-6 h-6 transition-transform duration-200 group-hover:scale-110" />
+        <span className="font-display text-lg font-medium tracking-tight text-white group-hover:text-white/90 transition-colors">
+          Excalibur
         </span>
       </Link>
 
@@ -83,7 +82,7 @@ export function MainNav({ days }: MainNavProps) {
               {active && (
                 <motion.div
                   layoutId="nav-indicator"
-                  className="absolute bottom-0 left-4 right-4 h-px bg-amber-500"
+                  className="absolute bottom-0 left-4 right-4 h-px bg-cyan-500"
                   initial={false}
                   transition={{
                     type: 'spring',

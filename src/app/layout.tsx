@@ -4,8 +4,8 @@ import { Providers } from "./providers";
 import { Footer } from "@/components/Footer";
 
 export const metadata: Metadata = {
-  title: "AI Usage Tracker",
-  description: "Track AI coding tool usage across your team",
+  title: "Excalibur",
+  description: "AI usage analytics for your team",
 };
 
 export default function RootLayout({
