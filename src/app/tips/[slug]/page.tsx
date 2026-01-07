@@ -83,7 +83,8 @@ function GuideContent() {
       <TipBar />
 
       {/* Content */}
-      <main className="relative max-w-2xl mx-auto px-4 sm:px-8 py-8 sm:py-12">
+      <main className="relative px-4 sm:px-8 py-8 sm:py-12">
+        <div className="max-w-2xl mx-auto">
         {/* Back Link */}
         <motion.div
           initial={{ opacity: 0, x: -10 }}
@@ -233,6 +234,7 @@ function GuideContent() {
             </ReactMarkdown>
           </article>
         </motion.div>
+        </div>
       </main>
     </div>
   );
