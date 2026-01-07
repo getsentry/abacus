@@ -1,6 +1,13 @@
 {
-  "name": "ai-usage-tracker",
+  "name": "abacus",
   "version": "1.0.0",
+  "description": "Track and analyze AI coding tool usage across your team",
+  "license": "Apache-2.0",
+  "author": "Sentry",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/getsentry/abacus.git"
+  },
   "private": true,
   "scripts": {
     "dev": "next dev",
