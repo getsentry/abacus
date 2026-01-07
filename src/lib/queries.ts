@@ -217,6 +217,97 @@ export async function getUserDetails(email: string) {
   };
 }
 
+export interface UserDetailsExtended {
+  summary: {
+    email: string;
+    totalTokens: number;
+    totalCost: number;
+    claudeCodeTokens: number;
+    cursorTokens: number;
+    inputTokens: number;
+    outputTokens: number;
+    cacheReadTokens: number;
+    lastActive: string;
+    firstActive: string;
+    daysActive: number;
+    requestCount: number;
+  } | undefined;
+  modelBreakdown: {
+    model: string;
+    tokens: number;
+    inputTokens: number;
+    outputTokens: number;
+    cost: number;
+    tool: string;
+  }[];
+  dailyUsage: {
+    date: string;
+    claudeCode: number;
+    cursor: number;
+    inputTokens: number;
+    outputTokens: number;
+    cost: number;
+  }[];
+}
+
+export async function getUserDetailsExtended(email: string, days: number = 30): Promise<UserDetailsExtended> {
+  const summaryResult = await sql`
+    SELECT
+      email,
+      SUM(input_tokens + cache_write_tokens + output_tokens)::bigint as "totalTokens",
+      SUM(cost)::float as "totalCost",
+      SUM(CASE WHEN tool = 'claude_code' THEN input_tokens + cache_write_tokens + output_tokens ELSE 0 END)::bigint as "claudeCodeTokens",
+      SUM(CASE WHEN tool = 'cursor' THEN input_tokens + cache_write_tokens + output_tokens ELSE 0 END)::bigint as "cursorTokens",
+      SUM(input_tokens)::bigint as "inputTokens",
+      SUM(output_tokens)::bigint as "outputTokens",
+      SUM(cache_read_tokens)::bigint as "cacheReadTokens",
+      MAX(date)::text as "lastActive",
+      MIN(date)::text as "firstActive",
+      COUNT(DISTINCT date)::int as "daysActive",
+      COUNT(*)::int as "requestCount"
+    FROM usage_records
+    WHERE email = ${email}
+      AND date >= CURRENT_DATE - ${days}::int
+    GROUP BY email
+  `;
+
+  const modelResult = await sql`
+    SELECT
+      model,
+      SUM(input_tokens + cache_write_tokens + output_tokens)::bigint as tokens,
+      SUM(input_tokens)::bigint as "inputTokens",
+      SUM(output_tokens)::bigint as "outputTokens",
+      SUM(cost)::float as cost,
+      tool
+    FROM usage_records
+    WHERE email = ${email}
+      AND date >= CURRENT_DATE - ${days}::int
+    GROUP BY model, tool
+    ORDER BY tokens DESC
+  `;
+
+  const dailyResult = await sql`
+    SELECT
+      date::text,
+      SUM(CASE WHEN tool = 'claude_code' THEN input_tokens + cache_write_tokens + output_tokens ELSE 0 END)::bigint as "claudeCode",
+      SUM(CASE WHEN tool = 'cursor' THEN input_tokens + cache_write_tokens + output_tokens ELSE 0 END)::bigint as cursor,
+      SUM(input_tokens)::bigint as "inputTokens",
+      SUM(output_tokens)::bigint as "outputTokens",
+      SUM(cost)::float as cost
+    FROM usage_records
+    WHERE email = ${email}
+      AND date >= CURRENT_DATE - ${days}::int
+    GROUP BY date
+    ORDER BY date ASC
+  `;
+
+  return {
+    summary: summaryResult.rows[0] as UserDetailsExtended['summary'],
+    modelBreakdown: modelResult.rows as UserDetailsExtended['modelBreakdown'],
+    dailyUsage: dailyResult.rows as UserDetailsExtended['dailyUsage']
+  };
+}
+
 export async function getModelBreakdown(): Promise<ModelBreakdown[]> {
 
   const result = await sql`

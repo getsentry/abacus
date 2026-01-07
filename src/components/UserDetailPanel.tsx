@@ -2,6 +2,7 @@
 
 import { motion, AnimatePresence } from 'framer-motion';
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { formatTokens, formatCurrency } from '@/lib/utils';
 
 interface UserDetails {
@@ -83,6 +84,15 @@ export function UserDetailPanel({ email, onClose }: UserDetailPanelProps) {
                 <div className="mb-6">
                   <h2 className="font-display text-2xl text-white">{user.email.split('@')[0]}</h2>
                   <p className="font-mono text-xs text-white/40">{user.email}</p>
+                  <Link
+                    href={`/users/${encodeURIComponent(user.email)}`}
+                    className="mt-3 inline-flex items-center gap-1.5 font-mono text-xs text-amber-400 hover:text-amber-300 transition-colors"
+                  >
+                    View Full Details
+                    <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                    </svg>
+                  </Link>
                 </div>
 
                 <div className="space-y-4">

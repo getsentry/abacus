@@ -104,58 +104,117 @@ function parseKey(key: string): { date: string; email: string; model: string } {
 }
 
 /**
+ * Sleep for a given number of milliseconds
+ */
+function sleep(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+/**
+ * Fetch with exponential backoff for rate limit handling
+ */
+async function fetchWithRetry(
+  url: string,
+  options: RequestInit,
+  maxRetries: number = 5,
+  initialDelayMs: number = 5000
+): Promise<Response> {
+  let lastError: Error | null = null;
+  let delay = initialDelayMs;
+
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    const response = await fetch(url, options);
+
+    if (response.ok) {
+      return response;
+    }
+
+    // If rate limited, wait and retry
+    if (response.status === 429) {
+      if (attempt < maxRetries) {
+        // Check for Retry-After header
+        const retryAfter = response.headers.get('Retry-After');
+        const waitTime = retryAfter ? parseInt(retryAfter) * 1000 : delay;
+
+        await sleep(waitTime);
+        delay *= 2; // Exponential backoff
+        continue;
+      }
+    }
+
+    // For non-429 errors, return immediately
+    return response;
+  }
+
+  throw lastError || new Error('Max retries exceeded');
+}
+
+/**
  * Fetch Cursor usage for a specific time range.
  * This is the low-level fetch function - it doesn't track state.
+ * Includes exponential backoff for rate limit handling.
  */
 async function fetchCursorUsage(
   startMs: number,
   endMs: number,
-  authHeader: string
-): Promise<{ events: CursorUsageEvent[]; errors: string[] }> {
+  authHeader: string,
+  options: { maxRetries?: number } = {}
+): Promise<{ events: CursorUsageEvent[]; errors: string[]; rateLimited: boolean }> {
   const events: CursorUsageEvent[] = [];
   const errors: string[] = [];
+  let rateLimited = false;
 
   let page = 1;
   const pageSize = 1000;
   let hasMore = true;
+  const maxRetries = options.maxRetries ?? 3;
 
   while (hasMore) {
-    const response = await fetch(
-      'https://api.cursor.com/teams/filtered-usage-events',
-      {
-        method: 'POST',
-        headers: {
-          'Authorization': authHeader,
-          'Content-Type': 'application/json'
+    try {
+      const response = await fetchWithRetry(
+        'https://api.cursor.com/teams/filtered-usage-events',
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': authHeader,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            startDate: startMs,
+            endDate: endMs,
+            page,
+            pageSize
+          })
         },
-        body: JSON.stringify({
-          startDate: startMs,
-          endDate: endMs,
-          page,
-          pageSize
-        })
+        maxRetries
+      );
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        if (response.status === 429) {
+          rateLimited = true;
+        }
+        errors.push(`Cursor API error: ${response.status} - ${errorText}`);
+        break;
       }
-    );
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      errors.push(`Cursor API error: ${response.status} - ${errorText}`);
+      const data: CursorUsageResponse = await response.json();
+      events.push(...(data.usageEvents || []));
+
+      if (data.pagination?.hasNextPage) {
+        page++;
+        // Rate limit: 20 requests per minute = 3 seconds between requests
+        await sleep(3000);
+      } else {
+        hasMore = false;
+      }
+    } catch (err) {
+      errors.push(`Fetch error: ${err instanceof Error ? err.message : 'Unknown'}`);
       break;
-    }
-
-    const data: CursorUsageResponse = await response.json();
-    events.push(...(data.usageEvents || []));
-
-    if (data.pagination?.hasNextPage) {
-      page++;
-      // Rate limit: 20 requests per minute = 3 seconds between requests
-      await new Promise(resolve => setTimeout(resolve, 3000));
-    } else {
-      hasMore = false;
     }
   }
 
-  return { events, errors };
+  return { events, errors, rateLimited };
 }
 
 /**
@@ -272,7 +331,7 @@ export async function syncCursorCron(): Promise<SyncResult> {
   const endMs = currentHourEnd;
 
   // Fetch and process
-  const { events, errors: fetchErrors } = await fetchCursorUsage(startMs, endMs, authHeader);
+  const { events, errors: fetchErrors } = await fetchCursorUsage(startMs, endMs, authHeader, { maxRetries: 3 });
   const { imported, skipped, errors: insertErrors } = await processAndInsertEvents(events);
 
   // Update sync state to mark this hour as synced
@@ -313,7 +372,7 @@ export async function syncCursorUsage(
   const startMs = new Date(startDate).getTime();
   const endMs = new Date(endDate).getTime() + 24 * 60 * 60 * 1000; // End of end day
 
-  const { events, errors: fetchErrors } = await fetchCursorUsage(startMs, endMs, authHeader);
+  const { events, errors: fetchErrors } = await fetchCursorUsage(startMs, endMs, authHeader, { maxRetries: 3 });
   const { imported, skipped, errors: insertErrors } = await processAndInsertEvents(events);
 
   return {
@@ -326,14 +385,19 @@ export async function syncCursorUsage(
 }
 
 /**
- * Backfill Cursor data for a date range, respecting the once-per-hour limit.
- * Chunks into daily requests with delays to be respectful of rate limits.
+ * Backfill Cursor data for a date range, respecting rate limits.
+ * Chunks into daily requests with exponential backoff for rate limits.
+ * Stops if rate limited after all retries exhausted.
  * Updates sync state after completion.
  */
 export async function backfillCursorUsage(
   startDate: string,
   endDate: string,
-  options: { onProgress?: (msg: string) => void } = {}
+  options: {
+    onProgress?: (msg: string) => void;
+    stopOnRateLimit?: boolean;  // Stop entirely when rate limited (default: true)
+    stopOnEmptyDays?: number;   // Stop after N consecutive days with 0 events (default: 7)
+  } = {}
 ): Promise<SyncResult> {
   const authHeader = getCursorAuthHeader();
   if (!authHeader) {
@@ -346,6 +410,8 @@ export async function backfillCursorUsage(
   }
 
   const log = options.onProgress || (() => {});
+  const stopOnRateLimit = options.stopOnRateLimit ?? true;
+  const stopOnEmptyDays = options.stopOnEmptyDays ?? 7;
 
   // Parse dates
   const startMs = new Date(startDate).getTime();
@@ -354,10 +420,13 @@ export async function backfillCursorUsage(
   let totalImported = 0;
   let totalSkipped = 0;
   const allErrors: string[] = [];
+  let consecutiveEmptyDays = 0;
+  let lastSuccessfulDate: string | null = null;
 
   // Process in daily chunks to avoid memory issues and provide progress
   const oneDay = 24 * 60 * 60 * 1000;
   let currentStart = startMs;
+  let baseDelay = 3000; // Start with 3 second delays between requests
 
   while (currentStart < endMs) {
     const currentEnd = Math.min(currentStart + oneDay, endMs);
@@ -365,24 +434,52 @@ export async function backfillCursorUsage(
 
     log(`Fetching ${startStr}...`);
 
-    const { events, errors: fetchErrors } = await fetchCursorUsage(currentStart, currentEnd, authHeader);
+    const { events, errors: fetchErrors, rateLimited } = await fetchCursorUsage(
+      currentStart,
+      currentEnd,
+      authHeader,
+      { maxRetries: 5 }
+    );
+
+    if (rateLimited && stopOnRateLimit) {
+      log(`  Rate limited after retries. Stopping backfill.`);
+      log(`  Last successful date: ${lastSuccessfulDate || 'none'}`);
+      allErrors.push(`Rate limited at ${startStr}`);
+      break;
+    }
 
     if (fetchErrors.length > 0) {
       allErrors.push(...fetchErrors);
       log(`  Errors: ${fetchErrors.join(', ')}`);
+      // Increase delay on errors
+      baseDelay = Math.min(baseDelay * 1.5, 30000);
     } else {
       const { imported, skipped, errors: insertErrors } = await processAndInsertEvents(events);
       totalImported += imported;
       totalSkipped += skipped;
       allErrors.push(...insertErrors);
       log(`  Imported: ${imported}, Skipped: ${skipped}`);
+      lastSuccessfulDate = startStr;
+
+      // Track consecutive empty days (0 events from API)
+      if (events.length === 0) {
+        consecutiveEmptyDays++;
+        if (consecutiveEmptyDays >= stopOnEmptyDays) {
+          log(`  ${consecutiveEmptyDays} consecutive empty days. Likely no historical data before this.`);
+          break;
+        }
+      } else {
+        consecutiveEmptyDays = 0;
+        // Successful fetch - can reduce delay slightly
+        baseDelay = Math.max(baseDelay * 0.9, 1000);
+      }
     }
 
     currentStart = currentEnd;
 
-    // Brief delay between days to be nice to the API
+    // Delay between days - adaptive based on errors
     if (currentStart < endMs) {
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      await sleep(baseDelay);
     }
   }
 

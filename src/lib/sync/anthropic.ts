@@ -79,6 +79,53 @@ function extractEmailFromApiKeyId(apiKeyId: string): string | null {
 }
 
 /**
+ * Sleep for a given number of milliseconds
+ */
+function sleep(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+/**
+ * Fetch with exponential backoff for rate limit handling
+ */
+async function fetchWithRetry(
+  url: string,
+  options: RequestInit,
+  maxRetries: number = 5,
+  initialDelayMs: number = 10000
+): Promise<{ response: Response; rateLimited: boolean }> {
+  let delay = initialDelayMs;
+  let rateLimited = false;
+
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    const response = await fetch(url, options);
+
+    if (response.ok) {
+      return { response, rateLimited: false };
+    }
+
+    // If rate limited, wait and retry
+    if (response.status === 429) {
+      rateLimited = true;
+      if (attempt < maxRetries) {
+        // Check for Retry-After header
+        const retryAfter = response.headers.get('Retry-After');
+        const waitTime = retryAfter ? parseInt(retryAfter) * 1000 : delay;
+
+        await sleep(waitTime);
+        delay *= 2; // Exponential backoff
+        continue;
+      }
+    }
+
+    // For non-429 errors or final attempt, return the response
+    return { response, rateLimited };
+  }
+
+  throw new Error('Max retries exceeded');
+}
+
+/**
  * Sync Anthropic usage for a specific date range.
  * This is the low-level function that does the actual API fetching.
  * Does NOT update sync state - use syncAnthropicCron for production syncing.
@@ -129,18 +176,23 @@ export async function syncAnthropicUsage(
         params.set('page', page);
       }
 
-      const response = await fetch(
+      const { response, rateLimited } = await fetchWithRetry(
         `https://api.anthropic.com/v1/organizations/usage_report/messages?${params}`,
         {
           headers: {
             'X-Api-Key': adminKey,
             'anthropic-version': '2023-06-01'
           }
-        }
+        },
+        5,  // maxRetries
+        10000  // initial delay 10s
       );
 
       if (!response.ok) {
         const errorText = await response.text();
+        if (rateLimited) {
+          throw new Error(`Anthropic API rate limited after retries: ${response.status} - ${errorText}`);
+        }
         throw new Error(`Anthropic API error: ${response.status} - ${errorText}`);
       }
 
