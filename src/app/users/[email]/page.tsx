@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
-import { useParams } from 'next/navigation';
+import { useState, useEffect, useCallback, Suspense } from 'react';
+import { useParams, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
 import { StatCard } from '@/components/StatCard';
@@ -42,15 +42,18 @@ interface UserDetails {
   }[];
 }
 
-export default function UserDetailPage() {
+function UserDetailContent() {
   const params = useParams();
+  const searchParams = useSearchParams();
+  const initialDays = parseInt(searchParams.get('days') || '30', 10);
+
   // URL uses username (e.g., /users/david), API resolves to full email
   const username = decodeURIComponent(params.email as string);
 
   const [data, setData] = useState<UserDetails | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [days, setDays] = useState(30);
+  const [days, setDays] = useState(initialDays);
 
   // Get full email from loaded data, fallback to username for display during load
   const email = data?.summary?.email || username;
@@ -91,7 +94,7 @@ export default function UserDetailPage() {
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
               <Link
-                href="/users"
+                href={`/users?days=${days}`}
                 className="group flex items-center justify-center w-10 h-10 rounded-lg border border-white/10 bg-white/[0.02] hover:bg-white/[0.05] transition-all"
               >
                 <svg
@@ -125,8 +128,15 @@ export default function UserDetailPage() {
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ delay: 0.1 }}
+              className="flex items-center gap-4"
             >
               <TimeRangeSelector value={days} onChange={setDays} />
+              <Link
+                href="/status"
+                className="rounded-lg border border-white/10 px-4 py-2 font-mono text-xs text-white/60 hover:bg-white/5 hover:text-white transition-colors"
+              >
+                Status
+              </Link>
             </motion.div>
           </div>
         </div>
@@ -370,5 +380,20 @@ export default function UserDetailPage() {
         )}
       </main>
     </div>
+  );
+}
+
+export default function UserDetailPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-[#0a0a0f] text-white grid-bg flex items-center justify-center">
+        <div className="flex flex-col items-center gap-3">
+          <div className="h-8 w-8 border-2 border-amber-500/30 border-t-amber-500 rounded-full animate-spin" />
+          <span className="font-mono text-sm text-white/40">Loading...</span>
+        </div>
+      </div>
+    }>
+      <UserDetailContent />
+    </Suspense>
   );
 }

@@ -1,7 +1,8 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, Suspense } from 'react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { SearchInput } from '@/components/SearchInput';
 import { UserDetailPanel } from '@/components/UserDetailPanel';
@@ -40,7 +41,11 @@ const columns: { key: SortKey; label: string; align: 'left' | 'right'; format?: 
   { key: 'lastActive', label: 'Last Active', align: 'right' },
 ];
 
-export default function UsersPage() {
+// Wrapper to handle useSearchParams with Suspense
+function UsersPageContent() {
+  const searchParams = useSearchParams();
+  const initialDays = parseInt(searchParams.get('days') || '30', 10);
+
   const [users, setUsers] = useState<UserPivotData[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -48,7 +53,7 @@ export default function UsersPage() {
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedUser, setSelectedUser] = useState<string | null>(null);
-  const [days, setDays] = useState(30);
+  const [days, setDays] = useState(initialDays);
   const [visibleColumns, setVisibleColumns] = useState<Set<SortKey>>(
     new Set(['email', 'totalTokens', 'totalCost', 'claudeCodeTokens', 'cursorTokens', 'daysActive', 'avgTokensPerDay', 'lastActive'])
   );
@@ -124,7 +129,7 @@ export default function UsersPage() {
       <header className="relative z-10 border-b border-white/5 px-8 py-6">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <Link href="/" className="text-white/40 hover:text-white transition-colors">
+            <Link href={`/?days=${days}`} className="text-white/40 hover:text-white transition-colors">
               <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
               </svg>
@@ -145,6 +150,12 @@ export default function UsersPage() {
               placeholder="Search users..."
             />
             <TimeRangeSelector value={days} onChange={setDays} />
+            <Link
+              href="/status"
+              className="rounded-lg border border-white/10 px-4 py-2 font-mono text-xs text-white/60 hover:bg-white/5 hover:text-white transition-colors"
+            >
+              Status
+            </Link>
           </div>
         </div>
       </header>
@@ -274,7 +285,19 @@ export default function UsersPage() {
       </main>
 
       {/* User Detail Panel */}
-      <UserDetailPanel email={selectedUser} onClose={() => setSelectedUser(null)} />
+      <UserDetailPanel email={selectedUser} onClose={() => setSelectedUser(null)} days={days} />
     </div>
+  );
+}
+
+export default function UsersPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-[#0a0a0f] text-white grid-bg flex items-center justify-center">
+        <div className="font-mono text-sm text-white/40">Loading...</div>
+      </div>
+    }>
+      <UsersPageContent />
+    </Suspense>
   );
 }

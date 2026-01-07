@@ -8,6 +8,7 @@ import { ModelBreakdown } from '@/components/ModelBreakdown';
 import { UserTable } from '@/components/UserTable';
 import { UserDetailPanel } from '@/components/UserDetailPanel';
 import { SearchInput } from '@/components/SearchInput';
+import { TimeRangeSelector } from '@/components/TimeRangeSelector';
 import { ImportModal } from '@/components/ImportModal';
 import { AuthModal } from '@/components/AuthModal';
 import { formatTokens, formatCurrency } from '@/lib/utils';
@@ -39,6 +40,7 @@ interface DailyUsage {
   date: string;
   claudeCode: number;
   cursor: number;
+  cost: number;
 }
 
 interface ModelData {
@@ -48,41 +50,33 @@ interface ModelData {
   tool: string;
 }
 
-// Wrapper component to handle Suspense boundary for useSearchParams
-function AuthRedirectHandler({
-  setIsAuthOpen,
-  setAuthRedirect
-}: {
-  setIsAuthOpen: (v: boolean) => void;
-  setAuthRedirect: (v: string | null) => void;
-}) {
+function DashboardContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
+  const initialDays = parseInt(searchParams.get('days') || '30', 10);
 
-  useEffect(() => {
-    if (searchParams.get('auth') === 'required') {
-      setAuthRedirect(searchParams.get('redirect') || '/settings');
-      setIsAuthOpen(true);
-      router.replace('/', { scroll: false });
-    }
-  }, [searchParams, router, setIsAuthOpen, setAuthRedirect]);
-
-  return null;
-}
-
-export default function Dashboard() {
   const [stats, setStats] = useState<Stats | null>(null);
   const [users, setUsers] = useState<UserSummary[]>([]);
   const [trends, setTrends] = useState<DailyUsage[]>([]);
   const [models, setModels] = useState<ModelData[]>([]);
   const [selectedUser, setSelectedUser] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [days, setDays] = useState(initialDays);
   const [isImportOpen, setIsImportOpen] = useState(false);
   const [isAuthOpen, setIsAuthOpen] = useState(false);
   const [authRedirect, setAuthRedirect] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [unmappedCount, setUnmappedCount] = useState(0);
   const [isAdmin, setIsAdmin] = useState(false);
+
+  // Handle auth redirect from query params
+  useEffect(() => {
+    if (searchParams.get('auth') === 'required') {
+      setAuthRedirect(searchParams.get('redirect') || '/settings');
+      setIsAuthOpen(true);
+      router.replace('/', { scroll: false });
+    }
+  }, [searchParams, router]);
 
   // Check auth status on mount
   useEffect(() => {
@@ -98,10 +92,10 @@ export default function Dashboard() {
     setLoading(true);
     try {
       const [statsRes, usersRes, trendsRes, modelsRes, mappingsRes] = await Promise.all([
-        fetch('/api/stats'),
-        fetch(`/api/users?limit=20${searchQuery ? `&search=${encodeURIComponent(searchQuery)}` : ''}`),
-        fetch('/api/trends?days=14'),
-        fetch('/api/models'),
+        fetch(`/api/stats?days=${days}`),
+        fetch(`/api/users?limit=20&days=${days}${searchQuery ? `&search=${encodeURIComponent(searchQuery)}` : ''}`),
+        fetch(`/api/trends?days=${days}`),
+        fetch(`/api/models?days=${days}`),
         fetch('/api/mappings'),
       ]);
 
@@ -123,7 +117,7 @@ export default function Dashboard() {
     } finally {
       setLoading(false);
     }
-  }, [searchQuery]);
+  }, [searchQuery, days]);
 
   useEffect(() => {
     fetchData();
@@ -150,6 +144,7 @@ export default function Dashboard() {
               onChange={setSearchQuery}
               placeholder="Search users..."
             />
+            <TimeRangeSelector value={days} onChange={setDays} />
             {isAdmin && (
               <button
                 onClick={() => setIsImportOpen(true)}
@@ -159,7 +154,7 @@ export default function Dashboard() {
               </button>
             )}
             <Link
-              href="/users"
+              href={`/users?days=${days}`}
               className="rounded-lg border border-white/10 px-4 py-2 font-mono text-xs text-white/60 hover:bg-white/5 hover:text-white transition-colors"
             >
               All Users
@@ -278,13 +273,13 @@ export default function Dashboard() {
             </div>
 
             {/* Users Table */}
-            <UserTable users={users} onUserClick={setSelectedUser} />
+            <UserTable users={users} onUserClick={setSelectedUser} days={days} />
           </div>
         )}
       </main>
 
       {/* User Detail Panel */}
-      <UserDetailPanel email={selectedUser} onClose={() => setSelectedUser(null)} />
+      <UserDetailPanel email={selectedUser} onClose={() => setSelectedUser(null)} days={days} />
 
       {/* Import Modal */}
       <ImportModal
@@ -303,11 +298,18 @@ export default function Dashboard() {
         onSuccess={() => setIsAuthOpen(false)}
         redirectPath={authRedirect || undefined}
       />
-
-      {/* Auth redirect handler (wrapped in Suspense for useSearchParams) */}
-      <Suspense fallback={null}>
-        <AuthRedirectHandler setIsAuthOpen={setIsAuthOpen} setAuthRedirect={setAuthRedirect} />
-      </Suspense>
     </div>
+  );
+}
+
+export default function Dashboard() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-[#0a0a0f] text-white grid-bg flex items-center justify-center">
+        <div className="font-mono text-sm text-white/40">Loading...</div>
+      </div>
+    }>
+      <DashboardContent />
+    </Suspense>
   );
 }

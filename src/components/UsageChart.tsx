@@ -1,12 +1,13 @@
 'use client';
 
 import { motion } from 'framer-motion';
-import { formatTokens, formatDate } from '@/lib/utils';
+import { formatTokens, formatDate, formatCurrency } from '@/lib/utils';
 
 interface DailyUsage {
   date: string;
   claudeCode: number;
   cursor: number;
+  cost?: number;
 }
 
 interface UsageChartProps {
@@ -27,7 +28,7 @@ export function UsageChart({ data }: UsageChartProps) {
     >
       <div className="mb-4 flex items-center justify-between">
         <h3 className="font-mono text-xs uppercase tracking-wider text-white/60">
-          Daily Token Consumption
+          Daily Usage
         </h3>
         <div className="flex gap-4">
           <span className="font-mono text-xs text-amber-400">
@@ -72,9 +73,13 @@ export function UsageChart({ data }: UsageChartProps) {
 
               {/* Tooltip */}
               <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block z-10">
-                <div className="rounded bg-black/90 px-2 py-1 text-[10px] whitespace-nowrap border border-white/10">
+                <div className="rounded bg-black/90 px-2 py-1.5 text-[10px] whitespace-nowrap border border-white/10">
+                  <div className="text-white/60 mb-1">{formatDate(item.date)}</div>
                   <div className="text-amber-400">{formatTokens(item.claudeCode)}</div>
                   <div className="text-cyan-400">{formatTokens(item.cursor)}</div>
+                  {item.cost !== undefined && (
+                    <div className="text-green-400 mt-1 pt-1 border-t border-white/10">{formatCurrency(item.cost)}</div>
+                  )}
                 </div>
               </div>
             </div>

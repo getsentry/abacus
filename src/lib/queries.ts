@@ -33,6 +33,7 @@ export interface DailyUsage {
   date: string;
   claudeCode: number;
   cursor: number;
+  cost: number;
 }
 
 export async function getOverallStats(startDate?: string, endDate?: string): Promise<UsageStats> {
@@ -287,18 +288,24 @@ export async function getUserDetailsExtended(email: string, days: number = 30): 
   `;
 
   const dailyResult = await sql`
+    WITH date_series AS (
+      SELECT generate_series(
+        CURRENT_DATE - ${days}::int,
+        CURRENT_DATE - 1,
+        '1 day'::interval
+      )::date as date
+    )
     SELECT
-      date::text,
-      SUM(CASE WHEN tool = 'claude_code' THEN input_tokens + cache_write_tokens + output_tokens ELSE 0 END)::bigint as "claudeCode",
-      SUM(CASE WHEN tool = 'cursor' THEN input_tokens + cache_write_tokens + output_tokens ELSE 0 END)::bigint as cursor,
-      SUM(input_tokens)::bigint as "inputTokens",
-      SUM(output_tokens)::bigint as "outputTokens",
-      SUM(cost)::float as cost
-    FROM usage_records
-    WHERE email = ${email}
-      AND date >= CURRENT_DATE - ${days}::int
-    GROUP BY date
-    ORDER BY date ASC
+      ds.date::text,
+      COALESCE(SUM(CASE WHEN r.tool = 'claude_code' THEN r.input_tokens + r.cache_write_tokens + r.output_tokens ELSE 0 END), 0)::bigint as "claudeCode",
+      COALESCE(SUM(CASE WHEN r.tool = 'cursor' THEN r.input_tokens + r.cache_write_tokens + r.output_tokens ELSE 0 END), 0)::bigint as cursor,
+      COALESCE(SUM(r.input_tokens), 0)::bigint as "inputTokens",
+      COALESCE(SUM(r.output_tokens), 0)::bigint as "outputTokens",
+      COALESCE(SUM(r.cost), 0)::float as cost
+    FROM date_series ds
+    LEFT JOIN usage_records r ON r.date = ds.date AND r.email = ${email}
+    GROUP BY ds.date
+    ORDER BY ds.date ASC
   `;
 
   return {
@@ -322,25 +329,34 @@ export async function getModelBreakdown(): Promise<ModelBreakdown[]> {
   `;
 
   const models = result.rows as { model: string; tokens: number; tool: string }[];
-  const total = models.reduce((sum, m) => sum + m.tokens, 0);
+  const total = models.reduce((sum, m) => sum + Number(m.tokens), 0);
 
   return models.map(m => ({
     ...m,
-    percentage: total > 0 ? Math.round((m.tokens / total) * 100) : 0
+    tokens: Number(m.tokens),
+    percentage: total > 0 ? Math.round((Number(m.tokens) / total) * 100) : 0
   }));
 }
 
 export async function getDailyUsage(days = 14): Promise<DailyUsage[]> {
 
   const result = await sql`
+    WITH date_series AS (
+      SELECT generate_series(
+        CURRENT_DATE - ${days}::int,
+        CURRENT_DATE - 1,
+        '1 day'::interval
+      )::date as date
+    )
     SELECT
-      date::text,
-      SUM(CASE WHEN tool = 'claude_code' THEN input_tokens + cache_write_tokens + output_tokens ELSE 0 END)::bigint as "claudeCode",
-      SUM(CASE WHEN tool = 'cursor' THEN input_tokens + cache_write_tokens + output_tokens ELSE 0 END)::bigint as cursor
-    FROM usage_records
-    WHERE date >= CURRENT_DATE - ${days}::int
-    GROUP BY date
-    ORDER BY date ASC
+      ds.date::text,
+      COALESCE(SUM(CASE WHEN r.tool = 'claude_code' THEN r.input_tokens + r.cache_write_tokens + r.output_tokens ELSE 0 END), 0)::bigint as "claudeCode",
+      COALESCE(SUM(CASE WHEN r.tool = 'cursor' THEN r.input_tokens + r.cache_write_tokens + r.output_tokens ELSE 0 END), 0)::bigint as cursor,
+      COALESCE(SUM(r.cost), 0)::float as cost
+    FROM date_series ds
+    LEFT JOIN usage_records r ON r.date = ds.date
+    GROUP BY ds.date
+    ORDER BY ds.date ASC
   `;
 
   return result.rows as DailyUsage[];

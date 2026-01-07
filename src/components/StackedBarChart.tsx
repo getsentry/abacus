@@ -1,12 +1,13 @@
 'use client';
 
 import { motion } from 'framer-motion';
-import { formatTokens, formatDate } from '@/lib/utils';
+import { formatTokens, formatDate, formatCurrency } from '@/lib/utils';
 
 interface DailyUsage {
   date: string;
   claudeCode: number;
   cursor: number;
+  cost?: number;
 }
 
 interface StackedBarChartProps {
@@ -27,7 +28,7 @@ export function StackedBarChart({ data, height = 160, showLabels = true }: Stack
     <div className="w-full">
       <div className="mb-4 flex items-center justify-between">
         <h3 className="font-mono text-xs uppercase tracking-wider text-white/60">
-          Daily Token Usage <span className="text-white/30">({data.length} days)</span>
+          Daily Usage <span className="text-white/30">({data.length} days)</span>
         </h3>
         <div className="flex gap-4">
           <span className="font-mono text-xs text-amber-400">
@@ -83,6 +84,9 @@ export function StackedBarChart({ data, height = 160, showLabels = true }: Stack
                   <div className="text-white/60 mb-1">{formatDate(item.date)}</div>
                   <div className="text-amber-400">Claude: {formatTokens(item.claudeCode)}</div>
                   <div className="text-cyan-400">Cursor: {formatTokens(item.cursor)}</div>
+                  {item.cost !== undefined && (
+                    <div className="text-green-400 mt-1 pt-1 border-t border-white/10">{formatCurrency(item.cost)}</div>
+                  )}
                 </div>
               </div>
             </div>

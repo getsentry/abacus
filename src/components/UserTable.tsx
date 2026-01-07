@@ -17,9 +17,10 @@ interface UserSummary {
 interface UserTableProps {
   users: UserSummary[];
   onUserClick: (email: string) => void;
+  days?: number;
 }
 
-export function UserTable({ users, onUserClick }: UserTableProps) {
+export function UserTable({ users, onUserClick, days = 30 }: UserTableProps) {
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -32,7 +33,7 @@ export function UserTable({ users, onUserClick }: UserTableProps) {
           Top Users
         </h3>
         <Link
-          href="/users"
+          href={`/users?days=${days}`}
           className="font-mono text-xs text-amber-500 hover:text-amber-400 transition-colors"
         >
           View All →

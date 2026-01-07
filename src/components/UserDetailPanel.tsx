@@ -22,16 +22,17 @@ interface UserDetails {
 interface UserDetailPanelProps {
   email: string | null;
   onClose: () => void;
+  days?: number;
 }
 
-export function UserDetailPanel({ email, onClose }: UserDetailPanelProps) {
+export function UserDetailPanel({ email, onClose, days = 30 }: UserDetailPanelProps) {
   const [details, setDetails] = useState<UserDetails | null>(null);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     if (email) {
       setLoading(true);
-      fetch(`/api/users/${encodeURIComponent(email)}`)
+      fetch(`/api/users/${encodeURIComponent(email)}?days=${days}`)
         .then(res => res.json())
         .then(data => {
           setDetails(data);
@@ -41,7 +42,7 @@ export function UserDetailPanel({ email, onClose }: UserDetailPanelProps) {
     } else {
       setDetails(null);
     }
-  }, [email]);
+  }, [email, days]);
 
   const user = details?.summary;
 
@@ -64,7 +65,7 @@ export function UserDetailPanel({ email, onClose }: UserDetailPanelProps) {
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: 300 }}
             transition={{ type: 'spring', damping: 30, stiffness: 300 }}
-            className="fixed right-0 top-0 z-40 h-full w-96 border-l border-white/10 bg-[#0a0a0f]/95 p-6 backdrop-blur-xl overflow-y-auto"
+            className="fixed right-0 top-0 z-40 h-full w-[480px] border-l border-white/10 bg-[#0a0a0f]/95 p-6 backdrop-blur-xl overflow-y-auto"
           >
             <button
               onClick={onClose}
@@ -84,7 +85,7 @@ export function UserDetailPanel({ email, onClose }: UserDetailPanelProps) {
                 <div className="mb-6">
                   <h2 className="font-display text-2xl text-white">{user.email}</h2>
                   <Link
-                    href={`/users/${encodeURIComponent(user.email.split('@')[0])}`}
+                    href={`/users/${encodeURIComponent(user.email.split('@')[0])}?days=${days}`}
                     className="mt-3 inline-flex items-center gap-1.5 font-mono text-xs text-amber-400 hover:text-amber-300 transition-colors"
                   >
                     View Full Details
