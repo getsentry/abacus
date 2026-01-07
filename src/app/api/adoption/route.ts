@@ -36,6 +36,7 @@ async function handler(request: Request) {
       previousPeriod: {
         avgScore: prevSummary.avgScore,
         activeUsers: prevSummary.activeUsers,
+        inFlowCount: prevSummary.stages.in_flow.count,
         powerUserCount: prevSummary.stages.power_user.count,
       },
     });

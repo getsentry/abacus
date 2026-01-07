@@ -27,6 +27,7 @@ interface AdoptionSummary {
   previousPeriod?: {
     avgScore: number;
     activeUsers: number;
+    inFlowCount: number;
     powerUserCount: number;
   };
 }
@@ -246,8 +247,12 @@ function AdoptionPageContent() {
                 const productivePercent = summary.activeUsers > 0
                   ? Math.round((productiveCount / summary.activeUsers) * 100)
                   : 0;
-                // Calculate previous period productive count (power users only since we track that)
-                const prevPowerUserCount = summary.previousPeriod?.powerUserCount || 0;
+                // Calculate previous period productive percentage for proper comparison
+                const prev = summary.previousPeriod;
+                const prevProductiveCount = prev ? (prev.inFlowCount + prev.powerUserCount) : 0;
+                const prevProductivePercent = prev && prev.activeUsers > 0
+                  ? Math.round((prevProductiveCount / prev.activeUsers) * 100)
+                  : 0;
                 return (
                   <StatCard
                     label="Productive"
@@ -256,7 +261,7 @@ function AdoptionPageContent() {
                     suffix="of active users"
                     icon={Target}
                     accentColor="#06b6d4"
-                    trend={summary.previousPeriod ? calculateDelta(powerUserCount, prevPowerUserCount) : undefined}
+                    trend={prev ? calculateDelta(productivePercent, prevProductivePercent) : undefined}
                     delay={0.2}
                   >
                     <p className="font-mono text-xs text-white/50">

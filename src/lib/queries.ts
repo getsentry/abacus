@@ -55,7 +55,7 @@ export async function getOverallStats(startDate?: string, endDate?: string): Pro
         COALESCE(SUM(input_tokens), 0)::bigint as "totalInputTokens",
         COALESCE(SUM(output_tokens), 0)::bigint as "totalOutputTokens",
         COALESCE(SUM(cache_read_tokens), 0)::bigint as "totalCacheReadTokens",
-        COUNT(DISTINCT email)::int as "activeUsers",
+        COUNT(DISTINCT CASE WHEN email != 'unknown' THEN email END)::int as "activeUsers",
         COALESCE(SUM(CASE WHEN tool = 'claude_code' THEN input_tokens + cache_write_tokens + output_tokens ELSE 0 END), 0)::bigint as "claudeCodeTokens",
         COALESCE(SUM(CASE WHEN tool = 'cursor' THEN input_tokens + cache_write_tokens + output_tokens ELSE 0 END), 0)::bigint as "cursorTokens"
       FROM usage_records
@@ -69,7 +69,7 @@ export async function getOverallStats(startDate?: string, endDate?: string): Pro
         COALESCE(SUM(input_tokens), 0)::bigint as "totalInputTokens",
         COALESCE(SUM(output_tokens), 0)::bigint as "totalOutputTokens",
         COALESCE(SUM(cache_read_tokens), 0)::bigint as "totalCacheReadTokens",
-        COUNT(DISTINCT email)::int as "activeUsers",
+        COUNT(DISTINCT CASE WHEN email != 'unknown' THEN email END)::int as "activeUsers",
         COALESCE(SUM(CASE WHEN tool = 'claude_code' THEN input_tokens + cache_write_tokens + output_tokens ELSE 0 END), 0)::bigint as "claudeCodeTokens",
         COALESCE(SUM(CASE WHEN tool = 'cursor' THEN input_tokens + cache_write_tokens + output_tokens ELSE 0 END), 0)::bigint as "cursorTokens"
       FROM usage_records
@@ -83,7 +83,7 @@ export async function getOverallStats(startDate?: string, endDate?: string): Pro
         COALESCE(SUM(input_tokens), 0)::bigint as "totalInputTokens",
         COALESCE(SUM(output_tokens), 0)::bigint as "totalOutputTokens",
         COALESCE(SUM(cache_read_tokens), 0)::bigint as "totalCacheReadTokens",
-        COUNT(DISTINCT email)::int as "activeUsers",
+        COUNT(DISTINCT CASE WHEN email != 'unknown' THEN email END)::int as "activeUsers",
         COALESCE(SUM(CASE WHEN tool = 'claude_code' THEN input_tokens + cache_write_tokens + output_tokens ELSE 0 END), 0)::bigint as "claudeCodeTokens",
         COALESCE(SUM(CASE WHEN tool = 'cursor' THEN input_tokens + cache_write_tokens + output_tokens ELSE 0 END), 0)::bigint as "cursorTokens"
       FROM usage_records
@@ -97,7 +97,7 @@ export async function getOverallStats(startDate?: string, endDate?: string): Pro
         COALESCE(SUM(input_tokens), 0)::bigint as "totalInputTokens",
         COALESCE(SUM(output_tokens), 0)::bigint as "totalOutputTokens",
         COALESCE(SUM(cache_read_tokens), 0)::bigint as "totalCacheReadTokens",
-        COUNT(DISTINCT email)::int as "activeUsers",
+        COUNT(DISTINCT CASE WHEN email != 'unknown' THEN email END)::int as "activeUsers",
         COALESCE(SUM(CASE WHEN tool = 'claude_code' THEN input_tokens + cache_write_tokens + output_tokens ELSE 0 END), 0)::bigint as "claudeCodeTokens",
         COALESCE(SUM(CASE WHEN tool = 'cursor' THEN input_tokens + cache_write_tokens + output_tokens ELSE 0 END), 0)::bigint as "cursorTokens"
       FROM usage_records
@@ -154,10 +154,11 @@ export async function getOverallStatsWithComparison(
   `;
 
   // Active users need separate subqueries since COUNT DISTINCT with CASE doesn't work as expected
+  // Exclude 'unknown' to match adoption page query
   const activeUsersResult = await sql`
     SELECT
-      (SELECT COUNT(DISTINCT email) FROM usage_records WHERE date >= ${startDate} AND date <= ${endDate})::int as "activeUsers",
-      (SELECT COUNT(DISTINCT email) FROM usage_records WHERE date >= ${prevStartDate} AND date <= ${prevEndDate})::int as "prevActiveUsers"
+      (SELECT COUNT(DISTINCT email) FROM usage_records WHERE date >= ${startDate} AND date <= ${endDate} AND email != 'unknown')::int as "activeUsers",
+      (SELECT COUNT(DISTINCT email) FROM usage_records WHERE date >= ${prevStartDate} AND date <= ${prevEndDate} AND email != 'unknown')::int as "prevActiveUsers"
   `;
 
   const row = result.rows[0];
