@@ -88,7 +88,7 @@ function GuideContent() {
       <TipBar />
 
       {/* Content */}
-      <main className="relative py-8 sm:py-12">
+      <main className="relative pt-8 sm:pt-12 pb-16 sm:pb-24">
         <PageContainer>
         <div className="max-w-2xl mx-auto">
         {/* Back Link */}
