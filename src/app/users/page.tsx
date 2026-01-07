@@ -20,7 +20,6 @@ interface UserPivotData {
   inputTokens: number;
   outputTokens: number;
   cacheReadTokens: number;
-  requestCount: number;
   firstActive: string;
   lastActive: string;
   daysActive: number;
@@ -37,7 +36,6 @@ const columns: { key: SortKey; label: string; align: 'left' | 'right'; format?: 
   { key: 'cursorTokens', label: 'Cursor', align: 'right', format: formatTokens },
   { key: 'inputTokens', label: 'Input', align: 'right', format: formatTokens },
   { key: 'outputTokens', label: 'Output', align: 'right', format: formatTokens },
-  { key: 'requestCount', label: 'Requests', align: 'right', format: (v) => v.toLocaleString() },
   { key: 'daysActive', label: 'Days Active', align: 'right', format: (v) => v.toString() },
   { key: 'avgTokensPerDay', label: 'Avg/Day', align: 'right', format: formatTokens },
   { key: 'lastActive', label: 'Last Active', align: 'right' },
@@ -119,9 +117,8 @@ function UsersPageContent() {
       cursorTokens: acc.cursorTokens + Number(u.cursorTokens),
       inputTokens: acc.inputTokens + Number(u.inputTokens),
       outputTokens: acc.outputTokens + Number(u.outputTokens),
-      requestCount: acc.requestCount + Number(u.requestCount),
     }),
-    { totalTokens: 0, totalCost: 0, claudeCodeTokens: 0, cursorTokens: 0, inputTokens: 0, outputTokens: 0, requestCount: 0 }
+    { totalTokens: 0, totalCost: 0, claudeCodeTokens: 0, cursorTokens: 0, inputTokens: 0, outputTokens: 0 }
   );
 
   return (

@@ -76,7 +76,6 @@ interface UserDetails {
     lastActive: string;
     firstActive: string;
     daysActive: number;
-    requestCount: number;
   };
   modelBreakdown: {
     model: string;
@@ -230,13 +229,6 @@ function UserDetailContent() {
                 subValue={`$${(data.summary.totalCost / Math.max(data.summary.daysActive, 1)).toFixed(2)}/day avg`}
                 accentColor="#22c55e"
                 delay={0.05}
-              />
-              <StatCard
-                label="Requests"
-                value={data.summary.requestCount.toLocaleString()}
-                subValue={`${Math.round(data.summary.requestCount / Math.max(data.summary.daysActive, 1))}/day avg`}
-                accentColor="#8b5cf6"
-                delay={0.1}
               />
               <StatCard
                 label="Avg per Day"
@@ -466,7 +458,7 @@ function UserDetailContent() {
               <h3 className="font-mono text-xs uppercase tracking-wider text-white/60 mb-4">
                 Activity
               </h3>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 sm:gap-8">
+              <div className="grid grid-cols-3 gap-4 sm:gap-8">
                 <div>
                   <p className="font-mono text-[10px] uppercase tracking-wider text-white/40 mb-1">First Active</p>
                   <p className="font-mono text-xs sm:text-sm text-white">{formatDate(data.summary.firstActive)}</p>
@@ -478,10 +470,6 @@ function UserDetailContent() {
                 <div>
                   <p className="font-mono text-[10px] uppercase tracking-wider text-white/40 mb-1">Days Active</p>
                   <p className="font-mono text-xs sm:text-sm text-white">{data.summary.daysActive}</p>
-                </div>
-                <div>
-                  <p className="font-mono text-[10px] uppercase tracking-wider text-white/40 mb-1">Total Requests</p>
-                  <p className="font-mono text-xs sm:text-sm text-white">{data.summary.requestCount.toLocaleString()}</p>
                 </div>
               </div>
             </motion.div>

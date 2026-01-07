@@ -235,7 +235,6 @@ export interface UserDetailsExtended {
     lastActive: string;
     firstActive: string;
     daysActive: number;
-    requestCount: number;
   } | undefined;
   modelBreakdown: {
     model: string;
@@ -268,8 +267,7 @@ export async function getUserDetailsExtended(email: string, days: number = DEFAU
       SUM(cache_read_tokens)::bigint as "cacheReadTokens",
       MAX(date)::text as "lastActive",
       MIN(date)::text as "firstActive",
-      COUNT(DISTINCT date)::int as "daysActive",
-      COUNT(*)::int as "requestCount"
+      COUNT(DISTINCT date)::int as "daysActive"
     FROM usage_records
     WHERE email = ${email}
       AND date >= CURRENT_DATE - ${days}::int
@@ -451,7 +449,6 @@ export interface UserPivotData {
   inputTokens: number;
   outputTokens: number;
   cacheReadTokens: number;
-  requestCount: number;
   firstActive: string;
   lastActive: string;
   daysActive: number;
@@ -467,7 +464,7 @@ export async function getAllUsersPivot(
 
   const validSortColumns = [
     'email', 'totalTokens', 'totalCost', 'claudeCodeTokens', 'cursorTokens',
-    'inputTokens', 'outputTokens', 'requestCount', 'firstActive', 'lastActive',
+    'inputTokens', 'outputTokens', 'firstActive', 'lastActive',
     'daysActive', 'avgTokensPerDay'
   ];
   const safeSortBy = validSortColumns.includes(sortBy) ? sortBy : 'totalTokens';
@@ -485,7 +482,6 @@ export async function getAllUsersPivot(
           SUM(r.input_tokens)::bigint as "inputTokens",
           SUM(r.output_tokens)::bigint as "outputTokens",
           SUM(r.cache_read_tokens)::bigint as "cacheReadTokens",
-          COUNT(*)::int as "requestCount",
           MIN(r.date)::text as "firstActive",
           la."lastActive",
           COUNT(DISTINCT r.date)::int as "daysActive"
@@ -512,7 +508,6 @@ export async function getAllUsersPivot(
           SUM(r.input_tokens)::bigint as "inputTokens",
           SUM(r.output_tokens)::bigint as "outputTokens",
           SUM(r.cache_read_tokens)::bigint as "cacheReadTokens",
-          COUNT(*)::int as "requestCount",
           MIN(r.date)::text as "firstActive",
           la."lastActive",
           COUNT(DISTINCT r.date)::int as "daysActive"
