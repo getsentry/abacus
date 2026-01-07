@@ -15,8 +15,16 @@ import { AdoptionDistribution } from '@/components/AdoptionDistribution';
 import { PageContainer } from '@/components/PageContainer';
 import { formatTokens, formatCurrency } from '@/lib/utils';
 import { useTimeRange } from '@/contexts/TimeRangeContext';
-import { type AdoptionStage } from '@/lib/adoption';
+import { type AdoptionStage, STAGE_CONFIG, STAGE_ORDER } from '@/lib/adoption';
 import { calculateDelta } from '@/lib/comparison';
+import { Compass, Flame, Zap, Star, Users, Target } from 'lucide-react';
+
+const STAGE_ICONS = {
+  exploring: Compass,
+  building_momentum: Flame,
+  in_flow: Zap,
+  power_user: Star,
+} as const;
 
 interface Stats {
   totalTokens: number;
@@ -204,7 +212,11 @@ function DashboardContent() {
                 value={formatTokens(stats.totalTokens)}
                 trend={stats.previousPeriod ? calculateDelta(stats.totalTokens, stats.previousPeriod.totalTokens) : undefined}
                 delay={0}
-              />
+              >
+                <p className="font-mono text-xs text-white/50">
+                  {formatTokens(stats.activeUsers > 0 ? Math.round(stats.totalTokens / stats.activeUsers) : 0)} avg per user
+                </p>
+              </StatCard>
               <StatCard
                 label="Estimated Cost"
                 days={days}
@@ -212,28 +224,60 @@ function DashboardContent() {
                 trend={stats.previousPeriod ? calculateDelta(stats.totalCost, stats.previousPeriod.totalCost) : undefined}
                 accentColor="#06b6d4"
                 delay={0.1}
-              />
+              >
+                <p className="font-mono text-xs text-white/50">
+                  {formatCurrency(stats.activeUsers > 0 ? stats.totalCost / stats.activeUsers : 0)} per user
+                </p>
+              </StatCard>
               <StatCard
                 label="Active Users"
                 days={days}
                 value={stats.activeUsers.toString()}
+                suffix="users"
+                icon={Users}
                 trend={stats.previousPeriod ? calculateDelta(stats.activeUsers, stats.previousPeriod.activeUsers) : undefined}
                 accentColor="#10b981"
                 delay={0.2}
-              />
-              <StatCard
-                label="Avg per User"
-                days={days}
-                value={formatTokens(stats.activeUsers > 0 ? Math.round(stats.totalTokens / stats.activeUsers) : 0)}
-                trend={stats.previousPeriod && stats.previousPeriod.activeUsers > 0
-                  ? calculateDelta(
-                      stats.activeUsers > 0 ? stats.totalTokens / stats.activeUsers : 0,
-                      stats.previousPeriod.totalTokens / stats.previousPeriod.activeUsers
-                    )
-                  : undefined}
-                accentColor="#8b5cf6"
-                delay={0.3}
-              />
+              >
+                {adoptionData && (
+                  <div className="flex gap-3">
+                    {STAGE_ORDER.map(stage => {
+                      const Icon = STAGE_ICONS[stage];
+                      const count = adoptionData.stages[stage]?.count || 0;
+                      const config = STAGE_CONFIG[stage];
+                      return (
+                        <div key={stage} className="flex items-center gap-1">
+                          <Icon className={`w-3 h-3 ${config.textColor}`} />
+                          <span className={`font-mono text-xs ${config.textColor}`}>{count}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </StatCard>
+              {(() => {
+                const inFlowCount = adoptionData?.stages.in_flow?.count || 0;
+                const powerUserCount = adoptionData?.stages.power_user?.count || 0;
+                const productiveCount = inFlowCount + powerUserCount;
+                const productivePercent = stats.activeUsers > 0
+                  ? Math.round((productiveCount / stats.activeUsers) * 100)
+                  : 0;
+                return (
+                  <StatCard
+                    label="Productive"
+                    days={days}
+                    value={`${productivePercent}%`}
+                    suffix="of active users"
+                    icon={Target}
+                    accentColor="#8b5cf6"
+                    delay={0.3}
+                  >
+                    <p className="font-mono text-xs text-white/50">
+                      {productiveCount} in flow or power user
+                    </p>
+                  </StatCard>
+                );
+              })()}
             </div>
 
             {/* Adoption Distribution */}
