@@ -1,10 +1,11 @@
 'use client';
 
 import { motion, AnimatePresence } from 'framer-motion';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import Link from 'next/link';
 import { formatTokens, formatCurrency, formatModelName } from '@/lib/utils';
 import { DEFAULT_DAYS } from '@/lib/constants';
+import { getToolConfig, formatToolName, calculateToolBreakdown, type ToolBreakdown } from '@/lib/tools';
 
 interface UserDetails {
   summary: {
@@ -16,7 +17,7 @@ interface UserDetails {
     lastActive: string;
     firstActive: string;
   };
-  modelBreakdown: { model: string; tokens: number; tool: string }[];
+  modelBreakdown: { model: string; tokens: number; cost: number; tool: string }[];
   dailyUsage: { date: string; claudeCode: number; cursor: number }[];
 }
 
@@ -46,6 +47,12 @@ export function UserDetailPanel({ email, onClose, days = DEFAULT_DAYS }: UserDet
   }, [email, days]);
 
   const user = details?.summary;
+
+  // Calculate tool breakdown from model data
+  const toolBreakdown = useMemo<ToolBreakdown[]>(() => {
+    if (!details?.modelBreakdown) return [];
+    return calculateToolBreakdown(details.modelBreakdown);
+  }, [details?.modelBreakdown]);
 
   return (
     <AnimatePresence>
@@ -103,48 +110,72 @@ export function UserDetailPanel({ email, onClose, days = DEFAULT_DAYS }: UserDet
                     <p className="font-mono text-xs text-white/50">{formatCurrency(user.totalCost)} estimated cost</p>
                   </div>
 
-                  <div className="rounded-lg border border-white/5 bg-white/[0.02] p-4">
-                    <p className="mb-3 font-mono text-[10px] uppercase tracking-wider text-white/40">Tool Breakdown</p>
-                    <div className="space-y-2">
-                      <div>
-                        <div className="flex justify-between mb-1">
-                          <span className="font-mono text-xs text-amber-400">Claude Code</span>
-                          <span className="font-mono text-xs text-white/60">{formatTokens(user.claudeCodeTokens)}</span>
-                        </div>
-                        <div className="h-1.5 rounded-full bg-white/5">
-                          <div
-                            className="h-full rounded-full bg-amber-500"
-                            style={{ width: `${user.totalTokens > 0 ? (user.claudeCodeTokens / user.totalTokens) * 100 : 0}%` }}
-                          />
+                  {/* Tool Breakdown - Dynamic */}
+                  {toolBreakdown.length > 0 && (
+                    <div className="rounded-lg border border-white/5 bg-white/[0.02] p-4">
+                      <p className="mb-3 font-mono text-[10px] uppercase tracking-wider text-white/40">Tool Breakdown</p>
+
+                      {/* Stacked bar */}
+                      <div className="mb-4">
+                        <div className="h-2 rounded-full bg-white/5 overflow-hidden flex">
+                          {toolBreakdown.map((t, i) => {
+                            const config = getToolConfig(t.tool);
+                            return (
+                              <div
+                                key={t.tool}
+                                className={`h-full ${config.bg} ${i === 0 ? 'rounded-l-full' : ''} ${i === toolBreakdown.length - 1 ? 'rounded-r-full' : ''}`}
+                                style={{ width: `${t.percentage}%` }}
+                              />
+                            );
+                          })}
                         </div>
                       </div>
-                      <div>
-                        <div className="flex justify-between mb-1">
-                          <span className="font-mono text-xs text-cyan-400">Cursor</span>
-                          <span className="font-mono text-xs text-white/60">{formatTokens(user.cursorTokens)}</span>
-                        </div>
-                        <div className="h-1.5 rounded-full bg-white/5">
-                          <div
-                            className="h-full rounded-full bg-cyan-500"
-                            style={{ width: `${user.totalTokens > 0 ? (user.cursorTokens / user.totalTokens) * 100 : 0}%` }}
-                          />
-                        </div>
+
+                      {/* Tool list */}
+                      <div className="space-y-2">
+                        {toolBreakdown.map(t => {
+                          const config = getToolConfig(t.tool);
+                          return (
+                            <div key={t.tool} className="flex justify-between items-center">
+                              <div className="flex items-center gap-2">
+                                <div className={`w-2 h-2 rounded-full ${config.bg}`} />
+                                <span className={`font-mono text-xs ${config.text}`}>
+                                  {formatToolName(t.tool)}
+                                </span>
+                              </div>
+                              <div className="text-right">
+                                <span className="font-mono text-xs text-white/60">
+                                  {formatTokens(t.tokens)}
+                                </span>
+                                <span className="font-mono text-[10px] text-white/30 ml-2">
+                                  {t.percentage.toFixed(0)}%
+                                </span>
+                              </div>
+                            </div>
+                          );
+                        })}
                       </div>
                     </div>
-                  </div>
+                  )}
 
                   {details?.modelBreakdown && details.modelBreakdown.length > 0 && (
                     <div className="rounded-lg border border-white/5 bg-white/[0.02] p-4">
                       <p className="mb-3 font-mono text-[10px] uppercase tracking-wider text-white/40">Models Used</p>
                       <div className="space-y-2">
-                        {details.modelBreakdown.slice(0, 5).map(m => (
-                          <div key={`${m.model}-${m.tool}`} className="flex justify-between">
-                            <span className="font-mono text-xs text-white/70 truncate max-w-[180px]">
-                              {formatModelName(m.model)}
-                            </span>
-                            <span className="font-mono text-xs text-white/40">{formatTokens(m.tokens)}</span>
-                          </div>
-                        ))}
+                        {details.modelBreakdown.slice(0, 5).map(m => {
+                          const config = getToolConfig(m.tool);
+                          return (
+                            <div key={`${m.model}-${m.tool}`} className="flex justify-between items-center">
+                              <div className="flex items-center gap-2">
+                                <div className={`w-1.5 h-1.5 rounded-full ${config.bg}`} />
+                                <span className="font-mono text-xs text-white/70 truncate max-w-[180px]">
+                                  {formatModelName(m.model)}
+                                </span>
+                              </div>
+                              <span className="font-mono text-xs text-white/40">{formatTokens(m.tokens)}</span>
+                            </div>
+                          );
+                        })}
                       </div>
                     </div>
                   )}

@@ -4,6 +4,7 @@ import { motion } from 'framer-motion';
 import Link from 'next/link';
 import { formatTokens, formatCurrency } from '@/lib/utils';
 import { DEFAULT_DAYS } from '@/lib/constants';
+import { getToolConfig, formatToolName } from '@/lib/tools';
 
 interface UserSummary {
   email: string;
@@ -13,6 +14,18 @@ interface UserSummary {
   cursorTokens: number;
   favoriteModel: string;
   lastActive: string;
+}
+
+// Build tool breakdown from summary data
+function getToolBreakdownFromSummary(user: UserSummary) {
+  const tools = [];
+  if (user.claudeCodeTokens > 0) {
+    tools.push({ tool: 'claude_code', tokens: Number(user.claudeCodeTokens) });
+  }
+  if (user.cursorTokens > 0) {
+    tools.push({ tool: 'cursor', tokens: Number(user.cursorTokens) });
+  }
+  return tools.sort((a, b) => b.tokens - a.tokens);
 }
 
 interface UserTableProps {
@@ -77,27 +90,41 @@ export function UserTable({ users, onUserClick, days = DEFAULT_DAYS }: UserTable
                   <span className="font-mono text-xs sm:text-sm text-white/60">{formatCurrency(user.totalCost)}</span>
                 </td>
                 <td className="py-2.5 sm:py-3 pr-3 hidden sm:table-cell w-20 sm:w-28">
-                  <div className="group/dist relative flex gap-0.5 w-full">
-                    {Number(user.totalTokens) > 0 && (
-                      <>
-                        <div
-                          className="h-1.5 sm:h-2 rounded-l bg-amber-500"
-                          style={{ width: `${(Number(user.claudeCodeTokens) / Number(user.totalTokens)) * 100}%` }}
-                        />
-                        <div
-                          className="h-1.5 sm:h-2 rounded-r bg-cyan-500"
-                          style={{ width: `${(Number(user.cursorTokens) / Number(user.totalTokens)) * 100}%` }}
-                        />
+                  {(() => {
+                    const tools = getToolBreakdownFromSummary(user);
+                    const total = Number(user.totalTokens);
+                    if (total === 0 || tools.length === 0) return null;
+
+                    return (
+                      <div className="group/dist relative flex gap-0.5 w-full">
+                        {tools.map((t, i) => {
+                          const config = getToolConfig(t.tool);
+                          const pct = (t.tokens / total) * 100;
+                          return (
+                            <div
+                              key={t.tool}
+                              className={`h-1.5 sm:h-2 ${config.bg} ${i === 0 ? 'rounded-l' : ''} ${i === tools.length - 1 ? 'rounded-r' : ''}`}
+                              style={{ width: `${pct}%` }}
+                            />
+                          );
+                        })}
                         {/* Tooltip */}
                         <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover/dist:block z-20 pointer-events-none">
                           <div className="rounded bg-black/95 px-2 py-1.5 text-[10px] whitespace-nowrap border border-white/10 shadow-lg">
-                            <div className="text-amber-400">Claude Code: {formatTokens(user.claudeCodeTokens)} ({Math.round((Number(user.claudeCodeTokens) / Number(user.totalTokens)) * 100)}%)</div>
-                            <div className="text-cyan-400">Cursor: {formatTokens(user.cursorTokens)} ({Math.round((Number(user.cursorTokens) / Number(user.totalTokens)) * 100)}%)</div>
+                            {tools.map(t => {
+                              const config = getToolConfig(t.tool);
+                              const pct = Math.round((t.tokens / total) * 100);
+                              return (
+                                <div key={t.tool} className={config.text}>
+                                  {formatToolName(t.tool)}: {formatTokens(t.tokens)} ({pct}%)
+                                </div>
+                              );
+                            })}
                           </div>
                         </div>
-                      </>
-                    )}
-                  </div>
+                      </div>
+                    );
+                  })()}
                 </td>
                 <td className="py-2.5 sm:py-3 hidden md:table-cell w-24">
                   <span className="font-mono text-[10px] text-white/40 truncate block">

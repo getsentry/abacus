@@ -14,7 +14,6 @@ import { ImportModal } from '@/components/ImportModal';
 import { AuthModal } from '@/components/AuthModal';
 import { formatTokens, formatCurrency } from '@/lib/utils';
 import { useTimeRange } from '@/contexts/TimeRangeContext';
-import Link from 'next/link';
 
 interface Stats {
   totalTokens: number;
@@ -66,13 +65,12 @@ function DashboardContent() {
   const [isAuthOpen, setIsAuthOpen] = useState(false);
   const [authRedirect, setAuthRedirect] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [unmappedCount, setUnmappedCount] = useState(0);
   const [isAdmin, setIsAdmin] = useState(false);
 
   // Handle auth redirect from query params
   useEffect(() => {
     if (searchParams.get('auth') === 'required') {
-      setAuthRedirect(searchParams.get('redirect') || '/settings');
+      setAuthRedirect(searchParams.get('redirect') || '/');
       setIsAuthOpen(true);
       router.replace('/', { scroll: false });
     }
@@ -91,27 +89,24 @@ function DashboardContent() {
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
-      const [statsRes, usersRes, trendsRes, modelsRes, mappingsRes] = await Promise.all([
+      const [statsRes, usersRes, trendsRes, modelsRes] = await Promise.all([
         fetch(`/api/stats?days=${days}`),
         fetch(`/api/users?limit=10&days=${days}`),
         fetch(`/api/trends?days=${days}`),
         fetch(`/api/models?days=${days}`),
-        fetch('/api/mappings'),
       ]);
 
-      const [statsData, usersData, trendsData, modelsData, mappingsData] = await Promise.all([
+      const [statsData, usersData, trendsData, modelsData] = await Promise.all([
         statsRes.json(),
         usersRes.json(),
         trendsRes.json(),
         modelsRes.json(),
-        mappingsRes.json(),
       ]);
 
       setStats(statsData);
       setUsers(usersData);
       setTrends(trendsData);
       setModels(modelsData);
-      setUnmappedCount(mappingsData.unmapped?.length || 0);
     } catch (error) {
       console.error('Failed to fetch data:', error);
     } finally {
@@ -170,26 +165,20 @@ function DashboardContent() {
           </div>
         ) : (
           <div className="space-y-4 sm:space-y-6">
-            {/* Unattributed Usage Alert (admin only) */}
-            {isAdmin && stats.unattributed && stats.unattributed.totalTokens > 0 && (
-              <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 sm:px-4 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            {/* Unattributed Usage Alert */}
+            {stats.unattributed && stats.unattributed.totalTokens > 0 && (
+              <div className="rounded-lg border border-white/10 bg-white/[0.02] px-3 sm:px-4 py-3">
                 <div className="flex items-center gap-3">
-                  <span className="text-amber-400 text-lg">⚠</span>
+                  <span className="text-white/40 text-lg">⚠</span>
                   <div>
-                    <p className="font-mono text-xs sm:text-sm text-amber-400">
+                    <p className="font-mono text-xs sm:text-sm text-white/60">
                       {formatTokens(stats.unattributed.totalTokens)} unattributed tokens ({formatCurrency(stats.unattributed.totalCost)})
                     </p>
-                    <p className="font-mono text-[10px] sm:text-xs text-white/50">
-                      {unmappedCount > 0 ? `${unmappedCount} unmapped API key${unmappedCount !== 1 ? 's' : ''} - ` : ''}Usage can't be attributed to specific users
+                    <p className="font-mono text-[10px] sm:text-xs text-white/40">
+                      Usage from API keys that aren't mapped to users
                     </p>
                   </div>
                 </div>
-                <Link
-                  href="/settings"
-                  className="rounded-lg bg-amber-500 px-4 py-2 font-mono text-xs text-black hover:bg-amber-400 transition-colors self-start sm:self-auto"
-                >
-                  Fix Mappings
-                </Link>
               </div>
             )}
 

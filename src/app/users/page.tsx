@@ -144,7 +144,7 @@ function UsersPageContent() {
       <div className="border-b border-white/5 px-4 sm:px-8 py-3">
         <div className="flex items-center justify-between">
           <h2 className="font-mono text-[10px] uppercase tracking-[0.2em] text-white/40">
-            {users.length} users
+            {loading ? '\u00A0' : `${users.length} users`}
           </h2>
         </div>
       </div>

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, Suspense } from 'react';
+import { useState, useEffect, useCallback, Suspense, useMemo } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { useTimeRange } from '@/contexts/TimeRangeContext';
@@ -10,6 +10,57 @@ import { StackedBarChart } from '@/components/StackedBarChart';
 import { TimeRangeSelector } from '@/components/TimeRangeSelector';
 import { MainNav } from '@/components/MainNav';
 import { formatTokens, formatCurrency, formatDate, formatModelName } from '@/lib/utils';
+
+// Tool color palette - extensible for future tools
+const TOOL_COLORS: Record<string, { bg: string; text: string; gradient: string }> = {
+  claude_code: {
+    bg: 'bg-amber-500',
+    text: 'text-amber-400',
+    gradient: 'from-amber-500/80 to-amber-400/60',
+  },
+  cursor: {
+    bg: 'bg-cyan-500',
+    text: 'text-cyan-400',
+    gradient: 'from-cyan-500/80 to-cyan-400/60',
+  },
+  // Future tools
+  windsurf: {
+    bg: 'bg-emerald-500',
+    text: 'text-emerald-400',
+    gradient: 'from-emerald-500/80 to-emerald-400/60',
+  },
+  copilot: {
+    bg: 'bg-violet-500',
+    text: 'text-violet-400',
+    gradient: 'from-violet-500/80 to-violet-400/60',
+  },
+  default: {
+    bg: 'bg-rose-500',
+    text: 'text-rose-400',
+    gradient: 'from-rose-500/80 to-rose-400/60',
+  },
+};
+
+function getToolColor(tool: string) {
+  return TOOL_COLORS[tool] || TOOL_COLORS.default;
+}
+
+function formatToolName(tool: string): string {
+  const names: Record<string, string> = {
+    claude_code: 'Claude Code',
+    cursor: 'Cursor',
+    windsurf: 'Windsurf',
+    copilot: 'Copilot',
+  };
+  return names[tool] || tool.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+}
+
+interface ToolBreakdown {
+  tool: string;
+  tokens: number;
+  cost: number;
+  percentage: number;
+}
 
 interface UserDetails {
   summary: {
@@ -86,6 +137,31 @@ function UserDetailContent() {
   const inputRatio = totalTokens > 0 ? (inputTokens / totalTokens) * 100 : 0;
   const outputRatio = totalTokens > 0 ? (outputTokens / totalTokens) * 100 : 0;
 
+  // Calculate tool breakdown from model data (aggregated by tool)
+  const toolBreakdown = useMemo<ToolBreakdown[]>(() => {
+    if (!data?.modelBreakdown) return [];
+
+    const byTool = data.modelBreakdown.reduce((acc, m) => {
+      if (!acc[m.tool]) {
+        acc[m.tool] = { tokens: 0, cost: 0 };
+      }
+      acc[m.tool].tokens += Number(m.tokens);
+      acc[m.tool].cost += Number(m.cost);
+      return acc;
+    }, {} as Record<string, { tokens: number; cost: number }>);
+
+    const total = Object.values(byTool).reduce((sum, t) => sum + t.tokens, 0);
+
+    return Object.entries(byTool)
+      .map(([tool, { tokens, cost }]) => ({
+        tool,
+        tokens,
+        cost,
+        percentage: total > 0 ? (tokens / total) * 100 : 0,
+      }))
+      .sort((a, b) => b.tokens - a.tokens);
+  }, [data?.modelBreakdown]);
+
   return (
     <div className="min-h-screen bg-[#0a0a0f] text-white grid-bg">
       {/* Header */}
@@ -141,7 +217,7 @@ function UserDetailContent() {
               <StatCard
                 label="Total Tokens"
                 value={formatTokens(data.summary.totalTokens)}
-                subValue={`${data.summary.requestCount.toLocaleString()} requests`}
+                subValue={`across ${data.summary.daysActive} days`}
                 accentColor="#ffffff"
                 delay={0}
               />
@@ -153,20 +229,85 @@ function UserDetailContent() {
                 delay={0.05}
               />
               <StatCard
-                label="Claude Code"
-                value={formatTokens(data.summary.claudeCodeTokens)}
-                subValue={`${totalTokens > 0 ? Math.round((data.summary.claudeCodeTokens / totalTokens) * 100) : 0}% of total`}
-                accentColor="#f59e0b"
+                label="Requests"
+                value={data.summary.requestCount.toLocaleString()}
+                subValue={`${Math.round(data.summary.requestCount / Math.max(data.summary.daysActive, 1))}/day avg`}
+                accentColor="#8b5cf6"
                 delay={0.1}
               />
               <StatCard
-                label="Cursor"
-                value={formatTokens(data.summary.cursorTokens)}
-                subValue={`${totalTokens > 0 ? Math.round((data.summary.cursorTokens / totalTokens) * 100) : 0}% of total`}
+                label="Avg per Day"
+                value={formatTokens(Math.round(totalTokens / Math.max(data.summary.daysActive, 1)))}
+                subValue="tokens"
                 accentColor="#06b6d4"
                 delay={0.15}
               />
             </div>
+
+            {/* Tool Usage Breakdown */}
+            {toolBreakdown.length > 0 && (
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.2 }}
+                className="rounded-lg border border-white/5 bg-white/[0.02] p-4 sm:p-6"
+              >
+                <h3 className="font-mono text-xs uppercase tracking-wider text-white/60 mb-4">
+                  Tool Usage
+                </h3>
+
+                {/* Stacked bar visualization */}
+                <div className="mb-6">
+                  <div className="h-3 rounded-full bg-white/5 overflow-hidden flex">
+                    {toolBreakdown.map((t, i) => (
+                      <motion.div
+                        key={t.tool}
+                        initial={{ width: 0 }}
+                        animate={{ width: `${t.percentage}%` }}
+                        transition={{ duration: 0.8, delay: 0.25 + i * 0.1 }}
+                        className={`h-full ${getToolColor(t.tool).bg} ${i === 0 ? 'rounded-l-full' : ''} ${i === toolBreakdown.length - 1 ? 'rounded-r-full' : ''}`}
+                      />
+                    ))}
+                  </div>
+                </div>
+
+                {/* Tool breakdown list */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {toolBreakdown.map((t, i) => {
+                    const colors = getToolColor(t.tool);
+                    return (
+                      <motion.div
+                        key={t.tool}
+                        initial={{ opacity: 0, x: -10 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: 0.3 + i * 0.05 }}
+                        className="flex items-center justify-between p-3 rounded-lg bg-white/[0.02] border border-white/5"
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className={`w-2 h-2 rounded-full ${colors.bg}`} />
+                          <div>
+                            <p className={`font-mono text-sm ${colors.text}`}>
+                              {formatToolName(t.tool)}
+                            </p>
+                            <p className="font-mono text-[10px] text-white/40">
+                              {t.percentage.toFixed(1)}% of usage
+                            </p>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <p className="font-mono text-sm text-white">
+                            {formatTokens(t.tokens)}
+                          </p>
+                          <p className="font-mono text-[10px] text-white/40">
+                            {formatCurrency(t.cost)}
+                          </p>
+                        </div>
+                      </motion.div>
+                    );
+                  })}
+                </div>
+              </motion.div>
+            )}
 
             {/* Daily Usage Chart */}
             <motion.div
@@ -272,6 +413,7 @@ function UserDetailContent() {
                     const maxTokens = data.modelBreakdown[0]?.tokens || 1;
                     const percentage = (model.tokens / maxTokens) * 100;
                     const displayName = formatModelName(model.model);
+                    const colors = getToolColor(model.tool);
 
                     return (
                       <motion.div
@@ -282,11 +424,7 @@ function UserDetailContent() {
                       >
                         <div className="flex items-center justify-between mb-1.5">
                           <div className="flex items-center gap-2">
-                            <div
-                              className={`w-1.5 h-1.5 rounded-full ${
-                                model.tool === 'claude_code' ? 'bg-amber-500' : 'bg-cyan-500'
-                              }`}
-                            />
+                            <div className={`w-1.5 h-1.5 rounded-full ${colors.bg}`} />
                             <span className="font-mono text-xs text-white/80 truncate max-w-[180px]">
                               {displayName}
                             </span>
@@ -300,11 +438,7 @@ function UserDetailContent() {
                             initial={{ width: 0 }}
                             animate={{ width: `${percentage}%` }}
                             transition={{ duration: 0.6, delay: 0.4 + i * 0.03 }}
-                            className={`h-full rounded-full ${
-                              model.tool === 'claude_code'
-                                ? 'bg-gradient-to-r from-amber-500/80 to-amber-400/60'
-                                : 'bg-gradient-to-r from-cyan-500/80 to-cyan-400/60'
-                            }`}
+                            className={`h-full rounded-full bg-gradient-to-r ${colors.gradient}`}
                           />
                         </div>
                       </motion.div>

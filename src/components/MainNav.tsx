@@ -8,7 +8,6 @@ interface NavItem {
   label: string;
   href: string;
   matchPaths: string[];
-  adminOnly?: boolean;
 }
 
 interface MainNavProps {
@@ -20,7 +19,6 @@ const navItems: NavItem[] = [
   { label: 'Overview', href: '/', matchPaths: ['/'] },
   { label: 'Users', href: '/users', matchPaths: ['/users'] },
   { label: 'Status', href: '/status', matchPaths: ['/status'] },
-  { label: 'Settings', href: '/settings', matchPaths: ['/settings'], adminOnly: true },
 ];
 
 export function MainNav({ days, isAdmin = false }: MainNavProps) {
@@ -41,7 +39,7 @@ export function MainNav({ days, isAdmin = false }: MainNavProps) {
     return item.href;
   };
 
-  const visibleItems = navItems.filter(item => !item.adminOnly || isAdmin);
+  const visibleItems = navItems;
 
   return (
     <nav className="flex items-center gap-8">
