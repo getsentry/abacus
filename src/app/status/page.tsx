@@ -17,9 +17,7 @@ interface ProviderStatus {
   };
   backfill: {
     oldestDate: string | null;
-    targetDate: string;
     status: 'complete' | 'in_progress' | 'not_started';
-    progress: number;
   };
 }
 
@@ -93,19 +91,6 @@ function BackfillBadge({ status }: { status: 'complete' | 'in_progress' | 'not_s
   );
 }
 
-function ProgressBar({ progress, color }: { progress: number; color: 'amber' | 'cyan' }) {
-  const barColor = color === 'amber' ? 'bg-amber-500' : 'bg-cyan-500';
-  return (
-    <div className="w-full h-2 bg-white/5 rounded-full overflow-hidden">
-      <motion.div
-        className={`h-full ${barColor}`}
-        initial={{ width: 0 }}
-        animate={{ width: `${progress}%` }}
-        transition={{ duration: 0.8, ease: 'easeOut' }}
-      />
-    </div>
-  );
-}
 
 function ProviderCard({ provider, index }: { provider: ProviderStatus; index: number }) {
   const borderColor = provider.color === 'amber' ? 'border-l-amber-500' : 'border-l-cyan-500';
@@ -141,20 +126,15 @@ function ProviderCard({ provider, index }: { provider: ProviderStatus; index: nu
       <div>
         <div className="flex items-center justify-between mb-2">
           <span className="text-[10px] uppercase tracking-[0.2em] text-white/40 font-mono">
-            Backfill
+            Historical Data
           </span>
           <BackfillBadge status={provider.backfill.status} />
         </div>
-        <div className="mb-2">
-          <ProgressBar progress={provider.backfill.progress} color={provider.color} />
-        </div>
-        <div className="flex justify-between text-xs text-white/40 font-mono">
-          <span>{formatDateShort(provider.backfill.oldestDate) || 'Not started'}</span>
-          <span className="text-white/20">→</span>
-          <span>{formatDateShort(provider.backfill.targetDate)}</span>
-        </div>
-        <div className="text-right text-[10px] text-white/30 font-mono mt-1">
-          {provider.backfill.progress}% complete
+        <div className="text-white/60 text-sm font-mono">
+          {provider.backfill.oldestDate
+            ? `Data from ${formatDateShort(provider.backfill.oldestDate)}`
+            : 'No historical data'
+          }
         </div>
       </div>
     </motion.div>
@@ -195,7 +175,7 @@ export default function StatusPage() {
       {/* Page Title */}
       <div className="border-b border-white/5 px-4 sm:px-8 py-3">
         <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-white/40">
-          Provider sync and backfill progress
+          Provider sync status
         </p>
       </div>
 
