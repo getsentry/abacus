@@ -19,11 +19,11 @@ async function handler(request: Request) {
   const cronSecret = process.env.CRON_SECRET;
 
   if (!cronSecret) {
-    return NextResponse.json({ error: 'CRON_SECRET not configured' }, { status: 500 });
+    throw new Error('CRON_SECRET not configured');
   }
 
   if (authHeader !== `Bearer ${cronSecret}`) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    throw new Error('Unauthorized: Invalid or missing cron secret');
   }
 
   // Check current backfill state (derived from actual usage data)

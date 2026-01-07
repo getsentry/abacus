@@ -13,8 +13,6 @@
  *   mappings:fix      - Interactive fix for unmapped API keys
  *   anthropic:status  - Show Anthropic sync state
  *   cursor:status     - Show Cursor sync state
- *   debug:anthropic   - Debug Anthropic API response
- *   debug:cursor      - Debug Cursor API response
  *   stats             - Show database statistics
  */
 
@@ -140,8 +138,6 @@ Commands:
   mappings:fix          Interactive fix for unmapped API keys
   anthropic:status      Show Anthropic sync state
   cursor:status         Show Cursor sync state
-  debug:anthropic       Debug Anthropic API response
-  debug:cursor          Debug Cursor API response
   stats                 Show database statistics
   help                  Show this help message
 
@@ -367,127 +363,6 @@ async function cmdBackfill(tool: 'anthropic' | 'cursor', fromDate: string, toDat
   }
 }
 
-async function cmdDebugAnthropic() {
-  console.log('🔍 Debugging Anthropic API\n');
-
-  const adminKey = process.env.ANTHROPIC_ADMIN_KEY;
-  if (!adminKey) {
-    console.error('Error: ANTHROPIC_ADMIN_KEY not set');
-    return;
-  }
-
-  const endDate = new Date().toISOString().split('T')[0];
-  const startDate = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-
-  console.log(`Fetching usage from ${startDate} to ${endDate}\n`);
-
-  const params = new URLSearchParams({
-    starting_at: startDate,
-    ending_at: endDate,
-    bucket_width: '1d',
-    'group_by[]': 'api_key_id',
-  });
-  params.append('group_by[]', 'model');
-
-  const response = await fetch(
-    `https://api.anthropic.com/v1/organizations/usage_report/messages?${params}`,
-    {
-      headers: {
-        'X-Api-Key': adminKey,
-        'anthropic-version': '2023-06-01'
-      }
-    }
-  );
-
-  if (!response.ok) {
-    console.log('Error:', response.status, await response.text());
-    return;
-  }
-
-  const data = await response.json();
-  console.log('has_more:', data.has_more);
-  console.log('Buckets:', data.data?.length);
-
-  let totalResults = 0;
-  for (const bucket of data.data || []) {
-    totalResults += bucket.results?.length || 0;
-    if (bucket.results?.length > 0) {
-      console.log(`\n${bucket.starting_at.split('T')[0]}: ${bucket.results.length} records`);
-      for (const r of bucket.results.slice(0, 3)) {
-        console.log(`  ${r.api_key_id || 'no-key'} | ${r.model} | out:${r.output_tokens}`);
-      }
-      if (bucket.results.length > 3) {
-        console.log(`  ... and ${bucket.results.length - 3} more`);
-      }
-    }
-  }
-  console.log(`\nTotal results: ${totalResults}`);
-}
-
-async function cmdDebugCursor() {
-  console.log('🔍 Debugging Cursor API\n');
-
-  const adminKey = process.env.CURSOR_ADMIN_KEY;
-
-  if (!adminKey) {
-    console.error('Error: CURSOR_ADMIN_KEY not set');
-    return;
-  }
-
-  // Use epoch milliseconds
-  const endMs = Date.now();
-  const startMs = endMs - 30 * 24 * 60 * 60 * 1000;
-
-  console.log(`Fetching usage from ${new Date(startMs).toISOString().split('T')[0]} to ${new Date(endMs).toISOString().split('T')[0]}\n`);
-
-  // Cursor API uses Basic auth with API key as username, empty password
-  const credentials = `${adminKey}:`;
-  const authHeader = `Basic ${Buffer.from(credentials).toString('base64')}`;
-
-  const response = await fetch(
-    'https://api.cursor.com/teams/filtered-usage-events',
-    {
-      method: 'POST',
-      headers: {
-        'Authorization': authHeader,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        startDate: startMs,
-        endDate: endMs,
-        page: 1,
-        pageSize: 10
-      })
-    }
-  );
-
-  if (!response.ok) {
-    console.log('Error:', response.status);
-    const text = await response.text();
-    console.log(text.slice(0, 500));
-    return;
-  }
-
-  const data = await response.json();
-  console.log('Response keys:', Object.keys(data));
-  console.log('Total events:', data.totalUsageEventsCount || 0);
-  console.log('usageEvents:', data.usageEvents?.length || 0);
-  console.log('Pagination:', JSON.stringify(data.pagination || {}));
-
-  if (data.usageEvents?.length > 0) {
-    console.log('\nSample event:', JSON.stringify(data.usageEvents[0], null, 2));
-
-    const byEmail = new Map<string, number>();
-    for (const e of data.usageEvents) {
-      byEmail.set(e.userEmail, (byEmail.get(e.userEmail) || 0) + 1);
-    }
-    console.log('\nBy email:');
-    for (const [email, count] of Array.from(byEmail.entries()).slice(0, 10)) {
-      console.log(`  ${email}: ${count} events`);
-    }
-  }
-}
-
 async function main() {
   const args = process.argv.slice(2);
   const command = args[0];
@@ -558,12 +433,6 @@ async function main() {
         await cmdBackfill(tool, fromDate, toDate);
         break;
       }
-      case 'debug:anthropic':
-        await cmdDebugAnthropic();
-        break;
-      case 'debug:cursor':
-        await cmdDebugCursor();
-        break;
       case 'help':
       case '--help':
       case '-h':
