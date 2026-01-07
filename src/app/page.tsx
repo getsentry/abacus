@@ -173,16 +173,6 @@ function DashboardContent() {
                 Settings
               </Link>
             )}
-            <div className="hidden md:flex items-center gap-4 ml-4 border-l border-white/10 pl-4">
-              <div className="flex items-center gap-1.5">
-                <div className="h-2 w-2 rounded-full bg-amber-500" />
-                <span className="font-mono text-[10px] text-white/50">Claude Code</span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <div className="h-2 w-2 rounded-full bg-cyan-500" />
-                <span className="font-mono text-[10px] text-white/50">Cursor</span>
-              </div>
-            </div>
           </div>
         </div>
       </header>

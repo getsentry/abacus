@@ -76,7 +76,7 @@ export function UserTable({ users, onUserClick, days = 30 }: UserTableProps) {
                   <span className="font-mono text-xs sm:text-sm text-white/60">{formatCurrency(user.totalCost)}</span>
                 </td>
                 <td className="py-2.5 sm:py-3 pr-3 hidden sm:table-cell w-20 sm:w-28">
-                  <div className="flex gap-0.5 w-full">
+                  <div className="group/dist relative flex gap-0.5 w-full">
                     {Number(user.totalTokens) > 0 && (
                       <>
                         <div
@@ -87,6 +87,13 @@ export function UserTable({ users, onUserClick, days = 30 }: UserTableProps) {
                           className="h-1.5 sm:h-2 rounded-r bg-cyan-500"
                           style={{ width: `${(Number(user.cursorTokens) / Number(user.totalTokens)) * 100}%` }}
                         />
+                        {/* Tooltip */}
+                        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover/dist:block z-20 pointer-events-none">
+                          <div className="rounded bg-black/95 px-2 py-1.5 text-[10px] whitespace-nowrap border border-white/10 shadow-lg">
+                            <div className="text-amber-400">Claude: {formatTokens(user.claudeCodeTokens)} ({Math.round((Number(user.claudeCodeTokens) / Number(user.totalTokens)) * 100)}%)</div>
+                            <div className="text-cyan-400">Cursor: {formatTokens(user.cursorTokens)} ({Math.round((Number(user.cursorTokens) / Number(user.totalTokens)) * 100)}%)</div>
+                          </div>
+                        </div>
                       </>
                     )}
                   </div>
