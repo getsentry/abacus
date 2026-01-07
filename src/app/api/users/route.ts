@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
 import { wrapRouteHandlerWithSentry } from '@sentry/nextjs';
 import { getUserSummaries } from '@/lib/queries';
-import { DEFAULT_DAYS } from '@/lib/constants';
 import { getSession } from '@/lib/auth';
 
 async function handler(request: Request) {
@@ -14,9 +13,10 @@ async function handler(request: Request) {
   const limit = parseInt(searchParams.get('limit') || '50', 10);
   const offset = parseInt(searchParams.get('offset') || '0', 10);
   const search = searchParams.get('search') || undefined;
-  const days = parseInt(searchParams.get('days') || String(DEFAULT_DAYS), 10) || DEFAULT_DAYS;
+  const startDate = searchParams.get('startDate') || undefined;
+  const endDate = searchParams.get('endDate') || undefined;
 
-  const users = await getUserSummaries(limit, offset, search, days);
+  const users = await getUserSummaries(limit, offset, search, startDate, endDate);
   return NextResponse.json(users);
 }
 

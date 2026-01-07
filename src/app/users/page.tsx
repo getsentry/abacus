@@ -10,6 +10,7 @@ import { MainNav } from '@/components/MainNav';
 import { UserMenu } from '@/components/UserMenu';
 import { formatTokens, formatCurrency } from '@/lib/utils';
 import { useTimeRange } from '@/contexts/TimeRangeContext';
+import { TimeRange } from '@/lib/dateUtils';
 
 interface UserPivotData {
   email: string;
@@ -42,7 +43,7 @@ const columns: { key: SortKey; label: string; align: 'left' | 'right'; format?: 
 ];
 
 function UsersPageContent() {
-  const { days, setDays, isPending } = useTimeRange();
+  const { range, setRange, days, isPending, getDateParams } = useTimeRange();
   const searchParams = useSearchParams();
   const initialSearch = searchParams.get('search') || '';
 
@@ -64,10 +65,12 @@ function UsersPageContent() {
     setLoading(true);
     setError(null);
     try {
+      const { startDate, endDate } = getDateParams();
       const params = new URLSearchParams({
         sortBy,
         sortDir,
-        days: days.toString(),
+        startDate,
+        endDate,
         ...(searchQuery && { search: searchQuery }),
       });
       const res = await fetch(`/api/users/pivot?${params}`);
@@ -84,7 +87,7 @@ function UsersPageContent() {
     } finally {
       setLoading(false);
     }
-  }, [sortBy, sortDir, searchQuery, days]);
+  }, [sortBy, sortDir, searchQuery, getDateParams]);
 
   useEffect(() => {
     fetchUsers();
@@ -143,7 +146,7 @@ function UsersPageContent() {
               onChange={setSearchQuery}
               placeholder="Filter users..."
             />
-            <TimeRangeSelector value={days} onChange={setDays} isPending={isPending} />
+            <TimeRangeSelector value={range} onChange={setRange} isPending={isPending} />
             <div className="w-px h-6 bg-white/10 mx-1" />
             <UserMenu />
           </div>

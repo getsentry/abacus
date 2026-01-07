@@ -14,7 +14,8 @@ async function handler(
 
   const { email: usernameOrEmail } = await params;
   const { searchParams } = new URL(request.url);
-  const days = searchParams.get('days');
+  const startDate = searchParams.get('startDate');
+  const endDate = searchParams.get('endDate');
 
   const decoded = decodeURIComponent(usernameOrEmail);
 
@@ -24,9 +25,9 @@ async function handler(
     return NextResponse.json({ error: 'User not found' }, { status: 404 });
   }
 
-  // Use extended query if days parameter is provided
-  const details = days
-    ? await getUserDetailsExtended(email, parseInt(days, 10))
+  // Use extended query if date parameters are provided
+  const details = startDate && endDate
+    ? await getUserDetailsExtended(email, startDate, endDate)
     : await getUserDetails(email);
 
   if (!details.summary) {

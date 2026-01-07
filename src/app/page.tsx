@@ -12,6 +12,7 @@ import { MainNav } from '@/components/MainNav';
 import { UserMenu } from '@/components/UserMenu';
 import { formatTokens, formatCurrency } from '@/lib/utils';
 import { useTimeRange } from '@/contexts/TimeRangeContext';
+import { TimeRange } from '@/lib/dateUtils';
 
 interface Stats {
   totalTokens: number;
@@ -50,7 +51,7 @@ interface ModelData {
 }
 
 function DashboardContent() {
-  const { days, setDays, isPending } = useTimeRange();
+  const { range, setRange, days, isPending, getDateParams } = useTimeRange();
 
   const [stats, setStats] = useState<Stats | null>(null);
   const [users, setUsers] = useState<UserSummary[]>([]);
@@ -65,11 +66,14 @@ function DashboardContent() {
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
+      const { startDate, endDate } = getDateParams();
+      const params = new URLSearchParams({ startDate, endDate });
+
       const [statsRes, usersRes, trendsRes, modelsRes] = await Promise.all([
-        fetch(`/api/stats?days=${days}`),
-        fetch(`/api/users?limit=10&days=${days}`),
-        fetch(`/api/trends?days=${days}`),
-        fetch(`/api/models?days=${days}`),
+        fetch(`/api/stats?${params}`),
+        fetch(`/api/users?limit=10&${params}`),
+        fetch(`/api/trends?${params}`),
+        fetch(`/api/models?${params}`),
       ]);
 
       const [statsData, usersData, trendsData, modelsData] = await Promise.all([
@@ -88,7 +92,7 @@ function DashboardContent() {
     } finally {
       setLoading(false);
     }
-  }, [days]);
+  }, [getDateParams]);
 
   useEffect(() => {
     fetchData();
@@ -111,7 +115,7 @@ function DashboardContent() {
           <MainNav days={days} />
           <div className="flex items-center gap-3">
             <SearchInput days={days} placeholder="Search users..." />
-            <TimeRangeSelector value={days} onChange={setDays} isPending={isPending} />
+            <TimeRangeSelector value={range} onChange={setRange} isPending={isPending} />
             <div className="w-px h-6 bg-white/10 mx-1" />
             <UserMenu />
           </div>

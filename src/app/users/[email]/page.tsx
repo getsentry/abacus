@@ -2,8 +2,8 @@
 
 import { useState, useEffect, useCallback, Suspense, useMemo } from 'react';
 import { useParams } from 'next/navigation';
-import Link from 'next/link';
 import { useTimeRange } from '@/contexts/TimeRangeContext';
+import { AppLink } from '@/components/AppLink';
 import { motion } from 'framer-motion';
 import { StatCard } from '@/components/StatCard';
 import { StackedBarChart } from '@/components/StackedBarChart';
@@ -11,6 +11,7 @@ import { TimeRangeSelector } from '@/components/TimeRangeSelector';
 import { MainNav } from '@/components/MainNav';
 import { UserMenu } from '@/components/UserMenu';
 import { formatTokens, formatCurrency, formatDate, formatModelName } from '@/lib/utils';
+import { TimeRange } from '@/lib/dateUtils';
 
 // Tool color palette - extensible for future tools
 const TOOL_COLORS: Record<string, { bg: string; text: string; gradient: string }> = {
@@ -97,7 +98,7 @@ interface UserDetails {
 
 function UserDetailContent() {
   const params = useParams();
-  const { days, setDays, isPending } = useTimeRange();
+  const { range, setRange, days, isPending, getDateParams } = useTimeRange();
 
   // URL uses username (e.g., /users/david), API resolves to full email
   const username = decodeURIComponent(params.email as string);
@@ -116,7 +117,9 @@ function UserDetailContent() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`/api/users/${encodeURIComponent(username)}?days=${days}`);
+      const { startDate, endDate } = getDateParams();
+      const params = new URLSearchParams({ startDate, endDate });
+      const res = await fetch(`/api/users/${encodeURIComponent(username)}?${params}`);
       if (!res.ok) {
         const errData = await res.json();
         throw new Error(errData.error || `Error: ${res.status}`);
@@ -128,7 +131,7 @@ function UserDetailContent() {
     } finally {
       setLoading(false);
     }
-  }, [username, days]);
+  }, [username, getDateParams]);
 
   useEffect(() => {
     fetchData();
@@ -179,7 +182,7 @@ function UserDetailContent() {
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <MainNav days={days} />
           <div className="flex items-center gap-3">
-            <TimeRangeSelector value={days} onChange={setDays} isPending={isPending} />
+            <TimeRangeSelector value={range} onChange={setRange} isPending={isPending} />
             <div className="w-px h-6 bg-white/10 mx-1" />
             <UserMenu />
           </div>
@@ -189,12 +192,12 @@ function UserDetailContent() {
       {/* User Breadcrumb */}
       <div className="border-b border-white/5 px-4 sm:px-8 py-3">
         <div className="flex items-center gap-2">
-          <Link
-            href={`/users?days=${days}`}
+          <AppLink
+            href="/users"
             className="font-mono text-[10px] uppercase tracking-[0.2em] text-white/40 hover:text-white/60 transition-colors"
           >
             Users
-          </Link>
+          </AppLink>
           <span className="text-white/20">/</span>
           <motion.span
             initial={{ opacity: 0 }}

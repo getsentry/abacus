@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
 import { wrapRouteHandlerWithSentry } from '@sentry/nextjs';
 import { getAllUsersPivot } from '@/lib/queries';
-import { DEFAULT_DAYS } from '@/lib/constants';
 import { getSession } from '@/lib/auth';
 
 async function handler(request: Request) {
@@ -14,9 +13,10 @@ async function handler(request: Request) {
   const sortBy = searchParams.get('sortBy') || 'totalTokens';
   const sortDir = (searchParams.get('sortDir') || 'desc') as 'asc' | 'desc';
   const search = searchParams.get('search') || undefined;
-  const days = parseInt(searchParams.get('days') || String(DEFAULT_DAYS), 10) || DEFAULT_DAYS;
+  const startDate = searchParams.get('startDate') || undefined;
+  const endDate = searchParams.get('endDate') || undefined;
 
-  const users = await getAllUsersPivot(sortBy, sortDir, search, days);
+  const users = await getAllUsersPivot(sortBy, sortDir, search, startDate, endDate);
   return NextResponse.json(users);
 }
 

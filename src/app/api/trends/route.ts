@@ -10,9 +10,14 @@ async function handler(request: Request) {
   }
 
   const { searchParams } = new URL(request.url);
-  const days = parseInt(searchParams.get('days') || '14', 10);
+  const startDate = searchParams.get('startDate');
+  const endDate = searchParams.get('endDate');
 
-  const trends = await getDailyUsage(days);
+  if (!startDate || !endDate) {
+    return NextResponse.json({ error: 'startDate and endDate are required' }, { status: 400 });
+  }
+
+  const trends = await getDailyUsage(startDate, endDate);
   return NextResponse.json(trends);
 }
 

@@ -116,7 +116,13 @@ export async function getUnattributedStats(): Promise<UnattributedStats> {
   return result.rows[0] as UnattributedStats;
 }
 
-export async function getUserSummaries(limit = 50, offset = 0, search?: string, days: number = DEFAULT_DAYS): Promise<UserSummary[]> {
+export async function getUserSummaries(
+  limit = 50,
+  offset = 0,
+  search?: string,
+  startDate?: string,
+  endDate?: string
+): Promise<UserSummary[]> {
 
   const searchPattern = search ? `%${search}%` : null;
 
@@ -131,7 +137,7 @@ export async function getUserSummaries(limit = 50, offset = 0, search?: string, 
           MAX(date)::text as "lastActive"
         FROM usage_records
         WHERE email LIKE ${searchPattern} AND email != 'unknown'
-          AND date >= CURRENT_DATE - ${days}::int
+          AND date >= ${startDate} AND date <= ${endDate}
         GROUP BY email
         ORDER BY "totalTokens" DESC
         LIMIT ${limit} OFFSET ${offset}
@@ -146,7 +152,7 @@ export async function getUserSummaries(limit = 50, offset = 0, search?: string, 
           MAX(date)::text as "lastActive"
         FROM usage_records
         WHERE email != 'unknown'
-          AND date >= CURRENT_DATE - ${days}::int
+          AND date >= ${startDate} AND date <= ${endDate}
         GROUP BY email
         ORDER BY "totalTokens" DESC
         LIMIT ${limit} OFFSET ${offset}
@@ -161,7 +167,7 @@ export async function getUserSummaries(limit = 50, offset = 0, search?: string, 
       SELECT model, SUM(input_tokens + cache_write_tokens + output_tokens)::bigint as tokens
       FROM usage_records
       WHERE email = ${user.email}
-        AND date >= CURRENT_DATE - ${days}::int
+        AND date >= ${startDate} AND date <= ${endDate}
       GROUP BY model
       ORDER BY tokens DESC
       LIMIT 1
@@ -254,7 +260,11 @@ export interface UserDetailsExtended {
   }[];
 }
 
-export async function getUserDetailsExtended(email: string, days: number = DEFAULT_DAYS): Promise<UserDetailsExtended> {
+export async function getUserDetailsExtended(
+  email: string,
+  startDate: string,
+  endDate: string
+): Promise<UserDetailsExtended> {
   const summaryResult = await sql`
     SELECT
       email,
@@ -270,7 +280,7 @@ export async function getUserDetailsExtended(email: string, days: number = DEFAU
       COUNT(DISTINCT date)::int as "daysActive"
     FROM usage_records
     WHERE email = ${email}
-      AND date >= CURRENT_DATE - ${days}::int
+      AND date >= ${startDate} AND date <= ${endDate}
     GROUP BY email
   `;
 
@@ -284,7 +294,7 @@ export async function getUserDetailsExtended(email: string, days: number = DEFAU
       tool
     FROM usage_records
     WHERE email = ${email}
-      AND date >= CURRENT_DATE - ${days}::int
+      AND date >= ${startDate} AND date <= ${endDate}
     GROUP BY model, tool
     ORDER BY tokens DESC
   `;
@@ -292,8 +302,8 @@ export async function getUserDetailsExtended(email: string, days: number = DEFAU
   const dailyResult = await sql`
     WITH date_series AS (
       SELECT generate_series(
-        CURRENT_DATE - ${days}::int,
-        CURRENT_DATE - 1,
+        ${startDate}::date,
+        ${endDate}::date,
         '1 day'::interval
       )::date as date
     )
@@ -317,18 +327,30 @@ export async function getUserDetailsExtended(email: string, days: number = DEFAU
   };
 }
 
-export async function getModelBreakdown(): Promise<ModelBreakdown[]> {
+export async function getModelBreakdown(startDate?: string, endDate?: string): Promise<ModelBreakdown[]> {
 
-  const result = await sql`
-    SELECT
-      model,
-      SUM(input_tokens + cache_write_tokens + output_tokens)::bigint as tokens,
-      tool
-    FROM usage_records
-    GROUP BY model, tool
-    ORDER BY tokens DESC
-    LIMIT 20
-  `;
+  const result = startDate && endDate
+    ? await sql`
+        SELECT
+          model,
+          SUM(input_tokens + cache_write_tokens + output_tokens)::bigint as tokens,
+          tool
+        FROM usage_records
+        WHERE date >= ${startDate} AND date <= ${endDate}
+        GROUP BY model, tool
+        ORDER BY tokens DESC
+        LIMIT 20
+      `
+    : await sql`
+        SELECT
+          model,
+          SUM(input_tokens + cache_write_tokens + output_tokens)::bigint as tokens,
+          tool
+        FROM usage_records
+        GROUP BY model, tool
+        ORDER BY tokens DESC
+        LIMIT 20
+      `;
 
   const models = result.rows as { model: string; tokens: number; tool: string }[];
   const total = models.reduce((sum, m) => sum + Number(m.tokens), 0);
@@ -340,13 +362,13 @@ export async function getModelBreakdown(): Promise<ModelBreakdown[]> {
   }));
 }
 
-export async function getDailyUsage(days = 14): Promise<DailyUsage[]> {
+export async function getDailyUsage(startDate: string, endDate: string): Promise<DailyUsage[]> {
 
   const result = await sql`
     WITH date_series AS (
       SELECT generate_series(
-        CURRENT_DATE - ${days}::int,
-        CURRENT_DATE - 1,
+        ${startDate}::date,
+        ${endDate}::date,
         '1 day'::interval
       )::date as date
     )
@@ -459,7 +481,8 @@ export async function getAllUsersPivot(
   sortBy: string = 'totalTokens',
   sortDir: 'asc' | 'desc' = 'desc',
   search?: string,
-  days: number = 30
+  startDate?: string,
+  endDate?: string
 ): Promise<UserPivotData[]> {
 
   const validSortColumns = [
@@ -470,7 +493,7 @@ export async function getAllUsersPivot(
   const safeSortBy = validSortColumns.includes(sortBy) ? sortBy : 'totalTokens';
   const searchPattern = search ? `%${search}%` : null;
 
-  // Get stats for specified days, but lastActive from all time
+  // Get stats for specified date range, but lastActive from all time
   const result = searchPattern
     ? await sql`
         SELECT
@@ -494,7 +517,7 @@ export async function getAllUsersPivot(
         ) la ON r.email = la.email
         WHERE r.email != 'unknown'
           AND r.email LIKE ${searchPattern}
-          AND r.date >= CURRENT_DATE - ${days}::int
+          AND r.date >= ${startDate} AND r.date <= ${endDate}
         GROUP BY r.email, la."lastActive"
         ORDER BY "totalTokens" DESC
       `
@@ -519,7 +542,7 @@ export async function getAllUsersPivot(
           GROUP BY email
         ) la ON r.email = la.email
         WHERE r.email != 'unknown'
-          AND r.date >= CURRENT_DATE - ${days}::int
+          AND r.date >= ${startDate} AND r.date <= ${endDate}
         GROUP BY r.email, la."lastActive"
         ORDER BY "totalTokens" DESC
       `;
