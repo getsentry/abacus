@@ -111,12 +111,12 @@ export const TIPS: Tip[] = [
   // MCP
   {
     id: 'mcp-intro',
-    text: 'Connect MCP servers to give Claude access to external tools like Sentry, GitHub, and databases',
+    text: 'Connect MCP servers to access external tools like Sentry, GitHub, and databases from your AI',
     guide: 'mcp',
   },
   {
     id: 'mcp-sentry',
-    text: 'Add Sentry MCP to debug issues directly - Claude can search errors and trigger root cause analysis',
+    text: 'Add Sentry MCP to debug issues directly - search errors and trigger root cause analysis',
     guide: 'mcp',
   },
 ];
@@ -661,54 +661,57 @@ Create \`AGENTS.md\` as your source of truth, then symlink \`CLAUDE.md\` to it f
     title: 'MCP Servers',
     description: 'Connect Claude to external tools and services',
     externalDocs: 'https://code.claude.com/docs/en/mcp',
-    tools: ['claude-code'],
+    tools: ['claude-code', 'cursor'],
     content: `
 ## What is MCP?
 
-Model Context Protocol (MCP) lets Claude connect to external tools, databases, and APIs. Add an MCP server and Claude gains new capabilities without leaving your terminal.
+Model Context Protocol (MCP) connects your AI tools to external services like Sentry, GitHub, and databases. Add an MCP server and gain new capabilities without leaving your editor.
 
 ## Try It: Add Sentry MCP
 
-**Scenario**: You want Claude to help debug Sentry issues directly.
+**Scenario**: You want to debug Sentry issues directly from your AI tool.
 
-**Step 1**: Add the Sentry MCP server:
+### Claude Code
+
 \`\`\`bash
 claude mcp add --transport http sentry https://mcp.sentry.dev/mcp
 \`\`\`
 
-**Step 2**: Authenticate (opens browser):
+Then authenticate:
 \`\`\`
 /mcp
 \`\`\`
 
-**Step 3**: Now ask Claude about your errors:
+### Cursor
+
+Go to **Settings → MCP** and add a server, or create \`.cursor/mcp.json\`:
+
+\`\`\`json
+{
+  "mcpServers": {
+    "sentry": {
+      "command": "npx",
+      "args": ["-y", "mcp-remote", "https://mcp.sentry.dev/mcp"]
+    }
+  }
+}
+\`\`\`
+
+### Use It
+
+Now ask about your errors:
 \`\`\`
 What are the most common errors in my project this week?
 \`\`\`
 
-Claude searches Sentry, analyzes the issues, and can even trigger Seer for root cause analysis.
+The AI searches Sentry, analyzes issues, and can trigger root cause analysis.
 
-## Managing MCP Servers
+## Configuration Files
 
-\`\`\`bash
-claude mcp list              # See all configured servers
-claude mcp remove sentry     # Remove a server
-\`\`\`
-
-## Configuration Scopes
-
-| Scope | Location | Who sees it |
-|-------|----------|-------------|
-| Local | \`~/.claude.json\` | Just you, this project |
-| Project | \`.mcp.json\` | Team (checked into git) |
-| User | \`~/.claude.json\` | Just you, all projects |
-
-**Share with your team** using project scope:
-\`\`\`bash
-claude mcp add --transport http sentry --scope project https://mcp.sentry.dev/mcp
-\`\`\`
-
-This creates a \`.mcp.json\` file you can commit.
+| Tool | Project Config | User Config |
+|------|----------------|-------------|
+| Claude Code | \`.mcp.json\` | \`~/.claude.json\` |
+| Cursor | \`.cursor/mcp.json\` | Settings → MCP |
 
 ## Popular MCP Servers
 
