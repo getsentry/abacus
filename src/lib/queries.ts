@@ -1,5 +1,6 @@
 import { sql } from '@vercel/postgres';
 import { DEFAULT_DAYS } from './constants';
+import { escapeLikePattern } from './utils';
 
 
 export interface UsageStats {
@@ -124,7 +125,7 @@ export async function getUserSummaries(
   endDate?: string
 ): Promise<UserSummary[]> {
 
-  const searchPattern = search ? `%${search}%` : null;
+  const searchPattern = search ? `%${escapeLikePattern(search)}%` : null;
 
   const usersResult = searchPattern
     ? await sql`
@@ -386,43 +387,47 @@ export async function getDailyUsage(startDate: string, endDate: string): Promise
   return result.rows as DailyUsage[];
 }
 
-export async function getUnmappedApiKeys(): Promise<{ api_key: string; usage_count: number }[]> {
+export async function getUnmappedToolRecords(tool: string = 'claude_code'): Promise<{ tool_record_id: string; usage_count: number }[]> {
 
   const result = await sql`
     SELECT
-      raw_api_key as api_key,
+      tool_record_id,
       COUNT(*)::int as usage_count
     FROM usage_records
-    WHERE tool = 'claude_code'
+    WHERE tool = ${tool}
       AND email = 'unknown'
-      AND raw_api_key IS NOT NULL
-    GROUP BY raw_api_key
+      AND tool_record_id IS NOT NULL
+    GROUP BY tool_record_id
     ORDER BY usage_count DESC
   `;
 
-  return result.rows as { api_key: string; usage_count: number }[];
+  return result.rows as { tool_record_id: string; usage_count: number }[];
 }
 
-export async function getApiKeyMappings(): Promise<{ api_key: string; email: string }[]> {
-  const result = await sql`SELECT api_key, email FROM api_key_mappings`;
-  return result.rows as { api_key: string; email: string }[];
+export async function getToolIdentityMappings(tool?: string): Promise<{ tool: string; external_id: string; email: string }[]> {
+  const result = tool
+    ? await sql`SELECT tool, external_id, email FROM tool_identity_mappings WHERE tool = ${tool}`
+    : await sql`SELECT tool, external_id, email FROM tool_identity_mappings`;
+  return result.rows as { tool: string; external_id: string; email: string }[];
 }
 
-export async function setApiKeyMapping(apiKey: string, email: string): Promise<void> {
+export async function setToolIdentityMapping(tool: string, externalId: string, email: string): Promise<void> {
 
   await sql`
-    INSERT INTO api_key_mappings (api_key, email)
-    VALUES (${apiKey}, ${email})
-    ON CONFLICT (api_key) DO UPDATE SET email = ${email}
+    INSERT INTO tool_identity_mappings (tool, external_id, email)
+    VALUES (${tool}, ${externalId}, ${email})
+    ON CONFLICT (tool, external_id) DO UPDATE SET email = ${email}
   `;
 
+  // Update any existing usage records with this identity
   await sql`
-    UPDATE usage_records SET email = ${email} WHERE raw_api_key = ${apiKey}
+    UPDATE usage_records SET email = ${email}
+    WHERE tool = ${tool} AND tool_record_id = ${externalId}
   `;
 }
 
-export async function deleteApiKeyMapping(apiKey: string): Promise<void> {
-  await sql`DELETE FROM api_key_mappings WHERE api_key = ${apiKey}`;
+export async function deleteToolIdentityMapping(tool: string, externalId: string): Promise<void> {
+  await sql`DELETE FROM tool_identity_mappings WHERE tool = ${tool} AND external_id = ${externalId}`;
 }
 
 /**
@@ -435,10 +440,10 @@ export async function resolveUserEmail(usernameOrEmail: string): Promise<string 
     return usernameOrEmail;
   }
 
-  // Look up by username prefix
+  // Look up by username prefix (escape to prevent LIKE injection)
   const result = await sql`
     SELECT DISTINCT email FROM usage_records
-    WHERE email LIKE ${usernameOrEmail + '@%'}
+    WHERE email LIKE ${escapeLikePattern(usernameOrEmail) + '@%'}
     LIMIT 1
   `;
 
@@ -477,13 +482,20 @@ export interface UserPivotData {
   avgTokensPerDay: number;
 }
 
+export interface UserPivotResult {
+  users: UserPivotData[];
+  totalCount: number;
+}
+
 export async function getAllUsersPivot(
   sortBy: string = 'totalTokens',
   sortDir: 'asc' | 'desc' = 'desc',
   search?: string,
   startDate?: string,
-  endDate?: string
-): Promise<UserPivotData[]> {
+  endDate?: string,
+  limit: number = 500,
+  offset: number = 0
+): Promise<UserPivotResult> {
 
   const validSortColumns = [
     'email', 'totalTokens', 'totalCost', 'claudeCodeTokens', 'cursorTokens',
@@ -491,7 +503,7 @@ export async function getAllUsersPivot(
     'daysActive', 'avgTokensPerDay'
   ];
   const safeSortBy = validSortColumns.includes(sortBy) ? sortBy : 'totalTokens';
-  const searchPattern = search ? `%${search}%` : null;
+  const searchPattern = search ? `%${escapeLikePattern(search)}%` : null;
 
   // Get stats for specified date range, but lastActive from all time
   const result = searchPattern
@@ -572,27 +584,31 @@ export async function getAllUsersPivot(
     });
   }
 
-  return users;
+  // Apply pagination after sorting
+  const totalCount = users.length;
+  const paginatedUsers = users.slice(offset, offset + limit);
+
+  return { users: paginatedUsers, totalCount };
 }
 
 // Insert usage record
 export async function insertUsageRecord(record: {
   date: string;
   email: string;
-  tool: 'claude_code' | 'cursor';
+  tool: string;
   model: string;
   inputTokens: number;
   cacheWriteTokens: number;
   cacheReadTokens: number;
   outputTokens: number;
   cost: number;
-  rawApiKey?: string;
+  toolRecordId?: string;
 }): Promise<void> {
 
   await sql`
-    INSERT INTO usage_records (date, email, tool, model, input_tokens, cache_write_tokens, cache_read_tokens, output_tokens, cost, raw_api_key)
-    VALUES (${record.date}, ${record.email}, ${record.tool}, ${record.model}, ${record.inputTokens}, ${record.cacheWriteTokens}, ${record.cacheReadTokens}, ${record.outputTokens}, ${record.cost}, ${record.rawApiKey || null})
-    ON CONFLICT (date, email, tool, model, COALESCE(raw_api_key, ''))
+    INSERT INTO usage_records (date, email, tool, model, input_tokens, cache_write_tokens, cache_read_tokens, output_tokens, cost, tool_record_id)
+    VALUES (${record.date}, ${record.email}, ${record.tool}, ${record.model}, ${record.inputTokens}, ${record.cacheWriteTokens}, ${record.cacheReadTokens}, ${record.outputTokens}, ${record.cost}, ${record.toolRecordId || null})
+    ON CONFLICT (date, email, tool, model, COALESCE(tool_record_id, ''))
     DO UPDATE SET
       input_tokens = EXCLUDED.input_tokens,
       cache_write_tokens = EXCLUDED.cache_write_tokens,
@@ -602,9 +618,9 @@ export async function insertUsageRecord(record: {
   `;
 }
 
-// Get existing mapping for an API key
-export async function getApiKeyMapping(apiKey: string): Promise<string | null> {
-  const result = await sql`SELECT email FROM api_key_mappings WHERE api_key = ${apiKey}`;
+// Get existing mapping for a tool identity
+export async function getToolIdentityMapping(tool: string, externalId: string): Promise<string | null> {
+  const result = await sql`SELECT email FROM tool_identity_mappings WHERE tool = ${tool} AND external_id = ${externalId}`;
   return result.rows[0]?.email || null;
 }
 
