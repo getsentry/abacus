@@ -128,17 +128,17 @@ function DashboardContent() {
   return (
     <div className="min-h-screen bg-[#0a0a0f] text-white grid-bg">
       {/* Header */}
-      <header className="relative z-10 border-b border-white/5 px-8 py-6">
-        <div className="flex items-center justify-between">
+      <header className="relative z-10 border-b border-white/5 px-4 sm:px-8 py-4 sm:py-6">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
-            <h1 className="font-display text-2xl font-light tracking-tight">
+            <h1 className="font-display text-xl sm:text-2xl font-light tracking-tight">
               AI Usage <span className="text-amber-500">Tracker</span>
             </h1>
-            <p className="mt-1 font-mono text-[10px] uppercase tracking-[0.2em] text-white/40">
+            <p className="mt-1 font-mono text-[10px] uppercase tracking-[0.2em] text-white/40 hidden sm:block">
               Engineering Intelligence Dashboard
             </p>
           </div>
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2 sm:gap-4 flex-wrap">
             <SearchInput
               value={searchQuery}
               onChange={setSearchQuery}
@@ -148,32 +148,32 @@ function DashboardContent() {
             {isAdmin && (
               <button
                 onClick={() => setIsImportOpen(true)}
-                className="rounded-lg bg-amber-500 px-4 py-2 font-mono text-xs text-black hover:bg-amber-400 transition-colors"
+                className="rounded-lg bg-amber-500 px-3 sm:px-4 py-2 font-mono text-xs text-black hover:bg-amber-400 transition-colors"
               >
-                Import CSV
+                Import
               </button>
             )}
             <Link
               href={`/users?days=${days}`}
-              className="rounded-lg border border-white/10 px-4 py-2 font-mono text-xs text-white/60 hover:bg-white/5 hover:text-white transition-colors"
+              className="rounded-lg border border-white/10 px-3 sm:px-4 py-2 font-mono text-xs text-white/60 hover:bg-white/5 hover:text-white transition-colors"
             >
-              All Users
+              Users
             </Link>
             <Link
               href="/status"
-              className="rounded-lg border border-white/10 px-4 py-2 font-mono text-xs text-white/60 hover:bg-white/5 hover:text-white transition-colors"
+              className="rounded-lg border border-white/10 px-3 sm:px-4 py-2 font-mono text-xs text-white/60 hover:bg-white/5 hover:text-white transition-colors hidden sm:inline-flex"
             >
               Status
             </Link>
             {isAdmin && (
               <Link
                 href="/settings"
-                className="rounded-lg border border-white/10 px-4 py-2 font-mono text-xs text-white/60 hover:bg-white/5 hover:text-white transition-colors"
+                className="rounded-lg border border-white/10 px-3 sm:px-4 py-2 font-mono text-xs text-white/60 hover:bg-white/5 hover:text-white transition-colors"
               >
                 Settings
               </Link>
             )}
-            <div className="flex items-center gap-4 ml-4 border-l border-white/10 pl-4">
+            <div className="hidden md:flex items-center gap-4 ml-4 border-l border-white/10 pl-4">
               <div className="flex items-center gap-1.5">
                 <div className="h-2 w-2 rounded-full bg-amber-500" />
                 <span className="font-mono text-[10px] text-white/50">Claude Code</span>
@@ -188,16 +188,16 @@ function DashboardContent() {
       </header>
 
       {/* Main Content */}
-      <main className="relative z-10 p-8">
+      <main className="relative z-10 p-4 sm:p-8">
         {loading && !stats ? (
           <div className="flex h-64 items-center justify-center">
             <div className="font-mono text-sm text-white/40">Loading...</div>
           </div>
         ) : !hasData ? (
-          <div className="flex flex-col items-center justify-center py-20">
+          <div className="flex flex-col items-center justify-center py-20 px-4">
             <div className="text-6xl mb-4">📊</div>
-            <h2 className="font-display text-2xl text-white mb-2">No usage data yet</h2>
-            <p className="font-mono text-sm text-white/40 mb-6">
+            <h2 className="font-display text-2xl text-white mb-2 text-center">No usage data yet</h2>
+            <p className="font-mono text-sm text-white/40 mb-6 text-center">
               {isAdmin ? 'Import a CSV export from Claude Code or Cursor to get started' : 'Usage data will appear here once synced'}
             </p>
             {isAdmin && (
@@ -210,24 +210,24 @@ function DashboardContent() {
             )}
           </div>
         ) : (
-          <div className="space-y-6">
+          <div className="space-y-4 sm:space-y-6">
             {/* Unattributed Usage Alert (admin only) */}
             {isAdmin && stats.unattributed && stats.unattributed.totalTokens > 0 && (
-              <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3 flex items-center justify-between">
+              <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 sm:px-4 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div className="flex items-center gap-3">
                   <span className="text-amber-400 text-lg">⚠</span>
                   <div>
-                    <p className="font-mono text-sm text-amber-400">
+                    <p className="font-mono text-xs sm:text-sm text-amber-400">
                       {formatTokens(stats.unattributed.totalTokens)} unattributed tokens ({formatCurrency(stats.unattributed.totalCost)})
                     </p>
-                    <p className="font-mono text-xs text-white/50">
+                    <p className="font-mono text-[10px] sm:text-xs text-white/50">
                       {unmappedCount > 0 ? `${unmappedCount} unmapped API key${unmappedCount !== 1 ? 's' : ''} - ` : ''}Usage can't be attributed to specific users
                     </p>
                   </div>
                 </div>
                 <Link
                   href="/settings"
-                  className="rounded-lg bg-amber-500 px-4 py-2 font-mono text-xs text-black hover:bg-amber-400 transition-colors"
+                  className="rounded-lg bg-amber-500 px-4 py-2 font-mono text-xs text-black hover:bg-amber-400 transition-colors self-start sm:self-auto"
                 >
                   Fix Mappings
                 </Link>
@@ -235,7 +235,7 @@ function DashboardContent() {
             )}
 
             {/* Stats Grid */}
-            <div className="grid grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
               <StatCard
                 label="Total Tokens"
                 value={formatTokens(stats.totalTokens)}
@@ -265,8 +265,8 @@ function DashboardContent() {
             </div>
 
             {/* Charts Row */}
-            <div className="grid grid-cols-3 gap-6">
-              <div className="col-span-2">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
+              <div className="lg:col-span-2">
                 <UsageChart data={trends} />
               </div>
               <ModelBreakdown data={models} />

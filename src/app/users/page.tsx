@@ -126,24 +126,24 @@ function UsersPageContent() {
   return (
     <div className="min-h-screen bg-[#0a0a0f] text-white grid-bg">
       {/* Header */}
-      <header className="relative z-10 border-b border-white/5 px-8 py-6">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
+      <header className="relative z-10 border-b border-white/5 px-4 sm:px-8 py-4 sm:py-6">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="flex items-center gap-3 sm:gap-4">
             <Link href={`/?days=${days}`} className="text-white/40 hover:text-white transition-colors">
               <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
               </svg>
             </Link>
             <div>
-              <h1 className="font-display text-2xl font-medium tracking-tight">
+              <h1 className="font-display text-xl sm:text-2xl font-medium tracking-tight">
                 All Users
               </h1>
               <p className="mt-1 font-mono text-[10px] uppercase tracking-[0.2em] text-white/40">
-                {users.length} users • Pivot Table View
+                {users.length} users
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2 sm:gap-4 flex-wrap">
             <SearchInput
               value={searchQuery}
               onChange={setSearchQuery}
@@ -152,7 +152,7 @@ function UsersPageContent() {
             <TimeRangeSelector value={days} onChange={setDays} />
             <Link
               href="/status"
-              className="rounded-lg border border-white/10 px-4 py-2 font-mono text-xs text-white/60 hover:bg-white/5 hover:text-white transition-colors"
+              className="rounded-lg border border-white/10 px-3 sm:px-4 py-2 font-mono text-xs text-white/60 hover:bg-white/5 hover:text-white transition-colors hidden sm:inline-flex"
             >
               Status
             </Link>
@@ -161,15 +161,15 @@ function UsersPageContent() {
       </header>
 
       {/* Column Selector */}
-      <div className="border-b border-white/5 px-8 py-3">
-        <div className="flex items-center gap-2 flex-wrap">
+      <div className="border-b border-white/5 px-4 sm:px-8 py-3 overflow-x-auto">
+        <div className="flex items-center gap-2 flex-nowrap sm:flex-wrap min-w-max sm:min-w-0">
           <span className="font-mono text-[10px] uppercase tracking-wider text-white/40 mr-2">Columns:</span>
           {columns.map(col => (
             <button
               key={col.key}
               onClick={() => toggleColumn(col.key)}
               disabled={col.key === 'email'}
-              className={`px-2 py-1 rounded font-mono text-[10px] transition-colors ${
+              className={`px-2 py-1 rounded font-mono text-[10px] transition-colors whitespace-nowrap ${
                 visibleColumns.has(col.key)
                   ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
                   : 'bg-white/5 text-white/40 border border-white/10 hover:bg-white/10'
@@ -182,7 +182,7 @@ function UsersPageContent() {
       </div>
 
       {/* Main Content */}
-      <main className="relative z-10 p-8">
+      <main className="relative z-10 p-4 sm:p-8">
         {loading ? (
           <div className="flex h-64 items-center justify-center">
             <div className="font-mono text-sm text-white/40">Loading...</div>

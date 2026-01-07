@@ -65,7 +65,7 @@ export function UserDetailPanel({ email, onClose, days = 30 }: UserDetailPanelPr
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: 300 }}
             transition={{ type: 'spring', damping: 30, stiffness: 300 }}
-            className="fixed right-0 top-0 z-40 h-full w-[480px] border-l border-white/10 bg-[#0a0a0f]/95 p-6 backdrop-blur-xl overflow-y-auto"
+            className="fixed right-0 top-0 z-40 h-full w-full sm:w-[480px] border-l border-white/10 bg-[#0a0a0f]/95 p-4 sm:p-6 backdrop-blur-xl overflow-y-auto"
           >
             <button
               onClick={onClose}
@@ -152,15 +152,15 @@ export function UserDetailPanel({ email, onClose, days = 30 }: UserDetailPanelPr
                     <div className="rounded-lg border border-white/5 bg-white/[0.02] p-4">
                       <p className="mb-3 font-mono text-[10px] uppercase tracking-wider text-white/40">Recent Activity</p>
                       <div className="flex h-16 items-end gap-1">
-                        {details.dailyUsage.slice(0, 14).reverse().map((d, i) => {
+                        {details.dailyUsage.slice(-14).map((d) => {
                           const total = Number(d.claudeCode) + Number(d.cursor);
-                          const maxDaily = Math.max(...details.dailyUsage.map(dd => Number(dd.claudeCode) + Number(dd.cursor)));
-                          const height = maxDaily > 0 ? (total / maxDaily) * 100 : 0;
+                          const maxDaily = Math.max(...details.dailyUsage.slice(-14).map(dd => Number(dd.claudeCode) + Number(dd.cursor)), 1);
+                          const height = (total / maxDaily) * 100;
                           return (
                             <div
                               key={d.date}
                               className="flex-1 rounded-t bg-gradient-to-t from-amber-500/60 to-amber-500"
-                              style={{ height: `${Math.max(height, 2)}%` }}
+                              style={{ height: `${Math.max(height, total > 0 ? 4 : 0)}%` }}
                             />
                           );
                         })}
