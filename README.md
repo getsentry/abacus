@@ -2,6 +2,8 @@
 
 Track and analyze AI coding tool usage across your team. Supports multiple providers with a modular architecture.
 
+![Abacus Dashboard](docs/screenshot.png)
+
 ## Features
 
 - **Dashboard**: Token consumption, costs, model breakdown, top users
