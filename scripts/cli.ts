@@ -8,8 +8,6 @@
  * Commands:
  *   sync              - Sync recent usage data
  *   backfill          - Backfill historical data
- *   import <file>     - Import a CSV file (Claude Code or Cursor)
- *   import:dir <dir>  - Import all CSVs from a directory
  *   mappings          - List API key mappings
  *   mappings:sync     - Sync API key mappings from Anthropic
  *   mappings:fix      - Interactive fix for unmapped API keys
@@ -23,17 +21,20 @@
 import { config } from 'dotenv';
 config({ path: '.env.local' });
 
+import * as Sentry from '@sentry/nextjs';
+
+Sentry.init({
+  dsn: "https://1180c3a5b9edc0e8cf46287bc96615bb@o1.ingest.us.sentry.io/4510665763848192",
+  tracesSampleRate: 0,
+  enableLogs: true,
+});
+
 import * as readline from 'readline';
-import * as fs from 'fs';
-import * as path from 'path';
 import { sql } from '@vercel/postgres';
 import { syncAnthropicUsage, getAnthropicSyncState, backfillAnthropicUsage } from '../src/lib/sync/anthropic';
 import { syncCursorUsage, backfillCursorUsage, getCursorSyncState, getPreviousCompleteHourEnd } from '../src/lib/sync/cursor';
 import { syncApiKeyMappingsSmart, syncAnthropicApiKeyMappings } from '../src/lib/sync/anthropic-mappings';
 import { getApiKeyMappings, setApiKeyMapping, getUnmappedApiKeys, getKnownEmails } from '../src/lib/queries';
-import { importClaudeCodeCsv, isClaudeCodeCsv } from '../src/lib/importers/claude-code';
-import { importCursorCsv, isCursorCsv } from '../src/lib/importers/cursor';
-import Papa from 'papaparse';
 
 const rl = readline.createInterface({
   input: process.stdin,
@@ -58,8 +59,6 @@ Commands:
                         Sync recent usage data (tool: anthropic|cursor, default: both)
   backfill <tool> --from YYYY-MM-DD --to YYYY-MM-DD
                         Backfill historical data for a specific tool
-  import <file>         Import a CSV file (auto-detects Claude Code or Cursor)
-  import:dir <dir>      Import all CSVs from a directory
   mappings              List API key mappings
   mappings:sync [--full] Sync API key mappings from Anthropic (--full for all keys)
   mappings:fix          Interactive fix for unmapped API keys
@@ -295,7 +294,7 @@ async function cmdDebugAnthropic() {
 
   const adminKey = process.env.ANTHROPIC_ADMIN_KEY;
   if (!adminKey) {
-    console.log('Error: ANTHROPIC_ADMIN_KEY not set');
+    console.error('Error: ANTHROPIC_ADMIN_KEY not set');
     return;
   }
 
@@ -353,7 +352,7 @@ async function cmdDebugCursor() {
   const adminKey = process.env.CURSOR_ADMIN_KEY;
 
   if (!adminKey) {
-    console.log('Error: CURSOR_ADMIN_KEY not set');
+    console.error('Error: CURSOR_ADMIN_KEY not set');
     return;
   }
 
@@ -411,126 +410,9 @@ async function cmdDebugCursor() {
   }
 }
 
-async function cmdImport(filePath: string, dryRun: boolean = false) {
-  console.log(`📥 Importing ${filePath}\n`);
-
-  if (!fs.existsSync(filePath)) {
-    console.log(`Error: File not found: ${filePath}`);
-    return;
-  }
-
-  const content = fs.readFileSync(filePath, 'utf-8');
-
-  // Parse first line to detect CSV type
-  const firstLine = content.split('\n')[0];
-  const headers = firstLine.split(',').map(h => h.trim().replace(/^"|"$/g, ''));
-
-  let csvType: 'claude_code' | 'cursor' | 'unknown' = 'unknown';
-  if (isClaudeCodeCsv(headers)) {
-    csvType = 'claude_code';
-  } else if (isCursorCsv(headers)) {
-    csvType = 'cursor';
-  }
-
-  console.log(`Detected type: ${csvType}`);
-
-  if (csvType === 'unknown') {
-    console.log('Error: Could not detect CSV type. Headers:', headers.slice(0, 5).join(', '));
-    return;
-  }
-
-  if (dryRun) {
-    // Just parse and show stats
-    const parsed = Papa.parse(content, { header: true, skipEmptyLines: true });
-    console.log(`\nDry run - would import ${parsed.data.length} rows`);
-    console.log('Sample row:', JSON.stringify(parsed.data[0], null, 2));
-    return;
-  }
-
-  const result = csvType === 'claude_code'
-    ? await importClaudeCodeCsv(content)
-    : await importCursorCsv(content);
-
-  console.log(`\n✓ Import complete`);
-  console.log(`  Imported: ${result.recordsImported}`);
-  console.log(`  Skipped: ${result.recordsSkipped}`);
-  if (result.errors.length > 0) {
-    console.log(`  Errors: ${result.errors.slice(0, 5).join(', ')}`);
-  }
-  if (result.unmappedKeys && result.unmappedKeys.length > 0) {
-    console.log(`\n  Unmapped API keys: ${result.unmappedKeys.length}`);
-    console.log(`  Run 'mappings:fix' to map them to emails`);
-  }
-}
-
-async function cmdImportDir(dirPath: string, dryRun: boolean = false) {
-  console.log(`📂 Importing all CSVs from ${dirPath}\n`);
-
-  if (!fs.existsSync(dirPath)) {
-    console.log(`Error: Directory not found: ${dirPath}`);
-    return;
-  }
-
-  const files = fs.readdirSync(dirPath)
-    .filter(f => f.endsWith('.csv'))
-    .sort();
-
-  if (files.length === 0) {
-    console.log('No CSV files found');
-    return;
-  }
-
-  console.log(`Found ${files.length} CSV files\n`);
-
-  let totalImported = 0;
-  let totalSkipped = 0;
-
-  for (const file of files) {
-    const filePath = path.join(dirPath, file);
-    console.log(`\n--- ${file} ---`);
-
-    const content = fs.readFileSync(filePath, 'utf-8');
-    const firstLine = content.split('\n')[0];
-    const headers = firstLine.split(',').map(h => h.trim().replace(/^"|"$/g, ''));
-
-    let csvType: 'claude_code' | 'cursor' | 'unknown' = 'unknown';
-    if (isClaudeCodeCsv(headers)) {
-      csvType = 'claude_code';
-    } else if (isCursorCsv(headers)) {
-      csvType = 'cursor';
-    }
-
-    if (csvType === 'unknown') {
-      console.log('  Skipping - unknown CSV type');
-      continue;
-    }
-
-    console.log(`  Type: ${csvType}`);
-
-    if (dryRun) {
-      const parsed = Papa.parse(content, { header: true, skipEmptyLines: true });
-      console.log(`  Would import: ${parsed.data.length} rows`);
-      continue;
-    }
-
-    const result = csvType === 'claude_code'
-      ? await importClaudeCodeCsv(content)
-      : await importCursorCsv(content);
-
-    console.log(`  Imported: ${result.recordsImported}, Skipped: ${result.recordsSkipped}`);
-    totalImported += result.recordsImported;
-    totalSkipped += result.recordsSkipped;
-  }
-
-  console.log(`\n✓ Batch import complete`);
-  console.log(`  Total imported: ${totalImported}`);
-  console.log(`  Total skipped: ${totalSkipped}`);
-}
-
 async function main() {
   const args = process.argv.slice(2);
   const command = args[0];
-  const dryRun = args.includes('--dry-run');
 
   try {
     switch (command) {
@@ -570,44 +452,29 @@ async function main() {
       case 'backfill': {
         const tool = args[1] as 'anthropic' | 'cursor';
         if (!tool || !['anthropic', 'cursor'].includes(tool)) {
-          console.log('Error: Please specify tool (anthropic or cursor)');
-          console.log('Usage: npm run cli backfill <tool> --from YYYY-MM-DD --to YYYY-MM-DD');
+          console.error('Error: Please specify tool (anthropic or cursor)');
+          console.error('Usage: npm run cli backfill <tool> --from YYYY-MM-DD --to YYYY-MM-DD');
           break;
         }
         const fromIdx = args.indexOf('--from');
         const toIdx = args.indexOf('--to');
         if (fromIdx < 0 || toIdx < 0) {
-          console.log('Error: Please specify --from and --to dates');
-          console.log('Usage: npm run cli backfill <tool> --from YYYY-MM-DD --to YYYY-MM-DD');
+          console.error('Error: Please specify --from and --to dates');
+          console.error('Usage: npm run cli backfill <tool> --from YYYY-MM-DD --to YYYY-MM-DD');
           break;
         }
         const fromDate = args[fromIdx + 1];
         const toDate = args[toIdx + 1];
         if (!fromDate || !toDate) {
-          console.log('Error: Invalid date format');
+          console.error('Error: Missing date values');
+          break;
+        }
+        const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+        if (!dateRegex.test(fromDate) || !dateRegex.test(toDate)) {
+          console.error('Error: Dates must be in YYYY-MM-DD format');
           break;
         }
         await cmdBackfill(tool, fromDate, toDate);
-        break;
-      }
-      case 'import': {
-        const filePath = args[1];
-        if (!filePath) {
-          console.log('Error: Please specify a CSV file path');
-          console.log('Usage: npm run cli import <file.csv> [--dry-run]');
-          break;
-        }
-        await cmdImport(filePath, dryRun);
-        break;
-      }
-      case 'import:dir': {
-        const dirPath = args[1];
-        if (!dirPath) {
-          console.log('Error: Please specify a directory path');
-          console.log('Usage: npm run cli import:dir <directory> [--dry-run]');
-          break;
-        }
-        await cmdImportDir(dirPath, dryRun);
         break;
       }
       case 'debug:anthropic':
@@ -631,10 +498,12 @@ async function main() {
     rl.close();
   }
 
+  await Sentry.flush(2000);
   process.exit(0);
 }
 
-main().catch(err => {
+main().catch(async (err) => {
   console.error('Error:', err);
+  await Sentry.flush(2000);
   process.exit(1);
 });

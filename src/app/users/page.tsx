@@ -42,6 +42,7 @@ const columns: { key: SortKey; label: string; align: 'left' | 'right'; format?: 
 export default function UsersPage() {
   const [users, setUsers] = useState<UserPivotData[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [sortBy, setSortBy] = useState<SortKey>('totalTokens');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
   const [searchQuery, setSearchQuery] = useState('');
@@ -52,6 +53,7 @@ export default function UsersPage() {
 
   const fetchUsers = useCallback(async () => {
     setLoading(true);
+    setError(null);
     try {
       const params = new URLSearchParams({
         sortBy,
@@ -60,9 +62,15 @@ export default function UsersPage() {
       });
       const res = await fetch(`/api/users/pivot?${params}`);
       const data = await res.json();
-      setUsers(data);
-    } catch (error) {
-      console.error('Failed to fetch users:', error);
+      if (!res.ok) {
+        throw new Error(data.error || `API error: ${res.status}`);
+      }
+      setUsers(Array.isArray(data) ? data : []);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to fetch users';
+      console.error('Failed to fetch users:', err);
+      setError(message);
+      setUsers([]);
     } finally {
       setLoading(false);
     }
@@ -163,6 +171,13 @@ export default function UsersPage() {
         {loading ? (
           <div className="flex h-64 items-center justify-center">
             <div className="font-mono text-sm text-white/40">Loading...</div>
+          </div>
+        ) : error ? (
+          <div className="flex h-64 items-center justify-center">
+            <div className="text-center">
+              <div className="font-mono text-sm text-red-400 mb-2">Error loading users</div>
+              <div className="font-mono text-xs text-white/40">{error}</div>
+            </div>
           </div>
         ) : (
           <motion.div
