@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-import Link from 'next/link';
+import { MainNav } from '@/components/MainNav';
+import { DEFAULT_DAYS } from '@/lib/constants';
 
 interface ProviderStatus {
   id: string;
@@ -173,24 +174,18 @@ export default function StatusPage() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-[#0a0a0f]">
+    <div className="min-h-screen bg-[#0a0a0f] text-white grid-bg">
       {/* Header */}
-      <header className="border-b border-white/5 px-8 py-6">
-        <div className="flex items-center gap-4">
-          <Link
-            href="/"
-            className="text-white/40 hover:text-white transition-colors"
-          >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-            </svg>
-          </Link>
-          <div>
-            <h1 className="font-display text-2xl text-white font-light">Sync Status</h1>
-            <p className="text-white/40 text-sm font-mono">Provider sync and backfill progress</p>
-          </div>
-        </div>
+      <header className="relative z-10 border-b border-white/5 px-4 sm:px-8 py-4">
+        <MainNav days={DEFAULT_DAYS} />
       </header>
+
+      {/* Page Title */}
+      <div className="border-b border-white/5 px-4 sm:px-8 py-3">
+        <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-white/40">
+          Provider sync and backfill progress
+        </p>
+      </div>
 
       {/* Content */}
       <main className="p-8">

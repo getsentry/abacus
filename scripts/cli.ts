@@ -268,8 +268,9 @@ async function cmdBackfill(tool: 'anthropic' | 'cursor', fromDate: string, toDat
     console.log(`  Created: ${mappingsResult.mappingsCreated}, Skipped: ${mappingsResult.mappingsSkipped}\n`);
 
     // Use backfillAnthropicUsage which updates sync state
-    const result = await backfillAnthropicUsage(fromDate, toDate, {
-      onProgress: (msg) => console.log(msg)
+    // Note: backfill works backwards from existing data toward targetDate (fromDate)
+    const result = await backfillAnthropicUsage(fromDate, {
+      onProgress: (msg: string) => console.log(msg)
     });
     console.log(`\n✓ Backfill complete`);
     console.log(`  Imported: ${result.recordsImported}, Skipped: ${result.recordsSkipped}`);
@@ -278,8 +279,9 @@ async function cmdBackfill(tool: 'anthropic' | 'cursor', fromDate: string, toDat
     }
   } else if (tool === 'cursor') {
     // For Cursor, use the proper backfill function with progress
-    const result = await backfillCursorUsage(fromDate, toDate, {
-      onProgress: (msg) => console.log(msg)
+    // Note: backfill works backwards from existing data toward targetDate (fromDate)
+    const result = await backfillCursorUsage(fromDate, {
+      onProgress: (msg: string) => console.log(msg)
     });
     console.log(`\n✓ Backfill complete`);
     console.log(`  Imported: ${result.recordsImported}, Skipped: ${result.recordsSkipped}`);

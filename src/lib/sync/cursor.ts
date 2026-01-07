@@ -147,6 +147,21 @@ function sleep(ms: number): Promise<void> {
 }
 
 /**
+ * Get the start of a day (midnight UTC) for a given date string
+ * Uses date arithmetic to handle DST correctly
+ */
+function getDayStartMs(dateStr: string): number {
+  return new Date(dateStr + 'T00:00:00Z').getTime();
+}
+
+/**
+ * Get the date string (YYYY-MM-DD) for a timestamp
+ */
+function getDateStr(ms: number): string {
+  return new Date(ms).toISOString().split('T')[0];
+}
+
+/**
  * Fetch Cursor usage for a specific time range.
  * This is the low-level fetch function - it doesn't track state.
  * Immediately aborts on rate limit (no retries) - caller should handle rescheduling.
@@ -331,14 +346,17 @@ export async function syncCursorCron(): Promise<SyncResult> {
   const endMs = currentHourEnd;
 
   // Fetch and process
-  const { events, errors: fetchErrors } = await fetchCursorUsage(startMs, endMs, authHeader);
+  const { events, errors: fetchErrors, rateLimited } = await fetchCursorUsage(startMs, endMs, authHeader);
   const { imported, skipped, errors: insertErrors } = await processAndInsertEvents(events);
 
-  // Update sync state to mark this hour as synced
-  await updateCursorSyncState(endMs);
+  // Only update sync state if fetch was successful (no errors, not rate limited)
+  // This ensures we'll retry failed hours on the next run
+  if (fetchErrors.length === 0 && !rateLimited) {
+    await updateCursorSyncState(endMs);
+  }
 
   return {
-    success: fetchErrors.length === 0,
+    success: fetchErrors.length === 0 && !rateLimited,
     recordsImported: imported,
     recordsSkipped: skipped,
     errors: [...fetchErrors, ...insertErrors],
@@ -393,7 +411,6 @@ export async function syncCursorUsage(
  */
 export async function backfillCursorUsage(
   targetDate: string,
-  _endDate: string,
   options: {
     onProgress?: (msg: string) => void;
     stopOnEmptyDays?: number;   // Stop after N consecutive days with 0 events (default: 7)
@@ -444,11 +461,12 @@ export async function backfillCursorUsage(
   }
 
   // Determine range to sync: work backwards from oldest existing data
-  const targetMs = new Date(targetDate).getTime();
+  // Use UTC midnight to ensure consistent day boundaries regardless of DST
+  const targetMs = getDayStartMs(targetDate);
   let endMs: number;
   if (existingOldest) {
-    // Start from the day before our oldest data
-    endMs = new Date(existingOldest).getTime();
+    // Start from the oldest data date (we'll work backwards from here)
+    endMs = getDayStartMs(existingOldest);
   } else {
     // No existing data - start from now
     endMs = getHourStart(new Date()).getTime();
@@ -467,7 +485,7 @@ export async function backfillCursorUsage(
 
   while (currentEnd > targetMs) {
     const currentStart = Math.max(currentEnd - oneDay, targetMs);
-    const dateStr = new Date(currentStart).toISOString().split('T')[0];
+    const dateStr = getDateStr(currentStart);
 
     log(`Fetching ${dateStr}...`);
 
@@ -518,12 +536,9 @@ export async function backfillCursorUsage(
     }
   }
 
-  // Update forward sync state if needed
-  const { lastSyncedHourEnd } = await getCursorSyncState();
-  const hourEnd = getHourStart(new Date()).getTime();
-  if (!lastSyncedHourEnd || hourEnd > lastSyncedHourEnd) {
-    await updateCursorSyncState(hourEnd);
-  }
+  // Note: We intentionally do NOT update forward sync state here.
+  // Backfill is for historical data only. Forward sync state is managed
+  // by syncCursorCron() to track the latest synced hour.
 
   return {
     success: allErrors.length === 0 && !rateLimited,

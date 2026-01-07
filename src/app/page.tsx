@@ -9,6 +9,7 @@ import { UserTable } from '@/components/UserTable';
 import { UserDetailPanel } from '@/components/UserDetailPanel';
 import { SearchInput } from '@/components/SearchInput';
 import { TimeRangeSelector } from '@/components/TimeRangeSelector';
+import { MainNav } from '@/components/MainNav';
 import { ImportModal } from '@/components/ImportModal';
 import { AuthModal } from '@/components/AuthModal';
 import { formatTokens, formatCurrency } from '@/lib/utils';
@@ -61,7 +62,6 @@ function DashboardContent() {
   const [trends, setTrends] = useState<DailyUsage[]>([]);
   const [models, setModels] = useState<ModelData[]>([]);
   const [selectedUser, setSelectedUser] = useState<string | null>(null);
-  const [searchQuery, setSearchQuery] = useState('');
   const [isImportOpen, setIsImportOpen] = useState(false);
   const [isAuthOpen, setIsAuthOpen] = useState(false);
   const [authRedirect, setAuthRedirect] = useState<string | null>(null);
@@ -93,7 +93,7 @@ function DashboardContent() {
     try {
       const [statsRes, usersRes, trendsRes, modelsRes, mappingsRes] = await Promise.all([
         fetch(`/api/stats?days=${days}`),
-        fetch(`/api/users?limit=20&days=${days}${searchQuery ? `&search=${encodeURIComponent(searchQuery)}` : ''}`),
+        fetch(`/api/users?limit=10&days=${days}`),
         fetch(`/api/trends?days=${days}`),
         fetch(`/api/models?days=${days}`),
         fetch('/api/mappings'),
@@ -117,7 +117,7 @@ function DashboardContent() {
     } finally {
       setLoading(false);
     }
-  }, [searchQuery, days]);
+  }, [days]);
 
   useEffect(() => {
     fetchData();
@@ -128,50 +128,19 @@ function DashboardContent() {
   return (
     <div className="min-h-screen bg-[#0a0a0f] text-white grid-bg">
       {/* Header */}
-      <header className="relative z-10 border-b border-white/5 px-4 sm:px-8 py-4 sm:py-6">
+      <header className="relative z-10 border-b border-white/5 px-4 sm:px-8 py-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div>
-            <h1 className="font-display text-xl sm:text-2xl font-light tracking-tight">
-              AI Usage <span className="text-amber-500">Tracker</span>
-            </h1>
-            <p className="mt-1 font-mono text-[10px] uppercase tracking-[0.2em] text-white/40 hidden sm:block">
-              Engineering Intelligence Dashboard
-            </p>
-          </div>
-          <div className="flex items-center gap-2 sm:gap-4 flex-wrap">
-            <SearchInput
-              value={searchQuery}
-              onChange={setSearchQuery}
-              placeholder="Search users..."
-            />
+          <MainNav days={days} isAdmin={isAdmin} />
+          <div className="flex items-center gap-3">
+            <SearchInput days={days} placeholder="Search users..." />
             <TimeRangeSelector value={days} onChange={setDays} />
             {isAdmin && (
               <button
                 onClick={() => setIsImportOpen(true)}
-                className="rounded-lg bg-amber-500 px-3 sm:px-4 py-2 font-mono text-xs text-black hover:bg-amber-400 transition-colors"
+                className="rounded-lg bg-amber-500 px-3 py-2 font-mono text-xs text-black hover:bg-amber-400 transition-colors"
               >
                 Import
               </button>
-            )}
-            <Link
-              href={`/users?days=${days}`}
-              className="rounded-lg border border-white/10 px-3 sm:px-4 py-2 font-mono text-xs text-white/60 hover:bg-white/5 hover:text-white transition-colors"
-            >
-              Users
-            </Link>
-            <Link
-              href="/status"
-              className="rounded-lg border border-white/10 px-3 sm:px-4 py-2 font-mono text-xs text-white/60 hover:bg-white/5 hover:text-white transition-colors hidden sm:inline-flex"
-            >
-              Status
-            </Link>
-            {isAdmin && (
-              <Link
-                href="/settings"
-                className="rounded-lg border border-white/10 px-3 sm:px-4 py-2 font-mono text-xs text-white/60 hover:bg-white/5 hover:text-white transition-colors"
-              >
-                Settings
-              </Link>
             )}
           </div>
         </div>

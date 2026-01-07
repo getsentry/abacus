@@ -47,7 +47,7 @@ export async function GET(request: Request) {
     const mappingsResult = await syncApiKeyMappingsSmart();
 
     // Run backfill - will abort on rate limit and save progress
-    const result = await backfillAnthropicUsage(BACKFILL_TARGET_DATE, new Date().toISOString().split('T')[0]);
+    const result = await backfillAnthropicUsage(BACKFILL_TARGET_DATE);
 
     // Get updated state
     const { oldestDate: newOldestDate, isComplete: nowComplete } = await getAnthropicBackfillState();

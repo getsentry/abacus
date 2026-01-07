@@ -1,11 +1,12 @@
 'use client';
 
 import { useState, useEffect, useCallback, Suspense } from 'react';
-import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import { motion } from 'framer-motion';
-import { SearchInput } from '@/components/SearchInput';
+import { InlineSearchInput } from '@/components/SearchInput';
 import { UserDetailPanel } from '@/components/UserDetailPanel';
 import { TimeRangeSelector } from '@/components/TimeRangeSelector';
+import { MainNav } from '@/components/MainNav';
 import { formatTokens, formatCurrency } from '@/lib/utils';
 import { useTimeRange } from '@/contexts/TimeRangeContext';
 
@@ -43,13 +44,15 @@ const columns: { key: SortKey; label: string; align: 'left' | 'right'; format?: 
 
 function UsersPageContent() {
   const { days, setDays } = useTimeRange();
+  const searchParams = useSearchParams();
+  const initialSearch = searchParams.get('search') || '';
 
   const [users, setUsers] = useState<UserPivotData[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [sortBy, setSortBy] = useState<SortKey>('totalTokens');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
-  const [searchQuery, setSearchQuery] = useState('');
+  const [searchQuery, setSearchQuery] = useState(initialSearch);
   const [selectedUser, setSelectedUser] = useState<string | null>(null);
   const [visibleColumns, setVisibleColumns] = useState<Set<SortKey>>(
     new Set(['email', 'totalTokens', 'totalCost', 'claudeCodeTokens', 'cursorTokens', 'daysActive', 'avgTokensPerDay', 'lastActive'])
@@ -123,39 +126,28 @@ function UsersPageContent() {
   return (
     <div className="min-h-screen bg-[#0a0a0f] text-white grid-bg">
       {/* Header */}
-      <header className="relative z-10 border-b border-white/5 px-4 sm:px-8 py-4 sm:py-6">
+      <header className="relative z-10 border-b border-white/5 px-4 sm:px-8 py-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div className="flex items-center gap-3 sm:gap-4">
-            <Link href={`/?days=${days}`} className="text-white/40 hover:text-white transition-colors">
-              <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-              </svg>
-            </Link>
-            <div>
-              <h1 className="font-display text-xl sm:text-2xl font-medium tracking-tight">
-                All Users
-              </h1>
-              <p className="mt-1 font-mono text-[10px] uppercase tracking-[0.2em] text-white/40">
-                {users.length} users
-              </p>
-            </div>
-          </div>
-          <div className="flex items-center gap-2 sm:gap-4 flex-wrap">
-            <SearchInput
+          <MainNav days={days} />
+          <div className="flex items-center gap-3">
+            <InlineSearchInput
               value={searchQuery}
               onChange={setSearchQuery}
-              placeholder="Search users..."
+              placeholder="Filter users..."
             />
             <TimeRangeSelector value={days} onChange={setDays} />
-            <Link
-              href="/status"
-              className="rounded-lg border border-white/10 px-3 sm:px-4 py-2 font-mono text-xs text-white/60 hover:bg-white/5 hover:text-white transition-colors hidden sm:inline-flex"
-            >
-              Status
-            </Link>
           </div>
         </div>
       </header>
+
+      {/* Page Title */}
+      <div className="border-b border-white/5 px-4 sm:px-8 py-3">
+        <div className="flex items-center justify-between">
+          <h2 className="font-mono text-[10px] uppercase tracking-[0.2em] text-white/40">
+            {users.length} users
+          </h2>
+        </div>
+      </div>
 
       {/* Column Selector */}
       <div className="border-b border-white/5 px-4 sm:px-8 py-3 overflow-x-auto">

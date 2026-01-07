@@ -210,7 +210,7 @@ export async function syncAnthropicUsage(
           const cacheReadTokens = item.cache_read_input_tokens || 0;
           const outputTokens = item.output_tokens || 0;
 
-          const cost = calculateCost(item.model, inputTokens + cacheWriteTokens, outputTokens);
+          const cost = calculateCost(item.model, inputTokens, outputTokens, cacheWriteTokens, cacheReadTokens);
 
           try {
             await insertUsageRecord({
@@ -318,7 +318,6 @@ export async function syncAnthropicCron(): Promise<SyncResult> {
  */
 export async function backfillAnthropicUsage(
   targetDate: string,
-  _endDate: string,
   options: { onProgress?: (msg: string) => void; stopOnEmptyDays?: number } = {}
 ): Promise<SyncResult & { rateLimited: boolean }> {
   const log = options.onProgress || (() => {});
@@ -358,8 +357,10 @@ export async function backfillAnthropicUsage(
   let endDate: string;
   if (existingOldest) {
     // Go back one day from oldest to avoid re-fetching
-    const oldestMs = new Date(existingOldest).getTime();
-    endDate = new Date(oldestMs - 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+    // Use date arithmetic instead of milliseconds to handle DST correctly
+    const oldestDate = new Date(existingOldest);
+    oldestDate.setDate(oldestDate.getDate() - 1);
+    endDate = oldestDate.toISOString().split('T')[0];
   } else {
     const yesterday = new Date();
     yesterday.setDate(yesterday.getDate() - 1);
@@ -382,23 +383,29 @@ export async function backfillAnthropicUsage(
   } else if (result.success) {
     // Check if we got any data
     if (result.recordsImported === 0) {
-      // No data found - this could mean we've hit the API's data limit
-      log(`No records found for ${targetDate} to ${endDate}.`);
-      // Check if we've tried enough times with no data
-      // For Anthropic daily API, if we get 0 records for the full range, mark complete
-      if (stopOnEmptyDays > 0) {
-        log(`Marking backfill complete - no historical data available.`);
+      // No data found - calculate how many days this range spans
+      const startMs = new Date(targetDate).getTime();
+      const endMs = new Date(endDate).getTime();
+      const daysCovered = Math.ceil((endMs - startMs) / (24 * 60 * 60 * 1000));
+
+      log(`No records found for ${targetDate} to ${endDate} (${daysCovered} days).`);
+
+      // Only mark complete if we synced a small range and got 0 records
+      // This prevents marking complete prematurely when syncing large historical ranges
+      // where a gap in data might exist
+      if (daysCovered <= stopOnEmptyDays) {
+        log(`Small range (${daysCovered} days) with no data. Marking backfill complete.`);
         await markAnthropicBackfillComplete();
+      } else {
+        log(`Large range - will continue backfilling on next run.`);
       }
     } else {
       log(`Imported ${result.recordsImported} records.`);
     }
 
-    // Update forward sync state if needed
-    const { lastSyncedDate } = await getAnthropicSyncState();
-    if (!lastSyncedDate || endDate > lastSyncedDate) {
-      await updateAnthropicSyncState(endDate);
-    }
+    // Note: We intentionally do NOT update forward sync state here.
+    // Backfill is for historical data only. Forward sync state is managed
+    // by syncAnthropicCron() to track the latest synced date.
   }
 
   return { ...result, rateLimited };

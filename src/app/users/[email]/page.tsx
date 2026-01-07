@@ -8,6 +8,7 @@ import { motion } from 'framer-motion';
 import { StatCard } from '@/components/StatCard';
 import { StackedBarChart } from '@/components/StackedBarChart';
 import { TimeRangeSelector } from '@/components/TimeRangeSelector';
+import { MainNav } from '@/components/MainNav';
 import { formatTokens, formatCurrency, formatDate, formatModelName } from '@/lib/utils';
 
 interface UserDetails {
@@ -88,48 +89,34 @@ function UserDetailContent() {
   return (
     <div className="min-h-screen bg-[#0a0a0f] text-white grid-bg">
       {/* Header */}
-      <header className="relative z-10 border-b border-white/5">
-        <div className="px-4 sm:px-8 py-4 sm:py-6">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <div className="flex items-center gap-3 sm:gap-4 min-w-0">
-              <Link
-                href={`/users?days=${days}`}
-                className="group flex-shrink-0 flex items-center justify-center w-9 h-9 sm:w-10 sm:h-10 rounded-lg border border-white/10 bg-white/[0.02] hover:bg-white/[0.05] transition-all"
-              >
-                <svg
-                  className="h-4 w-4 sm:h-5 sm:w-5 text-white/40 group-hover:text-white transition-colors"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-                </svg>
-              </Link>
-              <motion.h1
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
-                className="font-display text-lg sm:text-2xl font-medium tracking-tight truncate min-w-0"
-              >
-                {email}
-              </motion.h1>
-            </div>
-            <motion.div
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: 0.1 }}
-              className="flex items-center gap-2 sm:gap-4"
-            >
-              <TimeRangeSelector value={days} onChange={setDays} />
-              <Link
-                href="/status"
-                className="rounded-lg border border-white/10 px-3 sm:px-4 py-2 font-mono text-xs text-white/60 hover:bg-white/5 hover:text-white transition-colors hidden sm:inline-flex"
-              >
-                Status
-              </Link>
-            </motion.div>
+      <header className="relative z-10 border-b border-white/5 px-4 sm:px-8 py-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <MainNav days={days} />
+          <div className="flex items-center gap-3">
+            <TimeRangeSelector value={days} onChange={setDays} />
           </div>
         </div>
       </header>
+
+      {/* User Breadcrumb */}
+      <div className="border-b border-white/5 px-4 sm:px-8 py-3">
+        <div className="flex items-center gap-2">
+          <Link
+            href={`/users?days=${days}`}
+            className="font-mono text-[10px] uppercase tracking-[0.2em] text-white/40 hover:text-white/60 transition-colors"
+          >
+            Users
+          </Link>
+          <span className="text-white/20">/</span>
+          <motion.span
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            className="font-mono text-[10px] uppercase tracking-[0.2em] text-amber-400"
+          >
+            {email}
+          </motion.span>
+        </div>
+      </div>
 
       {/* Main Content */}
       <main className="relative z-10 p-4 sm:p-8">

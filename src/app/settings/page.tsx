@@ -1,9 +1,10 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import Link from 'next/link';
 import { motion } from 'framer-motion';
 import { MappingAssistant } from '@/components/MappingAssistant';
+import { MainNav } from '@/components/MainNav';
+import { DEFAULT_DAYS } from '@/lib/constants';
 
 interface Mapping {
   api_key: string;
@@ -61,25 +62,16 @@ export default function SettingsPage() {
   return (
     <div className="min-h-screen bg-[#0a0a0f] text-white grid-bg">
       {/* Header */}
-      <header className="relative z-10 border-b border-white/5 px-8 py-6">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <Link href="/" className="text-white/40 hover:text-white transition-colors">
-              <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-              </svg>
-            </Link>
-            <div>
-              <h1 className="font-display text-2xl font-medium tracking-tight">
-                Settings
-              </h1>
-              <p className="mt-1 font-mono text-[10px] uppercase tracking-[0.2em] text-white/40">
-                API Key Mappings
-              </p>
-            </div>
-          </div>
-        </div>
+      <header className="relative z-10 border-b border-white/5 px-4 sm:px-8 py-4">
+        <MainNav days={DEFAULT_DAYS} isAdmin={true} />
       </header>
+
+      {/* Page Title */}
+      <div className="border-b border-white/5 px-4 sm:px-8 py-3">
+        <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-white/40">
+          API Key Mappings
+        </p>
+      </div>
 
       {/* Main Content */}
       <main className="relative z-10 p-8 max-w-4xl">
