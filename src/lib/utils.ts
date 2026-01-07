@@ -1,13 +1,36 @@
 export function formatTokens(n: number): string {
-  if (n >= 1_000_000_000) return `${(n / 1_000_000_000).toFixed(1)}B`;
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
-  if (n >= 1_000) return `${(n / 1_000).toFixed(0)}K`;
+  // Handle invalid/NaN values
+  if (!Number.isFinite(n)) return '0';
+
+  const absN = Math.abs(n);
+  const sign = n < 0 ? '-' : '';
+
+  // For extremely large values (data corruption), show compact exponential
+  if (absN >= 1e21) {
+    const exp = Math.floor(Math.log10(absN));
+    const mantissa = absN / Math.pow(10, exp);
+    return `${sign}${mantissa.toFixed(1)}e${exp}`;
+  }
+
+  if (absN >= 1e18) return `${sign}${(absN / 1e18).toFixed(1)}Qi`;   // Quintillion
+  if (absN >= 1e15) return `${sign}${(absN / 1e15).toFixed(1)}Q`;    // Quadrillion
+  if (absN >= 1e12) return `${sign}${(absN / 1e12).toFixed(1)}T`;    // Trillion
+  if (absN >= 1e9) return `${sign}${(absN / 1e9).toFixed(1)}B`;      // Billion
+  if (absN >= 1e6) return `${sign}${(absN / 1e6).toFixed(1)}M`;      // Million
+  if (absN >= 1e3) return `${sign}${(absN / 1e3).toFixed(0)}K`;      // Thousand
   return n.toString();
 }
 
 export function formatCurrency(n: number): string {
-  if (n >= 1000) return `$${(n / 1000).toFixed(1)}K`;
-  return `$${n.toFixed(2)}`;
+  if (!Number.isFinite(n)) return '$0.00';
+
+  const absN = Math.abs(n);
+  const sign = n < 0 ? '-' : '';
+
+  if (absN >= 1e9) return `${sign}$${(absN / 1e9).toFixed(1)}B`;
+  if (absN >= 1e6) return `${sign}$${(absN / 1e6).toFixed(1)}M`;
+  if (absN >= 1e3) return `${sign}$${(absN / 1e3).toFixed(1)}K`;
+  return `${sign}$${absN.toFixed(2)}`;
 }
 
 export function formatDate(dateStr: string): string {
@@ -17,4 +40,78 @@ export function formatDate(dateStr: string): string {
 
 export function cn(...classes: (string | boolean | undefined | null)[]): string {
   return classes.filter(Boolean).join(' ');
+}
+
+/**
+ * Normalize model name to canonical form at write-time.
+ * Handles variations like "4-sonnet" → "sonnet-4", "4-sonnet (T)" → "sonnet-4 (T)"
+ */
+export function normalizeModelName(model: string): string {
+  if (!model) return model;
+
+  let normalized = model.trim();
+
+  // Extract suffix like (T) or (Thinking) if present
+  const suffixMatch = normalized.match(/\s*\(([^)]+)\)\s*$/);
+  let suffix = '';
+  if (suffixMatch) {
+    suffix = suffixMatch[1];
+    normalized = normalized.replace(suffixMatch[0], '').trim();
+  }
+
+  // Normalize suffix abbreviations
+  const suffixMap: Record<string, string> = {
+    'T': 'T',           // Keep as T for storage
+    'Thinking': 'T',    // Normalize to T
+  };
+  if (suffix && suffixMap[suffix]) {
+    suffix = suffixMap[suffix];
+  }
+
+  // Handle reversed patterns: "4-sonnet" → "sonnet-4", "4-opus" → "opus-4"
+  const reversedMatch = normalized.match(/^(\d+(?:\.\d+)?)-([a-z]+)$/i);
+  if (reversedMatch) {
+    normalized = `${reversedMatch[2].toLowerCase()}-${reversedMatch[1]}`;
+  }
+
+  // Handle standalone version numbers (needs model family context)
+  // "4" alone when referring to Claude typically means "sonnet-4"
+  // But we can't know for sure without context, so leave it for display-time
+
+  // Reconstruct with suffix if present
+  if (suffix) {
+    normalized = `${normalized} (${suffix})`;
+  }
+
+  return normalized;
+}
+
+/**
+ * Format model name for display (human-readable).
+ * Expands abbreviations: "(T)" → "(Thinking)"
+ */
+export function formatModelName(model: string): string {
+  if (!model) return model;
+
+  // Expand (T) to (Thinking)
+  let display = model.replace(/\s*\(T\)\s*$/, ' (Thinking)');
+
+  // Clean up claude- prefix for shorter display
+  display = display.replace(/^claude-/, '');
+
+  // Format version separators nicely: "sonnet-4" → "Sonnet 4"
+  // Only capitalize known model families
+  const families = ['sonnet', 'opus', 'haiku'];
+  for (const family of families) {
+    const regex = new RegExp(`^${family}[- ]?(\\d+(?:\\.\\d+)?)`, 'i');
+    const match = display.match(regex);
+    if (match) {
+      const version = match[1];
+      const rest = display.slice(match[0].length);
+      display = `${family.charAt(0).toUpperCase()}${family.slice(1)} ${version}${rest}`;
+      break;
+    }
+  }
+
+  return display;
 }

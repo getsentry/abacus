@@ -443,51 +443,65 @@ export async function getAllUsersPivot(
   const safeSortBy = validSortColumns.includes(sortBy) ? sortBy : 'totalTokens';
   const searchPattern = search ? `%${search}%` : null;
 
-  // Need to use raw SQL for dynamic ORDER BY - Vercel Postgres doesn't support dynamic column names in template
-  // Using a workaround with CASE statements for sorting
+  // Get stats for last 30 days, but lastActive from all time
   const result = searchPattern
     ? await sql`
         SELECT
-          email,
-          SUM(input_tokens + cache_write_tokens + output_tokens)::bigint as "totalTokens",
-          SUM(cost)::float as "totalCost",
-          SUM(CASE WHEN tool = 'claude_code' THEN input_tokens + cache_write_tokens + output_tokens ELSE 0 END)::bigint as "claudeCodeTokens",
-          SUM(CASE WHEN tool = 'cursor' THEN input_tokens + cache_write_tokens + output_tokens ELSE 0 END)::bigint as "cursorTokens",
-          SUM(input_tokens)::bigint as "inputTokens",
-          SUM(output_tokens)::bigint as "outputTokens",
-          SUM(cache_read_tokens)::bigint as "cacheReadTokens",
+          r.email,
+          SUM(r.input_tokens + r.cache_write_tokens + r.output_tokens)::bigint as "totalTokens",
+          SUM(r.cost)::float as "totalCost",
+          SUM(CASE WHEN r.tool = 'claude_code' THEN r.input_tokens + r.cache_write_tokens + r.output_tokens ELSE 0 END)::bigint as "claudeCodeTokens",
+          SUM(CASE WHEN r.tool = 'cursor' THEN r.input_tokens + r.cache_write_tokens + r.output_tokens ELSE 0 END)::bigint as "cursorTokens",
+          SUM(r.input_tokens)::bigint as "inputTokens",
+          SUM(r.output_tokens)::bigint as "outputTokens",
+          SUM(r.cache_read_tokens)::bigint as "cacheReadTokens",
           COUNT(*)::int as "requestCount",
-          MIN(date)::text as "firstActive",
-          MAX(date)::text as "lastActive",
-          COUNT(DISTINCT date)::int as "daysActive"
-        FROM usage_records
-        WHERE email != 'unknown' AND email LIKE ${searchPattern}
-        GROUP BY email
+          MIN(r.date)::text as "firstActive",
+          la."lastActive",
+          COUNT(DISTINCT r.date)::int as "daysActive"
+        FROM usage_records r
+        JOIN (
+          SELECT email, MAX(date)::text as "lastActive"
+          FROM usage_records
+          WHERE email != 'unknown'
+          GROUP BY email
+        ) la ON r.email = la.email
+        WHERE r.email != 'unknown'
+          AND r.email LIKE ${searchPattern}
+          AND r.date >= CURRENT_DATE - 30
+        GROUP BY r.email, la."lastActive"
         ORDER BY "totalTokens" DESC
       `
     : await sql`
         SELECT
-          email,
-          SUM(input_tokens + cache_write_tokens + output_tokens)::bigint as "totalTokens",
-          SUM(cost)::float as "totalCost",
-          SUM(CASE WHEN tool = 'claude_code' THEN input_tokens + cache_write_tokens + output_tokens ELSE 0 END)::bigint as "claudeCodeTokens",
-          SUM(CASE WHEN tool = 'cursor' THEN input_tokens + cache_write_tokens + output_tokens ELSE 0 END)::bigint as "cursorTokens",
-          SUM(input_tokens)::bigint as "inputTokens",
-          SUM(output_tokens)::bigint as "outputTokens",
-          SUM(cache_read_tokens)::bigint as "cacheReadTokens",
+          r.email,
+          SUM(r.input_tokens + r.cache_write_tokens + r.output_tokens)::bigint as "totalTokens",
+          SUM(r.cost)::float as "totalCost",
+          SUM(CASE WHEN r.tool = 'claude_code' THEN r.input_tokens + r.cache_write_tokens + r.output_tokens ELSE 0 END)::bigint as "claudeCodeTokens",
+          SUM(CASE WHEN r.tool = 'cursor' THEN r.input_tokens + r.cache_write_tokens + r.output_tokens ELSE 0 END)::bigint as "cursorTokens",
+          SUM(r.input_tokens)::bigint as "inputTokens",
+          SUM(r.output_tokens)::bigint as "outputTokens",
+          SUM(r.cache_read_tokens)::bigint as "cacheReadTokens",
           COUNT(*)::int as "requestCount",
-          MIN(date)::text as "firstActive",
-          MAX(date)::text as "lastActive",
-          COUNT(DISTINCT date)::int as "daysActive"
-        FROM usage_records
-        WHERE email != 'unknown'
-        GROUP BY email
+          MIN(r.date)::text as "firstActive",
+          la."lastActive",
+          COUNT(DISTINCT r.date)::int as "daysActive"
+        FROM usage_records r
+        JOIN (
+          SELECT email, MAX(date)::text as "lastActive"
+          FROM usage_records
+          WHERE email != 'unknown'
+          GROUP BY email
+        ) la ON r.email = la.email
+        WHERE r.email != 'unknown'
+          AND r.date >= CURRENT_DATE - 30
+        GROUP BY r.email, la."lastActive"
         ORDER BY "totalTokens" DESC
       `;
 
   let users = result.rows.map(u => ({
     ...u,
-    avgTokensPerDay: u.daysActive > 0 ? Math.round(u.totalTokens / u.daysActive) : 0
+    avgTokensPerDay: u.daysActive > 0 ? Math.round(Number(u.totalTokens) / u.daysActive) : 0
   })) as UserPivotData[];
 
   // Apply sorting in JS since we can't do dynamic ORDER BY

@@ -1,5 +1,6 @@
 import { insertUsageRecord, getApiKeyMappings } from '../queries';
 import { calculateCost } from '../db';
+import { normalizeModelName } from '../utils';
 import { sql } from '@vercel/postgres';
 
 interface AnthropicUsageResult {
@@ -78,51 +79,26 @@ function extractEmailFromApiKeyId(apiKeyId: string): string | null {
   return null;
 }
 
-/**
- * Sleep for a given number of milliseconds
- */
-function sleep(ms: number): Promise<void> {
-  return new Promise(resolve => setTimeout(resolve, ms));
+// Get backfill state - tracks how far back we've successfully backfilled
+export async function getAnthropicBackfillState(): Promise<{ oldestDate: string | null }> {
+  const result = await sql`
+    SELECT backfill_oldest_date FROM sync_state WHERE id = ${SYNC_STATE_ID}
+  `;
+  if (result.rows.length === 0 || !result.rows[0].backfill_oldest_date) {
+    return { oldestDate: null };
+  }
+  return { oldestDate: result.rows[0].backfill_oldest_date };
 }
 
-/**
- * Fetch with exponential backoff for rate limit handling
- */
-async function fetchWithRetry(
-  url: string,
-  options: RequestInit,
-  maxRetries: number = 5,
-  initialDelayMs: number = 10000
-): Promise<{ response: Response; rateLimited: boolean }> {
-  let delay = initialDelayMs;
-  let rateLimited = false;
-
-  for (let attempt = 0; attempt <= maxRetries; attempt++) {
-    const response = await fetch(url, options);
-
-    if (response.ok) {
-      return { response, rateLimited: false };
-    }
-
-    // If rate limited, wait and retry
-    if (response.status === 429) {
-      rateLimited = true;
-      if (attempt < maxRetries) {
-        // Check for Retry-After header
-        const retryAfter = response.headers.get('Retry-After');
-        const waitTime = retryAfter ? parseInt(retryAfter) * 1000 : delay;
-
-        await sleep(waitTime);
-        delay *= 2; // Exponential backoff
-        continue;
-      }
-    }
-
-    // For non-429 errors or final attempt, return the response
-    return { response, rateLimited };
-  }
-
-  throw new Error('Max retries exceeded');
+// Update backfill state
+async function updateAnthropicBackfillState(oldestDate: string): Promise<void> {
+  await sql`
+    INSERT INTO sync_state (id, last_sync_at, backfill_oldest_date)
+    VALUES (${SYNC_STATE_ID}, NOW(), ${oldestDate})
+    ON CONFLICT (id) DO UPDATE SET
+      last_sync_at = NOW(),
+      backfill_oldest_date = ${oldestDate}
+  `;
 }
 
 /**
@@ -176,23 +152,26 @@ export async function syncAnthropicUsage(
         params.set('page', page);
       }
 
-      const { response, rateLimited } = await fetchWithRetry(
+      const response = await fetch(
         `https://api.anthropic.com/v1/organizations/usage_report/messages?${params}`,
         {
           headers: {
             'X-Api-Key': adminKey,
             'anthropic-version': '2023-06-01'
           }
-        },
-        5,  // maxRetries
-        10000  // initial delay 10s
+        }
       );
+
+      // On rate limit, immediately abort - don't retry
+      if (response.status === 429) {
+        const errorText = await response.text();
+        result.success = false;
+        result.errors.push(`Anthropic API rate limited: ${errorText}`);
+        return result;
+      }
 
       if (!response.ok) {
         const errorText = await response.text();
-        if (rateLimited) {
-          throw new Error(`Anthropic API rate limited after retries: ${response.status} - ${errorText}`);
-        }
         throw new Error(`Anthropic API error: ${response.status} - ${errorText}`);
       }
 
@@ -225,7 +204,7 @@ export async function syncAnthropicUsage(
               date,
               email,
               tool: 'claude_code',
-              model: item.model,
+              model: normalizeModelName(item.model || 'unknown'),
               inputTokens,
               cacheWriteTokens,
               cacheReadTokens,
@@ -319,26 +298,59 @@ export async function syncAnthropicCron(): Promise<SyncResult> {
 
 /**
  * Backfill Anthropic data for a date range.
- * Updates sync state after completion.
+ * - Immediately aborts on rate limit (saves progress to database)
+ * - Tracks backfill progress separately from forward sync
+ * - Can be resumed by calling again with the same target date
  */
 export async function backfillAnthropicUsage(
   startDate: string,
   endDate: string,
   options: { onProgress?: (msg: string) => void } = {}
-): Promise<SyncResult> {
+): Promise<SyncResult & { rateLimited: boolean }> {
   const log = options.onProgress || (() => {});
 
-  log(`Fetching Anthropic usage from ${startDate} to ${endDate}...`);
-  const result = await syncAnthropicUsage(startDate, endDate);
+  // Get current backfill state
+  const { oldestDate: existingOldest } = await getAnthropicBackfillState();
 
-  if (result.success) {
-    // Update sync state to the end date
+  // If we have an existing oldest date that's older than the requested start,
+  // we've already backfilled this range
+  if (existingOldest && existingOldest <= startDate) {
+    log(`Already backfilled to ${existingOldest}, skipping.`);
+    return {
+      success: true,
+      recordsImported: 0,
+      recordsSkipped: 0,
+      errors: [],
+      syncedRange: { startDate, endDate },
+      rateLimited: false
+    };
+  }
+
+  // Determine actual range to sync
+  // If we have a backfill state, start from there instead
+  const actualEndDate = existingOldest && existingOldest < endDate ? existingOldest : endDate;
+
+  log(`Fetching Anthropic usage from ${startDate} to ${actualEndDate}...`);
+  const result = await syncAnthropicUsage(startDate, actualEndDate);
+
+  // Check if we were rate limited (indicated by specific error message)
+  const rateLimited = result.errors.some(e => e.includes('rate limited'));
+
+  if (rateLimited) {
+    log(`Rate limited! Progress saved.`);
+    // Don't update backfill state on rate limit - we'll retry from where we left off
+  } else if (result.success) {
+    // Update backfill state to track how far back we've gone
+    await updateAnthropicBackfillState(startDate);
+    log(`Backfill state updated: oldest=${startDate}`);
+
+    // Also update forward sync state if this extends beyond it
     const { lastSyncedDate } = await getAnthropicSyncState();
-    if (!lastSyncedDate || endDate > lastSyncedDate) {
-      await updateAnthropicSyncState(endDate);
+    if (!lastSyncedDate || actualEndDate > lastSyncedDate) {
+      await updateAnthropicSyncState(actualEndDate);
     }
   }
 
   log(`Done: ${result.recordsImported} imported, ${result.recordsSkipped} skipped`);
-  return result;
+  return { ...result, rateLimited };
 }

@@ -53,6 +53,9 @@ export const syncState = pgTable('sync_state', {
   // For Cursor: tracks the end of the last synced hour (epoch ms)
   // This ensures we never re-poll the same hour
   lastSyncedHourEnd: text('last_synced_hour_end'),
+  // For backfills: tracks the oldest date we've successfully synced to
+  // Backfill progresses backwards from newest to oldest
+  backfillOldestDate: text('backfill_oldest_date'),
 });
 
 // Type exports for use in queries
