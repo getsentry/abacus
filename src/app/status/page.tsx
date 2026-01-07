@@ -177,7 +177,7 @@ export default function StatusPage() {
   return (
     <div className="min-h-screen bg-[#0a0a0f] text-white grid-bg">
       {/* Header */}
-      <header className="relative z-10 border-b border-white/5 px-4 sm:px-8 py-4">
+      <header className="relative z-20 border-b border-white/5 px-4 sm:px-8 py-4">
         <div className="flex items-center justify-between">
           <MainNav days={DEFAULT_DAYS} />
           <UserMenu />
