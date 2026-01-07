@@ -18,7 +18,6 @@ export interface Guide {
 }
 
 // Tips shown in the TipBar - rotate randomly on each load
-// Pattern: Action verb + concise advice, use em-dash (—) for breaks
 export const TIPS: Tip[] = [
   // Subagents
   {
@@ -28,26 +27,26 @@ export const TIPS: Tip[] = [
   },
   {
     id: 'subagents-explore',
-    text: 'Delegate research and exploration to subagents—keeps your main context clean',
+    text: 'Delegate research and exploration to subagents to keep your main context clean',
     guide: 'subagents',
   },
 
   // Compaction
   {
     id: 'compact-when',
-    text: 'Run /compact at logical breakpoints—don\'t wait until you hit context limits',
+    text: 'Run /compact at logical breakpoints instead of waiting for context limits',
     guide: 'compaction',
   },
   {
     id: 'compact-vs-clear',
-    text: '/compact preserves key decisions in a summary—/clear starts completely fresh',
+    text: '/compact preserves key decisions in a summary while /clear starts fresh',
     guide: 'compaction',
   },
 
   // Skills
   {
     id: 'skills-intro',
-    text: 'Create skills for repetitive workflows—Claude applies them automatically',
+    text: 'Create skills for repetitive workflows and Claude will apply them automatically',
     guide: 'skills',
   },
   {
@@ -59,7 +58,7 @@ export const TIPS: Tip[] = [
   // Plan mode
   {
     id: 'plan-mode-intro',
-    text: 'Use plan mode (Shift+Tab) for complex changes—research before executing',
+    text: 'Use plan mode (Shift+Tab) to research complex changes before executing',
     guide: 'plan-mode',
   },
   {
@@ -71,36 +70,36 @@ export const TIPS: Tip[] = [
   // Model selection
   {
     id: 'model-selection',
-    text: 'Use Sonnet/Haiku for routine edits—save Opus for architecture and hard bugs',
+    text: 'Use Sonnet or Haiku for routine edits and save Opus for architecture decisions',
     guide: 'model-selection',
   },
   {
     id: 'thinking-models',
-    text: 'Escalate to Opus when stuck—deeper reasoning catches what faster models miss',
+    text: 'Switch to Opus when stuck since deeper reasoning catches what faster models miss',
     guide: 'model-selection',
   },
 
   // Context management
   {
     id: 'fresh-context',
-    text: 'Start fresh chats for new tasks—context pollution degrades quality',
+    text: 'Start fresh chats for new tasks since context pollution degrades quality',
     guide: 'context-management',
   },
   {
     id: 'scoped-prompts',
-    text: 'Keep prompts short and scoped—specify exactly which files to touch',
+    text: 'Keep prompts short and scoped by specifying exactly which files to touch',
     guide: 'context-management',
   },
 
   // Workflow
   {
     id: 'commit-before',
-    text: 'Commit before agent sessions—easy to revert if things go wrong',
+    text: 'Commit before agent sessions so you can easily revert if things go wrong',
     guide: 'git-workflow',
   },
   {
     id: 'multi-agent',
-    text: 'Try multi-agent workflows—run parallel agents on different branches',
+    text: 'Try multi-agent workflows by running parallel agents on different branches',
     guide: 'multi-agent',
   },
   {
@@ -117,7 +116,7 @@ export const TIPS: Tip[] = [
   },
   {
     id: 'mcp-sentry',
-    text: 'Add Sentry MCP to debug issues—search errors and trigger root cause analysis',
+    text: 'Add Sentry MCP to search errors and trigger root cause analysis',
     guide: 'mcp',
   },
 ];
