@@ -74,25 +74,38 @@ async function updateCursorSyncState(lastSyncedHourEnd: number): Promise<void> {
   `;
 }
 
-// Get backfill state - tracks how far back we've successfully backfilled
-export async function getCursorBackfillState(): Promise<{ oldestDate: string | null }> {
-  const result = await sql`
-    SELECT backfill_oldest_date FROM sync_state WHERE id = ${SYNC_STATE_ID}
+// Get backfill state - derives oldest date from actual usage data
+export async function getCursorBackfillState(): Promise<{ oldestDate: string | null; isComplete: boolean }> {
+  // Get actual oldest date from usage_records (source of truth)
+  const usageResult = await sql`
+    SELECT MIN(date)::text as oldest_date FROM usage_records WHERE tool = 'cursor'
   `;
-  if (result.rows.length === 0 || !result.rows[0].backfill_oldest_date) {
-    return { oldestDate: null };
-  }
-  return { oldestDate: result.rows[0].backfill_oldest_date };
+  const oldestDate = usageResult.rows[0]?.oldest_date || null;
+
+  // Check if backfill has been explicitly marked complete (hit API's data limit)
+  const stateResult = await sql`
+    SELECT backfill_complete FROM sync_state WHERE id = ${SYNC_STATE_ID}
+  `;
+  const isComplete = stateResult.rows[0]?.backfill_complete === 'true';
+
+  return { oldestDate, isComplete };
 }
 
-// Update backfill state
-async function updateCursorBackfillState(oldestDate: string): Promise<void> {
+// Mark backfill as complete (hit API's data limit - no more historical data)
+async function markCursorBackfillComplete(): Promise<void> {
   await sql`
-    INSERT INTO sync_state (id, last_sync_at, backfill_oldest_date)
-    VALUES (${SYNC_STATE_ID}, NOW(), ${oldestDate})
+    INSERT INTO sync_state (id, last_sync_at, backfill_complete)
+    VALUES (${SYNC_STATE_ID}, NOW(), 'true')
     ON CONFLICT (id) DO UPDATE SET
       last_sync_at = NOW(),
-      backfill_oldest_date = ${oldestDate}
+      backfill_complete = 'true'
+  `;
+}
+
+// Reset backfill complete flag (allows backfill to retry)
+export async function resetCursorBackfillComplete(): Promise<void> {
+  await sql`
+    UPDATE sync_state SET backfill_complete = NULL WHERE id = ${SYNC_STATE_ID}
   `;
 }
 
@@ -373,15 +386,14 @@ export async function syncCursorUsage(
 
 /**
  * Backfill Cursor data, processing one day at a time from newest to oldest.
- * - Immediately aborts on rate limit (saves progress to database)
- * - Tracks progress in database so it can be resumed
- * - Stops when hitting consecutive empty days (no historical data)
- *
- * Call this repeatedly (e.g., via cron) to gradually backfill history.
+ * - Works backwards from the oldest date we have data for
+ * - Immediately aborts on rate limit
+ * - Marks complete when hitting consecutive empty days (no more historical data)
+ * - Can be resumed by calling again with the same target date
  */
 export async function backfillCursorUsage(
-  startDate: string,
-  endDate: string,
+  targetDate: string,
+  _endDate: string,
   options: {
     onProgress?: (msg: string) => void;
     stopOnEmptyDays?: number;   // Stop after N consecutive days with 0 events (default: 7)
@@ -402,22 +414,44 @@ export async function backfillCursorUsage(
   const log = options.onProgress || (() => {});
   const stopOnEmptyDays = options.stopOnEmptyDays ?? 7;
 
-  // Get current backfill state
-  const { oldestDate: existingOldest } = await getCursorBackfillState();
+  // Get current backfill state from actual data
+  const { oldestDate: existingOldest, isComplete } = await getCursorBackfillState();
 
-  // Parse dates
-  const requestedStartMs = new Date(startDate).getTime();
-  const requestedEndMs = new Date(endDate).getTime() + 24 * 60 * 60 * 1000;
+  // If backfill is marked complete, nothing to do
+  if (isComplete) {
+    log(`Backfill already marked complete, skipping.`);
+    return {
+      success: true,
+      recordsImported: 0,
+      recordsSkipped: 0,
+      errors: [],
+      rateLimited: false,
+      lastProcessedDate: null
+    };
+  }
 
-  // If we have an existing oldest date, use it as the end point for this backfill
-  // (we work backwards from the oldest date we've already processed)
-  let endMs = requestedEndMs;
+  // If we've already reached the target date, nothing to do
+  if (existingOldest && existingOldest <= targetDate) {
+    log(`Already have data back to ${existingOldest}, target is ${targetDate}. Done.`);
+    return {
+      success: true,
+      recordsImported: 0,
+      recordsSkipped: 0,
+      errors: [],
+      rateLimited: false,
+      lastProcessedDate: null
+    };
+  }
+
+  // Determine range to sync: work backwards from oldest existing data
+  const targetMs = new Date(targetDate).getTime();
+  let endMs: number;
   if (existingOldest) {
-    const existingMs = new Date(existingOldest).getTime();
-    if (existingMs < requestedEndMs) {
-      endMs = existingMs;
-      log(`Resuming backfill from ${existingOldest} (previously saved state)`);
-    }
+    // Start from the day before our oldest data
+    endMs = new Date(existingOldest).getTime();
+  } else {
+    // No existing data - start from now
+    endMs = getHourStart(new Date()).getTime();
   }
 
   let totalImported = 0;
@@ -431,8 +465,8 @@ export async function backfillCursorUsage(
   const oneDay = 24 * 60 * 60 * 1000;
   let currentEnd = endMs;
 
-  while (currentEnd > requestedStartMs) {
-    const currentStart = Math.max(currentEnd - oneDay, requestedStartMs);
+  while (currentEnd > targetMs) {
+    const currentStart = Math.max(currentEnd - oneDay, targetMs);
     const dateStr = new Date(currentStart).toISOString().split('T')[0];
 
     log(`Fetching ${dateStr}...`);
@@ -445,24 +479,14 @@ export async function backfillCursorUsage(
 
     if (wasRateLimited) {
       rateLimited = true;
-      log(`  Rate limited! Saving progress and aborting.`);
+      log(`  Rate limited! Will retry on next run.`);
       allErrors.push(`Rate limited at ${dateStr}`);
-
-      // Save progress before aborting
-      if (lastProcessedDate) {
-        await updateCursorBackfillState(lastProcessedDate);
-        log(`  Saved backfill state: oldest=${lastProcessedDate}`);
-      }
       break;
     }
 
     if (fetchErrors.length > 0) {
       allErrors.push(...fetchErrors);
       log(`  Errors: ${fetchErrors.join(', ')}`);
-      // On other errors, save progress and abort
-      if (lastProcessedDate) {
-        await updateCursorBackfillState(lastProcessedDate);
-      }
       break;
     }
 
@@ -478,9 +502,8 @@ export async function backfillCursorUsage(
     if (events.length === 0) {
       consecutiveEmptyDays++;
       if (consecutiveEmptyDays >= stopOnEmptyDays) {
-        log(`  ${consecutiveEmptyDays} consecutive empty days. No more historical data.`);
-        // Mark this as the definitive oldest date
-        await updateCursorBackfillState(dateStr);
+        log(`  ${consecutiveEmptyDays} consecutive empty days. Marking backfill complete.`);
+        await markCursorBackfillComplete();
         break;
       }
     } else {
@@ -490,19 +513,14 @@ export async function backfillCursorUsage(
     currentEnd = currentStart;
 
     // Brief delay between days
-    if (currentEnd > requestedStartMs) {
+    if (currentEnd > targetMs) {
       await sleep(3000);
     }
   }
 
-  // Save final progress if we completed normally
-  if (!rateLimited && lastProcessedDate && allErrors.length === 0) {
-    await updateCursorBackfillState(lastProcessedDate);
-  }
-
-  // Update forward sync state to the end of the backfill range
+  // Update forward sync state if needed
   const { lastSyncedHourEnd } = await getCursorSyncState();
-  const hourEnd = getHourStart(new Date(requestedEndMs)).getTime();
+  const hourEnd = getHourStart(new Date()).getTime();
   if (!lastSyncedHourEnd || hourEnd > lastSyncedHourEnd) {
     await updateCursorSyncState(hourEnd);
   }
@@ -512,7 +530,7 @@ export async function backfillCursorUsage(
     recordsImported: totalImported,
     recordsSkipped: totalSkipped,
     errors: allErrors,
-    syncedRange: { startMs: requestedStartMs, endMs: requestedEndMs },
+    syncedRange: { startMs: targetMs, endMs },
     rateLimited,
     lastProcessedDate
   };

@@ -1,7 +1,7 @@
 'use client';
 
-import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
+import { useSearchParams, useRouter, usePathname } from 'next/navigation';
 
 interface TimeRangeContextValue {
   days: number;
@@ -12,19 +12,31 @@ const TimeRangeContext = createContext<TimeRangeContextValue | null>(null);
 
 export function TimeRangeProvider({ children }: { children: ReactNode }) {
   const searchParams = useSearchParams();
+  const router = useRouter();
+  const pathname = usePathname();
   const initialDays = parseInt(searchParams.get('days') || '30', 10);
-  const [days, setDays] = useState(initialDays);
+  const [days, setDaysState] = useState(initialDays);
 
-  // Sync with URL changes
+  // Sync state from URL changes (e.g., back/forward navigation)
   useEffect(() => {
     const urlDays = searchParams.get('days');
     if (urlDays) {
       const parsed = parseInt(urlDays, 10);
       if (!isNaN(parsed) && parsed !== days) {
-        setDays(parsed);
+        setDaysState(parsed);
       }
     }
   }, [searchParams, days]);
+
+  // Update both state and URL when days changes
+  const setDays = useCallback((newDays: number) => {
+    setDaysState(newDays);
+
+    // Update URL with new days value
+    const params = new URLSearchParams(searchParams.toString());
+    params.set('days', newDays.toString());
+    router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+  }, [searchParams, router, pathname]);
 
   return (
     <TimeRangeContext.Provider value={{ days, setDays }}>

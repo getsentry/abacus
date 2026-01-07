@@ -1,5 +1,5 @@
-import { syncAnthropicUsage, syncAnthropicCron, backfillAnthropicUsage, getAnthropicSyncState, SyncResult as AnthropicResult } from './anthropic';
-import { syncCursorCron, syncCursorUsage, backfillCursorUsage, getCursorSyncState, SyncResult as CursorResult } from './cursor';
+import { syncAnthropicUsage, syncAnthropicCron, backfillAnthropicUsage, getAnthropicSyncState, resetAnthropicBackfillComplete, SyncResult as AnthropicResult } from './anthropic';
+import { syncCursorCron, syncCursorUsage, backfillCursorUsage, getCursorSyncState, resetCursorBackfillComplete, SyncResult as CursorResult } from './cursor';
 import { syncAnthropicApiKeyMappings, syncApiKeyMappingsSmart, MappingResult } from './anthropic-mappings';
 import { sql } from '@vercel/postgres';
 
@@ -108,9 +108,11 @@ export {
   syncAnthropicCron,
   backfillAnthropicUsage,
   getAnthropicSyncState,
+  resetAnthropicBackfillComplete,
   syncCursorUsage,
   syncCursorCron,
   backfillCursorUsage,
   getCursorSyncState,
+  resetCursorBackfillComplete,
   syncAnthropicApiKeyMappings
 };

@@ -90,7 +90,7 @@ export function UserTable({ users, onUserClick, days = 30 }: UserTableProps) {
                         {/* Tooltip */}
                         <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover/dist:block z-20 pointer-events-none">
                           <div className="rounded bg-black/95 px-2 py-1.5 text-[10px] whitespace-nowrap border border-white/10 shadow-lg">
-                            <div className="text-amber-400">Claude: {formatTokens(user.claudeCodeTokens)} ({Math.round((Number(user.claudeCodeTokens) / Number(user.totalTokens)) * 100)}%)</div>
+                            <div className="text-amber-400">Claude Code: {formatTokens(user.claudeCodeTokens)} ({Math.round((Number(user.claudeCodeTokens) / Number(user.totalTokens)) * 100)}%)</div>
                             <div className="text-cyan-400">Cursor: {formatTokens(user.cursorTokens)} ({Math.round((Number(user.cursorTokens) / Number(user.totalTokens)) * 100)}%)</div>
                           </div>
                         </div>

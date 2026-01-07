@@ -16,13 +16,14 @@ interface StackedBarChartProps {
   showLabels?: boolean;
 }
 
-export function StackedBarChart({ data, height = 160, showLabels = true }: StackedBarChartProps) {
+export function StackedBarChart({ data, height = 200, showLabels = true }: StackedBarChartProps) {
   const maxValue = Math.max(...data.map(d => Number(d.claudeCode) + Number(d.cursor)), 1);
   const claudeCodeTotal = data.reduce((sum, d) => sum + Number(d.claudeCode), 0);
   const cursorTotal = data.reduce((sum, d) => sum + Number(d.cursor), 0);
 
-  // Determine label frequency based on data length
-  const labelEvery = data.length > 60 ? 14 : data.length > 30 ? 7 : 1;
+  // Determine label frequency to show max ~10 labels
+  const maxLabels = 10;
+  const labelEvery = Math.max(1, Math.ceil(data.length / maxLabels));
 
   return (
     <div className="w-full">
@@ -82,10 +83,10 @@ export function StackedBarChart({ data, height = 160, showLabels = true }: Stack
               <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block z-10 pointer-events-none">
                 <div className="rounded bg-black/90 px-2 py-1.5 text-[10px] whitespace-nowrap border border-white/10">
                   <div className="text-white/60 mb-1">{formatDate(item.date)}</div>
-                  <div className="text-amber-400">Claude: {formatTokens(item.claudeCode)}</div>
+                  <div className="text-amber-400">Claude Code: {formatTokens(item.claudeCode)}</div>
                   <div className="text-cyan-400">Cursor: {formatTokens(item.cursor)}</div>
                   {item.cost !== undefined && (
-                    <div className="text-green-400 mt-1 pt-1 border-t border-white/10">{formatCurrency(item.cost)}</div>
+                    <div className="text-green-400 mt-1 pt-1 border-t border-white/10">Cost: {formatCurrency(item.cost)}</div>
                   )}
                 </div>
               </div>

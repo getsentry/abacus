@@ -1,8 +1,9 @@
 'use client';
 
 import { useState, useEffect, useCallback, Suspense } from 'react';
-import { useParams, useSearchParams } from 'next/navigation';
+import { useParams } from 'next/navigation';
 import Link from 'next/link';
+import { useTimeRange } from '@/contexts/TimeRangeContext';
 import { motion } from 'framer-motion';
 import { StatCard } from '@/components/StatCard';
 import { StackedBarChart } from '@/components/StackedBarChart';
@@ -44,8 +45,7 @@ interface UserDetails {
 
 function UserDetailContent() {
   const params = useParams();
-  const searchParams = useSearchParams();
-  const initialDays = parseInt(searchParams.get('days') || '30', 10);
+  const { days, setDays } = useTimeRange();
 
   // URL uses username (e.g., /users/david), API resolves to full email
   const username = decodeURIComponent(params.email as string);
@@ -53,7 +53,6 @@ function UserDetailContent() {
   const [data, setData] = useState<UserDetails | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [days, setDays] = useState(initialDays);
 
   // Get full email from loaded data, fallback to username for display during load
   const email = data?.summary?.email || username;
@@ -282,7 +281,7 @@ function UserDetailContent() {
                 </h3>
 
                 <div className="space-y-3">
-                  {data.modelBreakdown.slice(0, 8).map((model, i) => {
+                  {data.modelBreakdown.slice(0, 6).map((model, i) => {
                     const maxTokens = data.modelBreakdown[0]?.tokens || 1;
                     const percentage = (model.tokens / maxTokens) * 100;
                     const displayName = formatModelName(model.model);
@@ -324,9 +323,9 @@ function UserDetailContent() {
                       </motion.div>
                     );
                   })}
-                  {data.modelBreakdown.length > 8 && (
+                  {data.modelBreakdown.length > 6 && (
                     <div className="font-mono text-[10px] text-white/30 pt-2">
-                      +{data.modelBreakdown.length - 8} more models
+                      +{data.modelBreakdown.length - 6} more models
                     </div>
                   )}
                 </div>

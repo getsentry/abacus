@@ -12,6 +12,7 @@ import { TimeRangeSelector } from '@/components/TimeRangeSelector';
 import { ImportModal } from '@/components/ImportModal';
 import { AuthModal } from '@/components/AuthModal';
 import { formatTokens, formatCurrency } from '@/lib/utils';
+import { useTimeRange } from '@/contexts/TimeRangeContext';
 import Link from 'next/link';
 
 interface Stats {
@@ -53,7 +54,7 @@ interface ModelData {
 function DashboardContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
-  const initialDays = parseInt(searchParams.get('days') || '30', 10);
+  const { days, setDays } = useTimeRange();
 
   const [stats, setStats] = useState<Stats | null>(null);
   const [users, setUsers] = useState<UserSummary[]>([]);
@@ -61,7 +62,6 @@ function DashboardContent() {
   const [models, setModels] = useState<ModelData[]>([]);
   const [selectedUser, setSelectedUser] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
-  const [days, setDays] = useState(initialDays);
   const [isImportOpen, setIsImportOpen] = useState(false);
   const [isAuthOpen, setIsAuthOpen] = useState(false);
   const [authRedirect, setAuthRedirect] = useState<string | null>(null);

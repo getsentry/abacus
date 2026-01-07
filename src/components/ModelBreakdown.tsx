@@ -45,13 +45,13 @@ export function ModelBreakdown({ data }: ModelBreakdownProps) {
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: 0.5 }}
-      className="rounded-lg border border-white/5 bg-white/[0.02] p-6"
+      className="rounded-lg border border-white/5 bg-white/[0.02] p-6 h-full"
     >
       <h3 className="mb-4 font-mono text-xs uppercase tracking-wider text-white/60">
         Model Distribution
       </h3>
       <div className="space-y-3">
-        {data.slice(0, 8).map((m, i) => (
+        {data.slice(0, 6).map((m, i) => (
           <motion.div
             key={`${m.model}-${m.tool}`}
             initial={{ opacity: 0, x: -20 }}

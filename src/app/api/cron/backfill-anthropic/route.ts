@@ -23,15 +23,17 @@ export async function GET(request: Request) {
   }
 
   try {
-    // Check current backfill state
-    const { oldestDate } = await getAnthropicBackfillState();
+    // Check current backfill state (derived from actual usage data)
+    const { oldestDate, isComplete } = await getAnthropicBackfillState();
 
-    // If we've already reached the target, nothing to do
-    if (oldestDate && oldestDate <= BACKFILL_TARGET_DATE) {
+    // If we've already reached the target or marked complete, nothing to do
+    if (isComplete || (oldestDate && oldestDate <= BACKFILL_TARGET_DATE)) {
       return NextResponse.json({
         success: true,
         status: 'complete',
-        message: `Backfill complete - already reached ${oldestDate}`,
+        message: isComplete
+          ? `Backfill complete - no more historical data available (oldest: ${oldestDate})`
+          : `Backfill complete - already reached ${oldestDate}`,
         targetDate: BACKFILL_TARGET_DATE,
         currentOldestDate: oldestDate
       });
@@ -44,11 +46,17 @@ export async function GET(request: Request) {
     const result = await backfillAnthropicUsage(BACKFILL_TARGET_DATE, new Date().toISOString().split('T')[0]);
 
     // Get updated state
-    const { oldestDate: newOldestDate } = await getAnthropicBackfillState();
+    const { oldestDate: newOldestDate, isComplete: nowComplete } = await getAnthropicBackfillState();
+
+    const status = result.rateLimited
+      ? 'rate_limited'
+      : (nowComplete || (newOldestDate && newOldestDate <= BACKFILL_TARGET_DATE))
+        ? 'complete'
+        : 'in_progress';
 
     return NextResponse.json({
       success: result.success,
-      status: result.rateLimited ? 'rate_limited' : (newOldestDate && newOldestDate <= BACKFILL_TARGET_DATE ? 'complete' : 'in_progress'),
+      status,
       targetDate: BACKFILL_TARGET_DATE,
       previousOldestDate: oldestDate,
       currentOldestDate: newOldestDate,

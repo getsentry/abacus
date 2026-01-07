@@ -79,25 +79,38 @@ function extractEmailFromApiKeyId(apiKeyId: string): string | null {
   return null;
 }
 
-// Get backfill state - tracks how far back we've successfully backfilled
-export async function getAnthropicBackfillState(): Promise<{ oldestDate: string | null }> {
-  const result = await sql`
-    SELECT backfill_oldest_date FROM sync_state WHERE id = ${SYNC_STATE_ID}
+// Get backfill state - derives oldest date from actual usage data
+export async function getAnthropicBackfillState(): Promise<{ oldestDate: string | null; isComplete: boolean }> {
+  // Get actual oldest date from usage_records (source of truth)
+  const usageResult = await sql`
+    SELECT MIN(date)::text as oldest_date FROM usage_records WHERE tool = 'claude_code'
   `;
-  if (result.rows.length === 0 || !result.rows[0].backfill_oldest_date) {
-    return { oldestDate: null };
-  }
-  return { oldestDate: result.rows[0].backfill_oldest_date };
+  const oldestDate = usageResult.rows[0]?.oldest_date || null;
+
+  // Check if backfill has been explicitly marked complete (hit API's data limit)
+  const stateResult = await sql`
+    SELECT backfill_complete FROM sync_state WHERE id = ${SYNC_STATE_ID}
+  `;
+  const isComplete = stateResult.rows[0]?.backfill_complete === 'true';
+
+  return { oldestDate, isComplete };
 }
 
-// Update backfill state
-async function updateAnthropicBackfillState(oldestDate: string): Promise<void> {
+// Mark backfill as complete (hit API's data limit - no more historical data)
+async function markAnthropicBackfillComplete(): Promise<void> {
   await sql`
-    INSERT INTO sync_state (id, last_sync_at, backfill_oldest_date)
-    VALUES (${SYNC_STATE_ID}, NOW(), ${oldestDate})
+    INSERT INTO sync_state (id, last_sync_at, backfill_complete)
+    VALUES (${SYNC_STATE_ID}, NOW(), 'true')
     ON CONFLICT (id) DO UPDATE SET
       last_sync_at = NOW(),
-      backfill_oldest_date = ${oldestDate}
+      backfill_complete = 'true'
+  `;
+}
+
+// Reset backfill complete flag (allows backfill to retry)
+export async function resetAnthropicBackfillComplete(): Promise<void> {
+  await sql`
+    UPDATE sync_state SET backfill_complete = NULL WHERE id = ${SYNC_STATE_ID}
   `;
 }
 
@@ -298,59 +311,95 @@ export async function syncAnthropicCron(): Promise<SyncResult> {
 
 /**
  * Backfill Anthropic data for a date range.
- * - Immediately aborts on rate limit (saves progress to database)
- * - Tracks backfill progress separately from forward sync
+ * - Works backwards from the oldest date we have data for
+ * - Immediately aborts on rate limit
+ * - Marks complete when hitting consecutive empty days (no more historical data)
  * - Can be resumed by calling again with the same target date
  */
 export async function backfillAnthropicUsage(
-  startDate: string,
-  endDate: string,
-  options: { onProgress?: (msg: string) => void } = {}
+  targetDate: string,
+  _endDate: string,
+  options: { onProgress?: (msg: string) => void; stopOnEmptyDays?: number } = {}
 ): Promise<SyncResult & { rateLimited: boolean }> {
   const log = options.onProgress || (() => {});
+  const stopOnEmptyDays = options.stopOnEmptyDays ?? 7;
 
-  // Get current backfill state
-  const { oldestDate: existingOldest } = await getAnthropicBackfillState();
+  // Get current backfill state from actual data
+  const { oldestDate: existingOldest, isComplete } = await getAnthropicBackfillState();
 
-  // If we have an existing oldest date that's older than the requested start,
-  // we've already backfilled this range
-  if (existingOldest && existingOldest <= startDate) {
-    log(`Already backfilled to ${existingOldest}, skipping.`);
+  // If backfill is marked complete, nothing to do
+  if (isComplete) {
+    log(`Backfill already marked complete, skipping.`);
     return {
       success: true,
       recordsImported: 0,
       recordsSkipped: 0,
       errors: [],
-      syncedRange: { startDate, endDate },
+      syncedRange: { startDate: targetDate, endDate: existingOldest || targetDate },
       rateLimited: false
     };
   }
 
-  // Determine actual range to sync
-  // If we have a backfill state, start from there instead
-  const actualEndDate = existingOldest && existingOldest < endDate ? existingOldest : endDate;
+  // If we've already reached the target date, nothing to do
+  if (existingOldest && existingOldest <= targetDate) {
+    log(`Already have data back to ${existingOldest}, target is ${targetDate}. Done.`);
+    return {
+      success: true,
+      recordsImported: 0,
+      recordsSkipped: 0,
+      errors: [],
+      syncedRange: { startDate: targetDate, endDate: existingOldest },
+      rateLimited: false
+    };
+  }
 
-  log(`Fetching Anthropic usage from ${startDate} to ${actualEndDate}...`);
-  const result = await syncAnthropicUsage(startDate, actualEndDate);
+  // Determine range to sync: from target date to the day before our oldest data
+  // If no existing data, sync from target to yesterday
+  let endDate: string;
+  if (existingOldest) {
+    // Go back one day from oldest to avoid re-fetching
+    const oldestMs = new Date(existingOldest).getTime();
+    endDate = new Date(oldestMs - 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+  } else {
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    endDate = yesterday.toISOString().split('T')[0];
+  }
 
-  // Check if we were rate limited (indicated by specific error message)
+  // Don't go past target date
+  if (endDate < targetDate) {
+    endDate = targetDate;
+  }
+
+  log(`Fetching Anthropic usage from ${targetDate} to ${endDate}...`);
+  const result = await syncAnthropicUsage(targetDate, endDate);
+
+  // Check if we were rate limited
   const rateLimited = result.errors.some(e => e.includes('rate limited'));
 
   if (rateLimited) {
-    log(`Rate limited! Progress saved.`);
-    // Don't update backfill state on rate limit - we'll retry from where we left off
+    log(`Rate limited! Will retry on next run.`);
   } else if (result.success) {
-    // Update backfill state to track how far back we've gone
-    await updateAnthropicBackfillState(startDate);
-    log(`Backfill state updated: oldest=${startDate}`);
+    // Check if we got any data
+    if (result.recordsImported === 0) {
+      // No data found - this could mean we've hit the API's data limit
+      log(`No records found for ${targetDate} to ${endDate}.`);
+      // Check if we've tried enough times with no data
+      // For Anthropic daily API, if we get 0 records for the full range, mark complete
+      if (stopOnEmptyDays > 0) {
+        log(`Marking backfill complete - no historical data available.`);
+        await markAnthropicBackfillComplete();
+      }
+    } else {
+      log(`Imported ${result.recordsImported} records.`);
+    }
 
-    // Also update forward sync state if this extends beyond it
+    // Update forward sync state if needed
     const { lastSyncedDate } = await getAnthropicSyncState();
-    if (!lastSyncedDate || actualEndDate > lastSyncedDate) {
-      await updateAnthropicSyncState(actualEndDate);
+    if (!lastSyncedDate || endDate > lastSyncedDate) {
+      await updateAnthropicSyncState(endDate);
     }
   }
 
-  log(`Done: ${result.recordsImported} imported, ${result.recordsSkipped} skipped`);
   return { ...result, rateLimited };
 }

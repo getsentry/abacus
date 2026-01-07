@@ -2,12 +2,12 @@
 
 import { useState, useEffect, useCallback, Suspense } from 'react';
 import Link from 'next/link';
-import { useSearchParams } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { SearchInput } from '@/components/SearchInput';
 import { UserDetailPanel } from '@/components/UserDetailPanel';
 import { TimeRangeSelector } from '@/components/TimeRangeSelector';
 import { formatTokens, formatCurrency } from '@/lib/utils';
+import { useTimeRange } from '@/contexts/TimeRangeContext';
 
 interface UserPivotData {
   email: string;
@@ -41,10 +41,8 @@ const columns: { key: SortKey; label: string; align: 'left' | 'right'; format?: 
   { key: 'lastActive', label: 'Last Active', align: 'right' },
 ];
 
-// Wrapper to handle useSearchParams with Suspense
 function UsersPageContent() {
-  const searchParams = useSearchParams();
-  const initialDays = parseInt(searchParams.get('days') || '30', 10);
+  const { days, setDays } = useTimeRange();
 
   const [users, setUsers] = useState<UserPivotData[]>([]);
   const [loading, setLoading] = useState(true);
@@ -53,7 +51,6 @@ function UsersPageContent() {
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedUser, setSelectedUser] = useState<string | null>(null);
-  const [days, setDays] = useState(initialDays);
   const [visibleColumns, setVisibleColumns] = useState<Set<SortKey>>(
     new Set(['email', 'totalTokens', 'totalCost', 'claudeCodeTokens', 'cursorTokens', 'daysActive', 'avgTokensPerDay', 'lastActive'])
   );

@@ -56,6 +56,8 @@ export const syncState = pgTable('sync_state', {
   // For backfills: tracks the oldest date we've successfully synced to
   // Backfill progresses backwards from newest to oldest
   backfillOldestDate: text('backfill_oldest_date'),
+  // True when backfill has definitively completed (hit consecutive empty days from API)
+  backfillComplete: text('backfill_complete'),
 });
 
 // Type exports for use in queries

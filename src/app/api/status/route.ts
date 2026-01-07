@@ -26,9 +26,10 @@ function getForwardSyncStatus(lastSyncedDate: string | null, isHourly: boolean =
   }
 }
 
-function getBackfillStatus(oldestDate: string | null): BackfillStatus {
+function getBackfillStatus(oldestDate: string | null, isComplete: boolean): BackfillStatus {
   if (!oldestDate) return 'not_started';
-  return oldestDate <= BACKFILL_TARGET_DATE ? 'complete' : 'in_progress';
+  if (oldestDate <= BACKFILL_TARGET_DATE || isComplete) return 'complete';
+  return 'in_progress';
 }
 
 function calculateBackfillProgress(oldestDate: string | null, newestDate: string): number {
@@ -80,7 +81,7 @@ export async function GET() {
         backfill: {
           oldestDate: anthropicBackfill.oldestDate,
           targetDate: BACKFILL_TARGET_DATE,
-          status: getBackfillStatus(anthropicBackfill.oldestDate),
+          status: getBackfillStatus(anthropicBackfill.oldestDate, anthropicBackfill.isComplete),
           progress: calculateBackfillProgress(anthropicBackfill.oldestDate, today)
         }
       },
@@ -95,7 +96,7 @@ export async function GET() {
         backfill: {
           oldestDate: cursorBackfill.oldestDate,
           targetDate: BACKFILL_TARGET_DATE,
-          status: getBackfillStatus(cursorBackfill.oldestDate),
+          status: getBackfillStatus(cursorBackfill.oldestDate, cursorBackfill.isComplete),
           progress: calculateBackfillProgress(cursorBackfill.oldestDate, today)
         }
       },
