@@ -9,6 +9,7 @@ import { UserDetailPanel } from '@/components/UserDetailPanel';
 import { SearchInput } from '@/components/SearchInput';
 import { TimeRangeSelector } from '@/components/TimeRangeSelector';
 import { MainNav } from '@/components/MainNav';
+import { UserMenu } from '@/components/UserMenu';
 import { formatTokens, formatCurrency } from '@/lib/utils';
 import { useTimeRange } from '@/contexts/TimeRangeContext';
 
@@ -101,6 +102,8 @@ function DashboardContent() {
           <div className="flex items-center gap-3">
             <SearchInput days={days} placeholder="Search users..." />
             <TimeRangeSelector value={days} onChange={setDays} />
+            <div className="w-px h-6 bg-white/10 mx-1" />
+            <UserMenu />
           </div>
         </div>
       </header>

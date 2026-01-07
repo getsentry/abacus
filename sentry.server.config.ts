@@ -17,6 +17,6 @@ Sentry.init({
   // https://docs.sentry.io/platforms/javascript/guides/nextjs/configuration/options/#sendDefaultPii
   sendDefaultPii: true,
 
-  // Debug mode to see what's happening
-  debug: process.env.NODE_ENV === 'development',
+  // Setting debug to false
+  debug: false,
 });

@@ -44,11 +44,16 @@ Set these in your Vercel project settings (Settings → Environment Variables):
 | Variable | Required | Description |
 |----------|----------|-------------|
 | `POSTGRES_URL` | Yes | Vercel Postgres connection URL (auto-set when you create a Postgres DB) |
+| `BETTER_AUTH_SECRET` | Yes | Random secret for session encryption (generate with `openssl rand -base64 32`) |
+| `GOOGLE_CLIENT_ID` | Yes | Google OAuth client ID |
+| `GOOGLE_CLIENT_SECRET` | Yes | Google OAuth client secret |
+| `DOMAIN` | Yes | Email domain to restrict access (e.g., `sentry.io`) |
 | `ANTHROPIC_ADMIN_KEY` | Yes | Anthropic Admin API key for fetching Claude Code usage |
 | `CURSOR_TEAM_SLUG` | Yes | Your Cursor team slug |
 | `CURSOR_ADMIN_KEY` | Yes | Cursor Admin API key |
-| `ADMIN_PASSWORD` | No | Password to protect settings/import pages (leave empty for no auth) |
 | `CRON_SECRET` | No | Secret for authenticating cron jobs |
+
+See [Obtaining API Keys](#obtaining-api-keys) below for detailed instructions on getting each credential.
 
 ### 4. Create Vercel Postgres Database
 
@@ -70,9 +75,13 @@ git clone <your-repo>
 cd ai-usage-tracker
 npm install
 
-# Create .env.local with your credentials
-cat > .env.local << EOF
+# Create .env.local with your credentials (see Obtaining API Keys section)
+cat > .env.local << 'EOF'
 POSTGRES_URL=your-postgres-url
+BETTER_AUTH_SECRET=generate-with-openssl-rand-base64-32
+GOOGLE_CLIENT_ID=your-google-client-id
+GOOGLE_CLIENT_SECRET=your-google-client-secret
+DOMAIN=yourcompany.com
 ANTHROPIC_ADMIN_KEY=sk-admin-...
 CURSOR_TEAM_SLUG=your-team
 CURSOR_ADMIN_KEY=...
@@ -147,14 +156,25 @@ curl -X POST https://your-app.vercel.app/api/sync \
 # Install dependencies
 npm install
 
-# Create .env.local with your credentials
-cp .env.example .env.local
+# Create .env.local with your credentials (see Obtaining API Keys section)
+cat > .env.local << 'EOF'
+POSTGRES_URL=postgres://...
+BETTER_AUTH_SECRET=generate-with-openssl-rand-base64-32
+GOOGLE_CLIENT_ID=your-google-client-id
+GOOGLE_CLIENT_SECRET=your-google-client-secret
+DOMAIN=yourcompany.com
+ANTHROPIC_ADMIN_KEY=sk-admin-...
+CURSOR_TEAM_SLUG=your-team
+CURSOR_ADMIN_KEY=...
+EOF
 
 # Run development server
 npm run dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000).
+
+> **Note**: For local development, add `http://localhost:3000/api/auth/callback/google` to your Google OAuth redirect URIs.
 
 ## Architecture
 
@@ -182,20 +202,86 @@ src/
 └── middleware.ts          # Auth middleware
 ```
 
+## Obtaining API Keys
+
+### Google OAuth Credentials
+
+1. Go to the [Google Cloud Console](https://console.cloud.google.com/)
+2. Create a new project or select an existing one
+3. Navigate to **APIs & Services → Credentials**
+4. Click **Create Credentials → OAuth client ID**
+5. If prompted, configure the OAuth consent screen:
+   - User Type: **Internal** (for organization-only access)
+   - App name: "Abacus" (or your preferred name)
+   - Support email: Your email
+   - Authorized domains: Your production domain (e.g., `your-app.vercel.app`)
+6. Create the OAuth client:
+   - Application type: **Web application**
+   - Name: "Abacus" (or your preferred name)
+   - Authorized redirect URIs:
+     - Production: `https://your-app.vercel.app/api/auth/callback/google`
+     - Local dev: `http://localhost:3000/api/auth/callback/google`
+7. Copy the **Client ID** and **Client Secret**
+
+### Anthropic Admin API Key
+
+1. Go to the [Anthropic Console](https://console.anthropic.com/)
+2. Navigate to **Settings → Admin API keys** (requires organization admin access)
+3. Click **Create Key**
+4. Name it something like "Abacus Usage Sync"
+5. Copy the key (starts with `sk-admin-`)
+
+> **Note**: Admin API keys are different from regular API keys. They provide read access to organization usage data. You need organization admin permissions to create one.
+
+### Cursor Admin API Key
+
+1. Contact Cursor support or your Cursor account manager
+2. Request admin API access for usage analytics
+3. They will provide:
+   - `CURSOR_TEAM_SLUG`: Your team's URL slug (e.g., `your-company`)
+   - `CURSOR_ADMIN_KEY`: The admin API key
+
+> **Note**: Cursor admin API access may require an enterprise plan. Contact cursor.com/contact for more information.
+
+### BETTER_AUTH_SECRET
+
+Generate a secure random secret:
+
+```bash
+openssl rand -base64 32
+```
+
+This secret is used to encrypt session cookies. Keep it secure and don't share it.
+
+### CRON_SECRET (Optional)
+
+Generate another random secret for authenticating cron job requests:
+
+```bash
+openssl rand -base64 32
+```
+
+This prevents unauthorized triggering of sync jobs.
+
 ## Environment Variables Reference
 
 ```bash
-# Required
+# Database
 POSTGRES_URL=postgres://...
 
-# API Sync (required for automated sync)
+# Authentication
+BETTER_AUTH_SECRET=your-random-secret
+GOOGLE_CLIENT_ID=123456789-abc.apps.googleusercontent.com
+GOOGLE_CLIENT_SECRET=GOCSPX-...
+DOMAIN=yourcompany.com
+
+# API Sync
 ANTHROPIC_ADMIN_KEY=sk-admin-...
 CURSOR_TEAM_SLUG=your-team
 CURSOR_ADMIN_KEY=...
 
 # Optional
-ADMIN_PASSWORD=secret123      # Protects settings/import
-CRON_SECRET=random-string     # Authenticates cron jobs
+CRON_SECRET=random-string
 ```
 
 ## License

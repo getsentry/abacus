@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { MainNav } from '@/components/MainNav';
+import { UserMenu } from '@/components/UserMenu';
 import { DEFAULT_DAYS } from '@/lib/constants';
 
 interface ProviderStatus {
@@ -177,7 +178,10 @@ export default function StatusPage() {
     <div className="min-h-screen bg-[#0a0a0f] text-white grid-bg">
       {/* Header */}
       <header className="relative z-10 border-b border-white/5 px-4 sm:px-8 py-4">
-        <MainNav days={DEFAULT_DAYS} />
+        <div className="flex items-center justify-between">
+          <MainNav days={DEFAULT_DAYS} />
+          <UserMenu />
+        </div>
       </header>
 
       {/* Page Title */}

@@ -3,7 +3,6 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { motion } from 'framer-motion';
-import { authClient } from '@/lib/auth-client';
 import { AbacusLogo } from '@/components/AbacusLogo';
 
 interface NavItem {
@@ -38,11 +37,6 @@ export function MainNav({ days }: MainNavProps) {
       return `${item.href}?days=${days}`;
     }
     return item.href;
-  };
-
-  const handleLogout = async () => {
-    await authClient.signOut();
-    window.location.href = '/sign-in';
   };
 
   return (
@@ -100,16 +94,6 @@ export function MainNav({ days }: MainNavProps) {
           );
         })}
 
-        {/* Logout button */}
-        <button
-          onClick={handleLogout}
-          className="relative px-4 py-2 group"
-        >
-          <span className="font-mono text-[11px] uppercase tracking-[0.15em] text-white/40 group-hover:text-white/70 transition-colors duration-200">
-            Sign Out
-          </span>
-          <div className="absolute bottom-0 left-4 right-4 h-px bg-white/0 group-hover:bg-white/10 transition-colors duration-200" />
-        </button>
       </div>
     </nav>
   );

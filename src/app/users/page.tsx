@@ -7,6 +7,7 @@ import { InlineSearchInput } from '@/components/SearchInput';
 import { UserDetailPanel } from '@/components/UserDetailPanel';
 import { TimeRangeSelector } from '@/components/TimeRangeSelector';
 import { MainNav } from '@/components/MainNav';
+import { UserMenu } from '@/components/UserMenu';
 import { formatTokens, formatCurrency } from '@/lib/utils';
 import { useTimeRange } from '@/contexts/TimeRangeContext';
 
@@ -136,6 +137,8 @@ function UsersPageContent() {
               placeholder="Filter users..."
             />
             <TimeRangeSelector value={days} onChange={setDays} />
+            <div className="w-px h-6 bg-white/10 mx-1" />
+            <UserMenu />
           </div>
         </div>
       </header>
@@ -162,7 +165,7 @@ function UsersPageContent() {
                 visibleColumns.has(col.key)
                   ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
                   : 'bg-white/5 text-white/40 border border-white/10 hover:bg-white/10'
-              } ${col.key === 'email' ? 'opacity-50 cursor-not-allowed' : ''}`}
+              } ${col.key === 'email' ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
             >
               {col.label}
             </button>

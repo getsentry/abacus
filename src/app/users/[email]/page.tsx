@@ -9,6 +9,7 @@ import { StatCard } from '@/components/StatCard';
 import { StackedBarChart } from '@/components/StackedBarChart';
 import { TimeRangeSelector } from '@/components/TimeRangeSelector';
 import { MainNav } from '@/components/MainNav';
+import { UserMenu } from '@/components/UserMenu';
 import { formatTokens, formatCurrency, formatDate, formatModelName } from '@/lib/utils';
 
 // Tool color palette - extensible for future tools
@@ -170,6 +171,8 @@ function UserDetailContent() {
           <MainNav days={days} />
           <div className="flex items-center gap-3">
             <TimeRangeSelector value={days} onChange={setDays} />
+            <div className="w-px h-6 bg-white/10 mx-1" />
+            <UserMenu />
           </div>
         </div>
       </header>
