@@ -95,7 +95,7 @@ npm run dev
 
 Open [http://localhost:3000](http://localhost:3000).
 
-> Add `http://localhost:3000/api/auth/callback/google` to your Google OAuth redirect URIs.
+**Note:** Add `http://localhost:3000/api/auth/callback/google` to your Google OAuth redirect URIs for local development.
 
 ---
 
