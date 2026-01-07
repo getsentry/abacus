@@ -1,6 +1,6 @@
-import { syncAnthropicUsage, SyncResult as AnthropicResult } from './anthropic';
-import { syncCursorUsage, SyncResult as CursorResult } from './cursor';
-import { syncAnthropicApiKeyMappings, MappingResult } from './anthropic-mappings';
+import { syncAnthropicUsage, syncAnthropicCron, backfillAnthropicUsage, getAnthropicSyncState, SyncResult as AnthropicResult } from './anthropic';
+import { syncCursorCron, syncCursorUsage, backfillCursorUsage, getCursorSyncState, SyncResult as CursorResult } from './cursor';
+import { syncAnthropicApiKeyMappings, syncApiKeyMappingsSmart, MappingResult } from './anthropic-mappings';
 import { sql } from '@vercel/postgres';
 
 export interface FullSyncResult {
@@ -28,6 +28,39 @@ export async function updateSyncState(id: string, lastSyncAt: string, lastCursor
   `;
 }
 
+/**
+ * Run Anthropic cron sync.
+ * Only syncs new data since last sync.
+ * Safe to call frequently - will skip if already synced.
+ */
+export async function runAnthropicSync(options: { includeMappings?: boolean } = {}): Promise<{ anthropic: AnthropicResult; mappings?: MappingResult }> {
+  // Sync API key mappings FIRST so usage sync has them available
+  let mappingsResult: MappingResult | undefined;
+  if (options.includeMappings) {
+    mappingsResult = await syncApiKeyMappingsSmart();
+  }
+
+  const anthropicResult = await syncAnthropicCron();
+
+  return {
+    anthropic: anthropicResult,
+    mappings: mappingsResult
+  };
+}
+
+/**
+ * Run Cursor cron sync.
+ * Only syncs new complete hours since last sync.
+ * Safe to call frequently - will skip if already synced.
+ */
+export async function runCursorSync(): Promise<CursorResult> {
+  return syncCursorCron();
+}
+
+/**
+ * Run full sync for both services.
+ * For backwards compatibility and manual syncs via CLI.
+ */
 export async function runFullSync(
   startDate?: string,
   endDate?: string,
@@ -37,17 +70,18 @@ export async function runFullSync(
   const end = endDate || new Date().toISOString().split('T')[0];
   const start = startDate || new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
 
+  // Sync API key mappings FIRST so usage sync has them available
+  let mappingsResult: MappingResult | undefined;
+  if (options.includeMappings) {
+    mappingsResult = await syncApiKeyMappingsSmart();
+  }
+
   // Run usage syncs in parallel
+  // Note: For manual syncs, use date-based sync
   const [anthropicResult, cursorResult] = await Promise.all([
     syncAnthropicUsage(start, end),
     syncCursorUsage(start, end)
   ]);
-
-  // Optionally sync API key mappings
-  let mappingsResult: MappingResult | undefined;
-  if (options.includeMappings) {
-    mappingsResult = await syncAnthropicApiKeyMappings();
-  }
 
   // Update sync state
   await updateSyncState('main', new Date().toISOString());
@@ -59,9 +93,24 @@ export async function runFullSync(
   };
 }
 
-// Standalone function to just sync mappings
+// Standalone function to just sync mappings (uses smart incremental sync)
 export async function syncMappings(): Promise<MappingResult> {
+  return syncApiKeyMappingsSmart();
+}
+
+// Force full mappings sync (for initial setup or manual refresh)
+export async function syncMappingsFull(): Promise<MappingResult> {
   return syncAnthropicApiKeyMappings();
 }
 
-export { syncAnthropicUsage, syncCursorUsage, syncAnthropicApiKeyMappings };
+export {
+  syncAnthropicUsage,
+  syncAnthropicCron,
+  backfillAnthropicUsage,
+  getAnthropicSyncState,
+  syncCursorUsage,
+  syncCursorCron,
+  backfillCursorUsage,
+  getCursorSyncState,
+  syncAnthropicApiKeyMappings
+};

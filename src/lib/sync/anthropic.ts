@@ -1,5 +1,6 @@
 import { insertUsageRecord, getApiKeyMappings } from '../queries';
 import { calculateCost } from '../db';
+import { sql } from '@vercel/postgres';
 
 interface AnthropicUsageResult {
   api_key_id: string | null;
@@ -36,17 +37,52 @@ export interface SyncResult {
   recordsImported: number;
   recordsSkipped: number;
   errors: string[];
+  syncedRange?: { startDate: string; endDate: string };
+}
+
+const SYNC_STATE_ID = 'anthropic';
+
+// Get Anthropic sync state from database
+export async function getAnthropicSyncState(): Promise<{ lastSyncedDate: string | null }> {
+  const result = await sql`
+    SELECT last_synced_hour_end FROM sync_state WHERE id = ${SYNC_STATE_ID}
+  `;
+  if (result.rows.length === 0 || !result.rows[0].last_synced_hour_end) {
+    return { lastSyncedDate: null };
+  }
+  // We store date as ISO string in the last_synced_hour_end column (reusing the column)
+  return { lastSyncedDate: result.rows[0].last_synced_hour_end };
+}
+
+// Update Anthropic sync state
+async function updateAnthropicSyncState(lastSyncedDate: string): Promise<void> {
+  await sql`
+    INSERT INTO sync_state (id, last_sync_at, last_synced_hour_end)
+    VALUES (${SYNC_STATE_ID}, NOW(), ${lastSyncedDate})
+    ON CONFLICT (id) DO UPDATE SET
+      last_sync_at = NOW(),
+      last_synced_hour_end = ${lastSyncedDate}
+  `;
 }
 
 function extractEmailFromApiKeyId(apiKeyId: string): string | null {
   // Pattern: claude_code_key_{firstname.lastname}_{suffix}
+  // Only used as fallback when API key mapping doesn't exist
+  const emailDomain = process.env.DEFAULT_EMAIL_DOMAIN;
+  if (!emailDomain) return null;
+
   const match = apiKeyId.match(/^claude_code_key_([a-z]+(?:\.[a-z]+)?)_[a-z]+$/i);
   if (match) {
-    return `${match[1]}@sentry.io`;
+    return `${match[1]}@${emailDomain}`;
   }
   return null;
 }
 
+/**
+ * Sync Anthropic usage for a specific date range.
+ * This is the low-level function that does the actual API fetching.
+ * Does NOT update sync state - use syncAnthropicCron for production syncing.
+ */
 export async function syncAnthropicUsage(
   startDate: string,
   endDate: string,
@@ -66,7 +102,8 @@ export async function syncAnthropicUsage(
     success: true,
     recordsImported: 0,
     recordsSkipped: 0,
-    errors: []
+    errors: [],
+    syncedRange: { startDate, endDate }
   };
 
   // Get existing mappings
@@ -160,5 +197,96 @@ export async function syncAnthropicUsage(
     result.errors.push(err instanceof Error ? err.message : 'Unknown error');
   }
 
+  return result;
+}
+
+/**
+ * Sync Anthropic usage for the cron job.
+ * Tracks state to avoid re-fetching data we already have.
+ * Syncs from (last_synced_date - 1 day) to yesterday to:
+ * - Catch any late-arriving data from the previous day
+ * - Not fetch today's incomplete data
+ */
+export async function syncAnthropicCron(): Promise<SyncResult> {
+  const adminKey = process.env.ANTHROPIC_ADMIN_KEY;
+  if (!adminKey) {
+    return {
+      success: false,
+      recordsImported: 0,
+      recordsSkipped: 0,
+      errors: ['ANTHROPIC_ADMIN_KEY not configured']
+    };
+  }
+
+  // Get yesterday's date (complete day)
+  const yesterday = new Date();
+  yesterday.setDate(yesterday.getDate() - 1);
+  const yesterdayStr = yesterday.toISOString().split('T')[0];
+
+  // Check what we've already synced
+  const { lastSyncedDate } = await getAnthropicSyncState();
+
+  // If we've already synced yesterday, nothing to do
+  if (lastSyncedDate && lastSyncedDate >= yesterdayStr) {
+    return {
+      success: true,
+      recordsImported: 0,
+      recordsSkipped: 0,
+      errors: [],
+      syncedRange: undefined
+    };
+  }
+
+  // Determine start date
+  // If never synced, start from 7 days ago
+  // Otherwise, start from (last_synced_date - 1 day) to catch late data
+  let startDate: string;
+  if (!lastSyncedDate) {
+    const weekAgo = new Date();
+    weekAgo.setDate(weekAgo.getDate() - 7);
+    startDate = weekAgo.toISOString().split('T')[0];
+  } else {
+    const lastDate = new Date(lastSyncedDate);
+    lastDate.setDate(lastDate.getDate() - 1); // Go back 1 day to catch late data
+    startDate = lastDate.toISOString().split('T')[0];
+  }
+
+  // End date is yesterday (today's data is incomplete)
+  const endDate = yesterdayStr;
+
+  // Sync the range
+  const result = await syncAnthropicUsage(startDate, endDate);
+
+  // Update sync state to yesterday if successful
+  if (result.success) {
+    await updateAnthropicSyncState(yesterdayStr);
+  }
+
+  return result;
+}
+
+/**
+ * Backfill Anthropic data for a date range.
+ * Updates sync state after completion.
+ */
+export async function backfillAnthropicUsage(
+  startDate: string,
+  endDate: string,
+  options: { onProgress?: (msg: string) => void } = {}
+): Promise<SyncResult> {
+  const log = options.onProgress || (() => {});
+
+  log(`Fetching Anthropic usage from ${startDate} to ${endDate}...`);
+  const result = await syncAnthropicUsage(startDate, endDate);
+
+  if (result.success) {
+    // Update sync state to the end date
+    const { lastSyncedDate } = await getAnthropicSyncState();
+    if (!lastSyncedDate || endDate > lastSyncedDate) {
+      await updateAnthropicSyncState(endDate);
+    }
+  }
+
+  log(`Done: ${result.recordsImported} imported, ${result.recordsSkipped} skipped`);
   return result;
 }

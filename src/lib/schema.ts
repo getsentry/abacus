@@ -50,6 +50,9 @@ export const syncState = pgTable('sync_state', {
   id: text('id').primaryKey(),
   lastSyncAt: timestamp('last_sync_at'),
   lastCursor: text('last_cursor'),
+  // For Cursor: tracks the end of the last synced hour (epoch ms)
+  // This ensures we never re-poll the same hour
+  lastSyncedHourEnd: text('last_synced_hour_end'),
 });
 
 // Type exports for use in queries

@@ -8,7 +8,7 @@
  * Cross-references to create api_key_id → email mappings
  */
 
-import { setApiKeyMapping, getApiKeyMappings } from '../queries';
+import { setApiKeyMapping, getApiKeyMappings, getUnmappedApiKeys } from '../queries';
 
 interface AnthropicUser {
   id: string;
@@ -88,12 +88,12 @@ async function fetchAllUsers(adminKey: string): Promise<Map<string, string>> {
   return userMap;
 }
 
-async function fetchAllApiKeys(adminKey: string): Promise<AnthropicApiKey[]> {
+async function fetchAllApiKeys(adminKey: string, status: 'active' | 'inactive' | 'archived' = 'active'): Promise<AnthropicApiKey[]> {
   const apiKeys: AnthropicApiKey[] = [];
   let afterId: string | undefined;
 
   do {
-    const params = new URLSearchParams({ limit: '100' });
+    const params = new URLSearchParams({ limit: '100', status });
     if (afterId) params.set('after_id', afterId);
 
     const response = await fetch(
@@ -148,13 +148,8 @@ export async function syncAnthropicApiKeyMappings(): Promise<MappingResult> {
     const existingMappings = await getApiKeyMappings();
     const existingSet = new Set(existingMappings.map(m => m.api_key));
 
-    // Create mappings for each API key
+    // Create mappings for each API key (already filtered to active keys)
     for (const apiKey of apiKeys) {
-      // Skip inactive keys
-      if (apiKey.status !== 'active') continue;
-
-      // The API key ID from usage reports might be the full key ID or partial
-      // We'll store both the ID and try to match by partial hint
       const creatorEmail = userMap.get(apiKey.created_by.id);
 
       if (!creatorEmail) {
@@ -227,4 +222,127 @@ export async function getEmailForApiKey(apiKeyId: string): Promise<string | null
   } catch {
     return null;
   }
+}
+
+/**
+ * Smart sync that uses incremental lookups for small numbers of unmapped keys,
+ * falling back to full sync when there are many.
+ */
+export async function syncApiKeyMappingsSmart(
+  options: { incrementalThreshold?: number } = {}
+): Promise<MappingResult> {
+  const threshold = options.incrementalThreshold ?? 20;
+
+  // Check how many unmapped keys we have
+  const unmappedKeys = await getUnmappedApiKeys();
+
+  if (unmappedKeys.length === 0) {
+    return {
+      success: true,
+      mappingsCreated: 0,
+      mappingsSkipped: 0,
+      errors: []
+    };
+  }
+
+  // If we have few unmapped keys, do individual lookups (2 API calls per key)
+  // If we have many, do full sync (2 paginated API calls total)
+  if (unmappedKeys.length <= threshold) {
+    return syncApiKeyMappingsIncremental(unmappedKeys.map(k => k.api_key));
+  }
+
+  return syncAnthropicApiKeyMappings();
+}
+
+/**
+ * Incremental sync - looks up only specific API keys individually.
+ * More efficient when only a few keys need mapping.
+ */
+async function syncApiKeyMappingsIncremental(apiKeyIds: string[]): Promise<MappingResult> {
+  const adminKey = process.env.ANTHROPIC_ADMIN_KEY;
+  if (!adminKey) {
+    return {
+      success: false,
+      mappingsCreated: 0,
+      mappingsSkipped: 0,
+      errors: ['ANTHROPIC_ADMIN_KEY not configured']
+    };
+  }
+
+  const result: MappingResult = {
+    success: true,
+    mappingsCreated: 0,
+    mappingsSkipped: 0,
+    errors: []
+  };
+
+  // Cache user lookups to avoid duplicate API calls
+  const userCache = new Map<string, string>();
+
+  for (const apiKeyId of apiKeyIds) {
+    try {
+      // Get API key details
+      const keyResponse = await fetch(
+        `https://api.anthropic.com/v1/organizations/api_keys/${apiKeyId}`,
+        {
+          headers: {
+            'X-Api-Key': adminKey,
+            'anthropic-version': '2023-06-01'
+          }
+        }
+      );
+
+      if (!keyResponse.ok) {
+        result.mappingsSkipped++;
+        if (keyResponse.status !== 404) {
+          result.errors.push(`Failed to fetch key ${apiKeyId}: ${keyResponse.status}`);
+        }
+        continue;
+      }
+
+      const apiKey: AnthropicApiKey = await keyResponse.json();
+      const creatorId = apiKey.created_by?.id;
+
+      if (!creatorId) {
+        result.mappingsSkipped++;
+        continue;
+      }
+
+      // Check user cache first
+      let email = userCache.get(creatorId);
+
+      if (!email) {
+        // Fetch user details
+        const userResponse = await fetch(
+          `https://api.anthropic.com/v1/organizations/users/${creatorId}`,
+          {
+            headers: {
+              'X-Api-Key': adminKey,
+              'anthropic-version': '2023-06-01'
+            }
+          }
+        );
+
+        if (!userResponse.ok) {
+          result.mappingsSkipped++;
+          result.errors.push(`Failed to fetch user ${creatorId}: ${userResponse.status}`);
+          continue;
+        }
+
+        const user: AnthropicUser = await userResponse.json();
+        email = user.email;
+        userCache.set(creatorId, email);
+      }
+
+      // Save the mapping (also updates usage_records)
+      await setApiKeyMapping(apiKeyId, email);
+      result.mappingsCreated++;
+
+    } catch (err) {
+      result.mappingsSkipped++;
+      result.errors.push(`Error processing ${apiKeyId}: ${err instanceof Error ? err.message : 'Unknown'}`);
+    }
+  }
+
+  return result;
 }

@@ -311,10 +311,13 @@ export async function getKnownEmails(): Promise<string[]> {
 }
 
 export function suggestEmailFromApiKey(apiKey: string): string | null {
+  const emailDomain = process.env.DEFAULT_EMAIL_DOMAIN;
+  if (!emailDomain) return null;
+
   const match = apiKey.match(/^claude_code_key_([a-z]+(?:\.[a-z]+)?)_[a-z]+$/i);
   if (match) {
     const name = match[1];
-    return `${name}@sentry.io`;
+    return `${name}@${emailDomain}`;
   }
   return null;
 }

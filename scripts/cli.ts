@@ -6,13 +6,15 @@
  *   npx tsx scripts/cli.ts <command> [options]
  *
  * Commands:
- *   sync              - Sync recent usage data (last 7 days)
- *   backfill          - Backfill all historical data
+ *   sync              - Sync recent usage data
+ *   backfill          - Backfill historical data
  *   import <file>     - Import a CSV file (Claude Code or Cursor)
  *   import:dir <dir>  - Import all CSVs from a directory
  *   mappings          - List API key mappings
  *   mappings:sync     - Sync API key mappings from Anthropic
  *   mappings:fix      - Interactive fix for unmapped API keys
+ *   anthropic:status  - Show Anthropic sync state
+ *   cursor:status     - Show Cursor sync state
  *   debug:anthropic   - Debug Anthropic API response
  *   debug:cursor      - Debug Cursor API response
  *   stats             - Show database statistics
@@ -25,9 +27,9 @@ import * as readline from 'readline';
 import * as fs from 'fs';
 import * as path from 'path';
 import { sql } from '@vercel/postgres';
-import { syncAnthropicUsage } from '../src/lib/sync/anthropic';
-import { syncCursorUsage } from '../src/lib/sync/cursor';
-import { syncAnthropicApiKeyMappings } from '../src/lib/sync/anthropic-mappings';
+import { syncAnthropicUsage, getAnthropicSyncState, backfillAnthropicUsage } from '../src/lib/sync/anthropic';
+import { syncCursorUsage, backfillCursorUsage, getCursorSyncState, getPreviousCompleteHourEnd } from '../src/lib/sync/cursor';
+import { syncApiKeyMappingsSmart, syncAnthropicApiKeyMappings } from '../src/lib/sync/anthropic-mappings';
 import { getApiKeyMappings, setApiKeyMapping, getUnmappedApiKeys, getKnownEmails } from '../src/lib/queries';
 import { importClaudeCodeCsv, isClaudeCodeCsv } from '../src/lib/importers/claude-code';
 import { importCursorCsv, isCursorCsv } from '../src/lib/importers/cursor';
@@ -52,23 +54,28 @@ Usage:
   npx tsx scripts/cli.ts <command> [options]
 
 Commands:
-  sync [tool] [--days N] Sync recent usage data (tool: anthropic|cursor, default: both)
-  backfill [--service]  Backfill all historical data
+  sync [tool] [--days N] [--skip-mappings]
+                        Sync recent usage data (tool: anthropic|cursor, default: both)
+  backfill <tool> --from YYYY-MM-DD --to YYYY-MM-DD
+                        Backfill historical data for a specific tool
   import <file>         Import a CSV file (auto-detects Claude Code or Cursor)
   import:dir <dir>      Import all CSVs from a directory
   mappings              List API key mappings
-  mappings:sync         Sync API key mappings from Anthropic
+  mappings:sync [--full] Sync API key mappings from Anthropic (--full for all keys)
   mappings:fix          Interactive fix for unmapped API keys
+  anthropic:status      Show Anthropic sync state
+  cursor:status         Show Cursor sync state
   debug:anthropic       Debug Anthropic API response
   debug:cursor          Debug Cursor API response
   stats                 Show database statistics
   help                  Show this help message
 
 Examples:
-  npm run cli -- import ./cache/claude-code-2025-01.csv
-  npm run cli -- import:dir ./cache
-  npm run cli -- sync --days 30
-  npm run cli -- mappings:fix
+  npm run cli sync --days 30
+  npm run cli sync cursor --days 7
+  npm run cli backfill cursor --from 2024-01-01 --to 2025-01-01
+  npm run cli mappings:fix
+  npm run cli cursor:status
 `);
 }
 
@@ -102,6 +109,58 @@ async function cmdStats() {
   console.log(`\nAPI key mappings: ${mappingsCount.rows[0].count}`);
 }
 
+async function cmdAnthropicStatus() {
+  console.log('🔄 Anthropic Sync Status\n');
+
+  const { lastSyncedDate } = await getAnthropicSyncState();
+
+  // Yesterday is the most recent complete day we should have
+  const yesterday = new Date();
+  yesterday.setDate(yesterday.getDate() - 1);
+  const yesterdayStr = yesterday.toISOString().split('T')[0];
+
+  if (lastSyncedDate) {
+    console.log(`Last synced date: ${lastSyncedDate}`);
+    console.log(`Current complete day: ${yesterdayStr}`);
+
+    if (lastSyncedDate >= yesterdayStr) {
+      console.log('\n✓ Up to date');
+    } else {
+      const lastDate = new Date(lastSyncedDate);
+      const daysBehind = Math.floor((yesterday.getTime() - lastDate.getTime()) / (24 * 60 * 60 * 1000));
+      console.log(`\n⚠️  ${daysBehind} day(s) behind`);
+    }
+  } else {
+    console.log('Never synced');
+    console.log(`Current complete day: ${yesterdayStr}`);
+    console.log('\nRun backfill to initialize: npm run cli backfill anthropic --from YYYY-MM-DD --to YYYY-MM-DD');
+  }
+}
+
+async function cmdCursorStatus() {
+  console.log('🔄 Cursor Sync Status\n');
+
+  const { lastSyncedHourEnd } = await getCursorSyncState();
+  const currentHourEnd = getPreviousCompleteHourEnd();
+
+  if (lastSyncedHourEnd) {
+    const lastSyncDate = new Date(lastSyncedHourEnd);
+    console.log(`Last synced hour end: ${lastSyncDate.toISOString()}`);
+    console.log(`Current complete hour: ${currentHourEnd.toISOString()}`);
+
+    const hoursBehind = Math.floor((currentHourEnd.getTime() - lastSyncedHourEnd) / (60 * 60 * 1000));
+    if (hoursBehind > 0) {
+      console.log(`\n⚠️  ${hoursBehind} hour(s) behind`);
+    } else {
+      console.log('\n✓ Up to date');
+    }
+  } else {
+    console.log('Never synced');
+    console.log(`Current complete hour: ${currentHourEnd.toISOString()}`);
+    console.log('\nRun backfill to initialize: npm run cli backfill cursor --from YYYY-MM-DD --to YYYY-MM-DD');
+  }
+}
+
 async function cmdMappings() {
   console.log('🔑 API Key Mappings\n');
   const mappings = await getApiKeyMappings();
@@ -114,13 +173,15 @@ async function cmdMappings() {
   }
 }
 
-async function cmdMappingsSync() {
-  console.log('🔄 Syncing API key mappings from Anthropic...\n');
-  const result = await syncAnthropicApiKeyMappings();
+async function cmdMappingsSync(full: boolean = false) {
+  console.log(`🔄 Syncing API key mappings from Anthropic${full ? ' (full)' : ' (smart)'}...\n`);
+  const result = full
+    ? await syncAnthropicApiKeyMappings()
+    : await syncApiKeyMappingsSmart();
   console.log(`Created: ${result.mappingsCreated}`);
   console.log(`Skipped: ${result.mappingsSkipped}`);
   if (result.errors.length > 0) {
-    console.log(`Errors: ${result.errors.join(', ')}`);
+    console.log(`Errors: ${result.errors.slice(0, 5).join(', ')}`);
   }
 }
 
@@ -159,14 +220,25 @@ async function cmdMappingsFix() {
   console.log('\nDone!');
 }
 
-async function cmdSync(days: number = 7, tools: ('anthropic' | 'cursor')[] = ['anthropic', 'cursor']) {
+async function cmdSync(days: number = 7, tools: ('anthropic' | 'cursor')[] = ['anthropic', 'cursor'], skipMappings: boolean = false) {
   const endDate = new Date().toISOString().split('T')[0];
   const startDate = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
 
   console.log(`🔄 Syncing usage data from ${startDate} to ${endDate}\n`);
 
+  // Sync API key mappings FIRST so usage sync has them available
+  if (tools.includes('anthropic') && !skipMappings) {
+    console.log('Syncing API key mappings...');
+    const mappingsResult = await syncApiKeyMappingsSmart();
+    console.log(`  Created: ${mappingsResult.mappingsCreated}, Skipped: ${mappingsResult.mappingsSkipped}`);
+    if (mappingsResult.errors.length > 0) {
+      console.log(`  Errors: ${mappingsResult.errors.slice(0, 3).join(', ')}`);
+    }
+    console.log('');
+  }
+
   if (tools.includes('anthropic')) {
-    console.log('Syncing Anthropic...');
+    console.log('Syncing Anthropic usage...');
     const anthropicResult = await syncAnthropicUsage(startDate, endDate);
     console.log(`  Imported: ${anthropicResult.recordsImported}, Skipped: ${anthropicResult.recordsSkipped}`);
     if (anthropicResult.errors.length > 0) {
@@ -176,7 +248,7 @@ async function cmdSync(days: number = 7, tools: ('anthropic' | 'cursor')[] = ['a
 
   if (tools.includes('cursor')) {
     if (tools.includes('anthropic')) console.log('');
-    console.log('Syncing Cursor...');
+    console.log('Syncing Cursor usage...');
     const cursorResult = await syncCursorUsage(startDate, endDate);
     console.log(`  Imported: ${cursorResult.recordsImported}, Skipped: ${cursorResult.recordsSkipped}`);
     if (cursorResult.errors.length > 0) {
@@ -185,6 +257,37 @@ async function cmdSync(days: number = 7, tools: ('anthropic' | 'cursor')[] = ['a
   }
 
   console.log('\n✓ Sync complete!');
+}
+
+async function cmdBackfill(tool: 'anthropic' | 'cursor', fromDate: string, toDate: string) {
+  console.log(`📥 Backfilling ${tool} from ${fromDate} to ${toDate}\n`);
+
+  if (tool === 'anthropic') {
+    // Sync API key mappings first
+    console.log('Syncing API key mappings first...');
+    const mappingsResult = await syncApiKeyMappingsSmart();
+    console.log(`  Created: ${mappingsResult.mappingsCreated}, Skipped: ${mappingsResult.mappingsSkipped}\n`);
+
+    // Use backfillAnthropicUsage which updates sync state
+    const result = await backfillAnthropicUsage(fromDate, toDate, {
+      onProgress: (msg) => console.log(msg)
+    });
+    console.log(`\n✓ Backfill complete`);
+    console.log(`  Imported: ${result.recordsImported}, Skipped: ${result.recordsSkipped}`);
+    if (result.errors.length > 0) {
+      console.log(`  Errors: ${result.errors.slice(0, 5).join(', ')}`);
+    }
+  } else if (tool === 'cursor') {
+    // For Cursor, use the proper backfill function with progress
+    const result = await backfillCursorUsage(fromDate, toDate, {
+      onProgress: (msg) => console.log(msg)
+    });
+    console.log(`\n✓ Backfill complete`);
+    console.log(`  Imported: ${result.recordsImported}, Skipped: ${result.recordsSkipped}`);
+    if (result.errors.length > 0) {
+      console.log(`  Errors: ${result.errors.slice(0, 5).join(', ')}`);
+    }
+  }
 }
 
 async function cmdDebugAnthropic() {
@@ -299,7 +402,7 @@ async function cmdDebugCursor() {
 
     const byEmail = new Map<string, number>();
     for (const e of data.usageEvents) {
-      byEmail.set(e.email, (byEmail.get(e.email) || 0) + 1);
+      byEmail.set(e.userEmail, (byEmail.get(e.userEmail) || 0) + 1);
     }
     console.log('\nBy email:');
     for (const [email, count] of Array.from(byEmail.entries()).slice(0, 10)) {
@@ -434,11 +537,17 @@ async function main() {
       case 'stats':
         await cmdStats();
         break;
+      case 'anthropic:status':
+        await cmdAnthropicStatus();
+        break;
+      case 'cursor:status':
+        await cmdCursorStatus();
+        break;
       case 'mappings':
         await cmdMappings();
         break;
       case 'mappings:sync':
-        await cmdMappingsSync();
+        await cmdMappingsSync(args.includes('--full'));
         break;
       case 'mappings:fix':
         await cmdMappingsFix();
@@ -446,6 +555,7 @@ async function main() {
       case 'sync': {
         const daysIdx = args.indexOf('--days');
         const days = daysIdx >= 0 ? parseInt(args[daysIdx + 1]) : 7;
+        const skipMappings = args.includes('--skip-mappings');
         // Parse tool filter: sync [anthropic|cursor] --days N
         const toolArg = args[1];
         let tools: ('anthropic' | 'cursor')[] = ['anthropic', 'cursor'];
@@ -454,14 +564,37 @@ async function main() {
         } else if (toolArg === 'cursor') {
           tools = ['cursor'];
         }
-        await cmdSync(days, tools);
+        await cmdSync(days, tools, skipMappings);
+        break;
+      }
+      case 'backfill': {
+        const tool = args[1] as 'anthropic' | 'cursor';
+        if (!tool || !['anthropic', 'cursor'].includes(tool)) {
+          console.log('Error: Please specify tool (anthropic or cursor)');
+          console.log('Usage: npm run cli backfill <tool> --from YYYY-MM-DD --to YYYY-MM-DD');
+          break;
+        }
+        const fromIdx = args.indexOf('--from');
+        const toIdx = args.indexOf('--to');
+        if (fromIdx < 0 || toIdx < 0) {
+          console.log('Error: Please specify --from and --to dates');
+          console.log('Usage: npm run cli backfill <tool> --from YYYY-MM-DD --to YYYY-MM-DD');
+          break;
+        }
+        const fromDate = args[fromIdx + 1];
+        const toDate = args[toIdx + 1];
+        if (!fromDate || !toDate) {
+          console.log('Error: Invalid date format');
+          break;
+        }
+        await cmdBackfill(tool, fromDate, toDate);
         break;
       }
       case 'import': {
         const filePath = args[1];
         if (!filePath) {
           console.log('Error: Please specify a CSV file path');
-          console.log('Usage: npm run cli -- import <file.csv> [--dry-run]');
+          console.log('Usage: npm run cli import <file.csv> [--dry-run]');
           break;
         }
         await cmdImport(filePath, dryRun);
@@ -471,7 +604,7 @@ async function main() {
         const dirPath = args[1];
         if (!dirPath) {
           console.log('Error: Please specify a directory path');
-          console.log('Usage: npm run cli -- import:dir <directory> [--dry-run]');
+          console.log('Usage: npm run cli import:dir <directory> [--dry-run]');
           break;
         }
         await cmdImportDir(dirPath, dryRun);

@@ -1,4 +1,5 @@
 import { insertUsageRecord } from '../queries';
+import { sql } from '@vercel/postgres';
 
 interface CursorUsageEvent {
   userEmail: string;
@@ -32,15 +33,51 @@ export interface SyncResult {
   recordsImported: number;
   recordsSkipped: number;
   errors: string[];
+  syncedRange?: { startMs: number; endMs: number };
+}
+
+const SYNC_STATE_ID = 'cursor';
+
+// Get the start of an hour (floor to hour boundary)
+function getHourStart(date: Date): Date {
+  const result = new Date(date);
+  result.setMinutes(0, 0, 0);
+  return result;
+}
+
+// Get the previous complete hour end (the start of the current hour)
+// E.g., if it's 2:30pm, returns 2:00pm (end of 1:00-2:00pm hour)
+export function getPreviousCompleteHourEnd(): Date {
+  return getHourStart(new Date());
+}
+
+// Get Cursor sync state from database
+export async function getCursorSyncState(): Promise<{ lastSyncedHourEnd: number | null }> {
+  const result = await sql`
+    SELECT last_synced_hour_end FROM sync_state WHERE id = ${SYNC_STATE_ID}
+  `;
+  if (result.rows.length === 0 || !result.rows[0].last_synced_hour_end) {
+    return { lastSyncedHourEnd: null };
+  }
+  return { lastSyncedHourEnd: parseInt(result.rows[0].last_synced_hour_end) };
+}
+
+// Update Cursor sync state
+async function updateCursorSyncState(lastSyncedHourEnd: number): Promise<void> {
+  await sql`
+    INSERT INTO sync_state (id, last_sync_at, last_synced_hour_end)
+    VALUES (${SYNC_STATE_ID}, NOW(), ${lastSyncedHourEnd.toString()})
+    ON CONFLICT (id) DO UPDATE SET
+      last_sync_at = NOW(),
+      last_synced_hour_end = ${lastSyncedHourEnd.toString()}
+  `;
 }
 
 function getCursorAuthHeader(): string | null {
   const adminKey = process.env.CURSOR_ADMIN_KEY;
-
   if (!adminKey) {
     return null;
   }
-
   // Cursor API uses Basic auth with API key as username, empty password
   const credentials = `${adminKey}:`;
   return `Basic ${Buffer.from(credentials).toString('base64')}`;
@@ -66,6 +103,198 @@ function parseKey(key: string): { date: string; email: string; model: string } {
   return { date, email, model };
 }
 
+/**
+ * Fetch Cursor usage for a specific time range.
+ * This is the low-level fetch function - it doesn't track state.
+ */
+async function fetchCursorUsage(
+  startMs: number,
+  endMs: number,
+  authHeader: string
+): Promise<{ events: CursorUsageEvent[]; errors: string[] }> {
+  const events: CursorUsageEvent[] = [];
+  const errors: string[] = [];
+
+  let page = 1;
+  const pageSize = 1000;
+  let hasMore = true;
+
+  while (hasMore) {
+    const response = await fetch(
+      'https://api.cursor.com/teams/filtered-usage-events',
+      {
+        method: 'POST',
+        headers: {
+          'Authorization': authHeader,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          startDate: startMs,
+          endDate: endMs,
+          page,
+          pageSize
+        })
+      }
+    );
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      errors.push(`Cursor API error: ${response.status} - ${errorText}`);
+      break;
+    }
+
+    const data: CursorUsageResponse = await response.json();
+    events.push(...(data.usageEvents || []));
+
+    if (data.pagination?.hasNextPage) {
+      page++;
+      // Rate limit: 20 requests per minute = 3 seconds between requests
+      await new Promise(resolve => setTimeout(resolve, 3000));
+    } else {
+      hasMore = false;
+    }
+  }
+
+  return { events, errors };
+}
+
+/**
+ * Process events into aggregated records and insert into database.
+ */
+async function processAndInsertEvents(
+  events: CursorUsageEvent[]
+): Promise<{ imported: number; skipped: number; errors: string[] }> {
+  const aggregated = new Map<string, AggregatedRecord>();
+  let skipped = 0;
+
+  for (const event of events) {
+    const tokenUsage = event.tokenUsage;
+
+    // Skip events with no tokens at all (including cache)
+    const totalTokens = (tokenUsage?.inputTokens || 0) +
+      (tokenUsage?.outputTokens || 0) +
+      (tokenUsage?.cacheWriteTokens || 0) +
+      (tokenUsage?.cacheReadTokens || 0);
+    if (totalTokens === 0) {
+      skipped++;
+      continue;
+    }
+
+    // Convert timestamp string to date
+    const date = new Date(parseInt(event.timestamp)).toISOString().split('T')[0];
+    const email = event.userEmail;
+    const key = makeKey(date, email, event.model);
+
+    const existing = aggregated.get(key);
+    if (existing) {
+      existing.inputTokens += tokenUsage?.inputTokens || 0;
+      existing.outputTokens += tokenUsage?.outputTokens || 0;
+      existing.cacheWriteTokens += tokenUsage?.cacheWriteTokens || 0;
+      existing.cacheReadTokens += tokenUsage?.cacheReadTokens || 0;
+      existing.cost += (tokenUsage?.totalCents || 0) / 100;
+    } else {
+      aggregated.set(key, {
+        email,
+        model: event.model,
+        inputTokens: tokenUsage?.inputTokens || 0,
+        outputTokens: tokenUsage?.outputTokens || 0,
+        cacheWriteTokens: tokenUsage?.cacheWriteTokens || 0,
+        cacheReadTokens: tokenUsage?.cacheReadTokens || 0,
+        cost: (tokenUsage?.totalCents || 0) / 100
+      });
+    }
+  }
+
+  // Insert aggregated records
+  let imported = 0;
+  const errors: string[] = [];
+
+  for (const [key, aggData] of aggregated) {
+    const { date } = parseKey(key);
+    try {
+      await insertUsageRecord({
+        date,
+        email: aggData.email,
+        tool: 'cursor',
+        model: aggData.model,
+        inputTokens: aggData.inputTokens,
+        cacheWriteTokens: aggData.cacheWriteTokens,
+        cacheReadTokens: aggData.cacheReadTokens,
+        outputTokens: aggData.outputTokens,
+        cost: aggData.cost
+      });
+      imported++;
+    } catch (err) {
+      errors.push(`Insert error: ${err instanceof Error ? err.message : 'Unknown'}`);
+      skipped++;
+    }
+  }
+
+  return { imported, skipped, errors };
+}
+
+/**
+ * Sync Cursor usage for the cron job.
+ * Only syncs if there's a new complete hour that hasn't been synced yet.
+ * Returns early if already synced to respect rate limits.
+ */
+export async function syncCursorCron(): Promise<SyncResult> {
+  const authHeader = getCursorAuthHeader();
+  if (!authHeader) {
+    return {
+      success: false,
+      recordsImported: 0,
+      recordsSkipped: 0,
+      errors: ['CURSOR_ADMIN_KEY not configured']
+    };
+  }
+
+  // Get current complete hour boundary
+  const currentHourEnd = getPreviousCompleteHourEnd().getTime();
+
+  // Check what we've already synced
+  const { lastSyncedHourEnd } = await getCursorSyncState();
+
+  // If we've already synced up to or past the current complete hour, skip
+  if (lastSyncedHourEnd && lastSyncedHourEnd >= currentHourEnd) {
+    return {
+      success: true,
+      recordsImported: 0,
+      recordsSkipped: 0,
+      errors: [],
+      syncedRange: undefined
+    };
+  }
+
+  // Determine the range to sync
+  // If never synced, start from 24 hours ago (to avoid huge initial fetch)
+  const startMs = lastSyncedHourEnd || (currentHourEnd - 24 * 60 * 60 * 1000);
+  const endMs = currentHourEnd;
+
+  // Fetch and process
+  const { events, errors: fetchErrors } = await fetchCursorUsage(startMs, endMs, authHeader);
+  const { imported, skipped, errors: insertErrors } = await processAndInsertEvents(events);
+
+  // Update sync state to mark this hour as synced
+  await updateCursorSyncState(endMs);
+
+  return {
+    success: fetchErrors.length === 0,
+    recordsImported: imported,
+    recordsSkipped: skipped,
+    errors: [...fetchErrors, ...insertErrors],
+    syncedRange: { startMs, endMs }
+  };
+}
+
+/**
+ * Sync Cursor usage for a specific date range.
+ * Used for backfills and manual syncs.
+ * Does NOT update sync state - use syncCursorCron for production syncing.
+ *
+ * @param startDate ISO date string (YYYY-MM-DD)
+ * @param endDate ISO date string (YYYY-MM-DD)
+ */
 export async function syncCursorUsage(
   startDate: string,
   endDate: string
@@ -80,126 +309,96 @@ export async function syncCursorUsage(
     };
   }
 
-  const result: SyncResult = {
-    success: true,
-    recordsImported: 0,
-    recordsSkipped: 0,
-    errors: []
+  // Convert to epoch milliseconds (start of start day, end of end day)
+  const startMs = new Date(startDate).getTime();
+  const endMs = new Date(endDate).getTime() + 24 * 60 * 60 * 1000; // End of end day
+
+  const { events, errors: fetchErrors } = await fetchCursorUsage(startMs, endMs, authHeader);
+  const { imported, skipped, errors: insertErrors } = await processAndInsertEvents(events);
+
+  return {
+    success: fetchErrors.length === 0,
+    recordsImported: imported,
+    recordsSkipped: skipped,
+    errors: [...fetchErrors, ...insertErrors],
+    syncedRange: { startMs, endMs }
   };
+}
 
-  try {
-    // Convert ISO date strings to epoch milliseconds
-    const startMs = new Date(startDate).getTime();
-    const endMs = new Date(endDate).getTime();
-
-    // Aggregate by (date, email, model) since Cursor has multiple events per day
-    const aggregated = new Map<string, AggregatedRecord>();
-
-    // Paginate through all results
-    let page = 1;
-    const pageSize = 1000; // Max out page size to reduce API calls
-    let hasMore = true;
-
-    while (hasMore) {
-      const response = await fetch(
-        'https://api.cursor.com/teams/filtered-usage-events',
-        {
-          method: 'POST',
-          headers: {
-            'Authorization': authHeader,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            startDate: startMs,
-            endDate: endMs,
-            page,
-            pageSize
-          })
-        }
-      );
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Cursor API error: ${response.status} - ${errorText}`);
-      }
-
-      const data: CursorUsageResponse = await response.json();
-      const events = data.usageEvents || [];
-
-      for (const event of events) {
-        const tokenUsage = event.tokenUsage;
-
-        // Skip events with no tokens at all (including cache)
-        const totalTokens = (tokenUsage?.inputTokens || 0) +
-          (tokenUsage?.outputTokens || 0) +
-          (tokenUsage?.cacheWriteTokens || 0) +
-          (tokenUsage?.cacheReadTokens || 0);
-        if (totalTokens === 0) {
-          result.recordsSkipped++;
-          continue;
-        }
-
-        // Convert timestamp string to date
-        const date = new Date(parseInt(event.timestamp)).toISOString().split('T')[0];
-        const email = event.userEmail;
-        const key = makeKey(date, email, event.model);
-
-        const existing = aggregated.get(key);
-        if (existing) {
-          existing.inputTokens += tokenUsage?.inputTokens || 0;
-          existing.outputTokens += tokenUsage?.outputTokens || 0;
-          existing.cacheWriteTokens += tokenUsage?.cacheWriteTokens || 0;
-          existing.cacheReadTokens += tokenUsage?.cacheReadTokens || 0;
-          existing.cost += (tokenUsage?.totalCents || 0) / 100; // Convert cents to dollars
-        } else {
-          aggregated.set(key, {
-            email,
-            model: event.model,
-            inputTokens: tokenUsage?.inputTokens || 0,
-            outputTokens: tokenUsage?.outputTokens || 0,
-            cacheWriteTokens: tokenUsage?.cacheWriteTokens || 0,
-            cacheReadTokens: tokenUsage?.cacheReadTokens || 0,
-            cost: (tokenUsage?.totalCents || 0) / 100
-          });
-        }
-      }
-
-      // Check if there are more pages
-      if (data.pagination?.hasNextPage) {
-        page++;
-        // Rate limit: 20 requests per minute = 3 seconds between requests
-        await new Promise(resolve => setTimeout(resolve, 3000));
-      } else {
-        hasMore = false;
-      }
-    }
-
-    // Insert aggregated records
-    for (const [key, aggData] of aggregated) {
-      const { date } = parseKey(key);
-      try {
-        await insertUsageRecord({
-          date,
-          email: aggData.email,
-          tool: 'cursor',
-          model: aggData.model,
-          inputTokens: aggData.inputTokens,
-          cacheWriteTokens: aggData.cacheWriteTokens,
-          cacheReadTokens: aggData.cacheReadTokens,
-          outputTokens: aggData.outputTokens,
-          cost: aggData.cost
-        });
-        result.recordsImported++;
-      } catch (err) {
-        result.errors.push(`Insert error: ${err instanceof Error ? err.message : 'Unknown'}`);
-        result.recordsSkipped++;
-      }
-    }
-
-  } catch (err) {
-    result.success = false;
-    result.errors.push(err instanceof Error ? err.message : 'Unknown error');
+/**
+ * Backfill Cursor data for a date range, respecting the once-per-hour limit.
+ * Chunks into daily requests with delays to be respectful of rate limits.
+ * Updates sync state after completion.
+ */
+export async function backfillCursorUsage(
+  startDate: string,
+  endDate: string,
+  options: { onProgress?: (msg: string) => void } = {}
+): Promise<SyncResult> {
+  const authHeader = getCursorAuthHeader();
+  if (!authHeader) {
+    return {
+      success: false,
+      recordsImported: 0,
+      recordsSkipped: 0,
+      errors: ['CURSOR_ADMIN_KEY not configured']
+    };
   }
 
-  return result;
+  const log = options.onProgress || (() => {});
+
+  // Parse dates
+  const startMs = new Date(startDate).getTime();
+  const endMs = new Date(endDate).getTime() + 24 * 60 * 60 * 1000;
+
+  let totalImported = 0;
+  let totalSkipped = 0;
+  const allErrors: string[] = [];
+
+  // Process in daily chunks to avoid memory issues and provide progress
+  const oneDay = 24 * 60 * 60 * 1000;
+  let currentStart = startMs;
+
+  while (currentStart < endMs) {
+    const currentEnd = Math.min(currentStart + oneDay, endMs);
+    const startStr = new Date(currentStart).toISOString().split('T')[0];
+
+    log(`Fetching ${startStr}...`);
+
+    const { events, errors: fetchErrors } = await fetchCursorUsage(currentStart, currentEnd, authHeader);
+
+    if (fetchErrors.length > 0) {
+      allErrors.push(...fetchErrors);
+      log(`  Errors: ${fetchErrors.join(', ')}`);
+    } else {
+      const { imported, skipped, errors: insertErrors } = await processAndInsertEvents(events);
+      totalImported += imported;
+      totalSkipped += skipped;
+      allErrors.push(...insertErrors);
+      log(`  Imported: ${imported}, Skipped: ${skipped}`);
+    }
+
+    currentStart = currentEnd;
+
+    // Brief delay between days to be nice to the API
+    if (currentStart < endMs) {
+      await new Promise(resolve => setTimeout(resolve, 1000));
+    }
+  }
+
+  // Update sync state to the end of the backfill range
+  // Only if it's beyond what we've already synced
+  const { lastSyncedHourEnd } = await getCursorSyncState();
+  const hourEnd = getHourStart(new Date(endMs)).getTime();
+  if (!lastSyncedHourEnd || hourEnd > lastSyncedHourEnd) {
+    await updateCursorSyncState(hourEnd);
+  }
+
+  return {
+    success: allErrors.length === 0,
+    recordsImported: totalImported,
+    recordsSkipped: totalSkipped,
+    errors: allErrors,
+    syncedRange: { startMs, endMs }
+  };
 }
