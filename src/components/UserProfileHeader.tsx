@@ -138,7 +138,7 @@ export function UserProfileHeader({ email, lifetime, days }: UserProfileHeaderPr
                     Record Day
                   </span>
                   <span className="font-mono text-sm text-white/60">
-                    {formatTokens(lifetime.recordDay.tokens)}
+                    {formatTokens(lifetime.recordDay.tokens)} tokens
                   </span>
                 </div>
               </>

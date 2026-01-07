@@ -32,8 +32,8 @@ import * as readline from 'readline';
 import * as fs from 'fs';
 import * as path from 'path';
 import { sql } from '@vercel/postgres';
-import { syncAnthropicUsage, getAnthropicSyncState, backfillAnthropicUsage } from '../src/lib/sync/anthropic';
-import { syncCursorUsage, backfillCursorUsage, getCursorSyncState, getPreviousCompleteHourEnd } from '../src/lib/sync/cursor';
+import { syncAnthropicUsage, getAnthropicSyncState, backfillAnthropicUsage, resetAnthropicBackfillComplete } from '../src/lib/sync/anthropic';
+import { syncCursorUsage, backfillCursorUsage, getCursorSyncState, getPreviousCompleteHourEnd, resetCursorBackfillComplete } from '../src/lib/sync/cursor';
 import { syncApiKeyMappingsSmart, syncAnthropicApiKeyMappings } from '../src/lib/sync/anthropic-mappings';
 import { getToolIdentityMappings, setToolIdentityMapping, getUnmappedToolRecords, getKnownEmails, insertUsageRecord } from '../src/lib/queries';
 import { normalizeModelName } from '../src/lib/utils';
@@ -140,6 +140,9 @@ Commands:
                         Sync recent usage data (tool: anthropic|cursor, default: both)
   backfill <tool> --from YYYY-MM-DD --to YYYY-MM-DD
                         Backfill historical data for a specific tool
+  backfill:complete <tool>
+                        Mark backfill as complete for a tool (anthropic|cursor)
+  backfill:reset <tool> Reset backfill status for a tool (allows re-backfilling)
   mappings              List API key mappings
   mappings:sync [--full] Sync API key mappings from Anthropic (--full for all keys)
   mappings:fix          Interactive fix for unmapped API keys
@@ -636,6 +639,40 @@ async function main() {
           break;
         }
         await cmdBackfill(tool, fromDate, toDate);
+        break;
+      }
+      case 'backfill:complete': {
+        const tool = args[1] as 'anthropic' | 'cursor';
+        if (!tool || !['anthropic', 'cursor'].includes(tool)) {
+          console.error('Error: Please specify tool (anthropic or cursor)');
+          console.error('Usage: npm run cli backfill:complete <tool>');
+          break;
+        }
+        console.log(`Marking ${tool} backfill as complete...`);
+        await sql`
+          INSERT INTO sync_state (id, last_sync_at, backfill_complete)
+          VALUES (${tool}, NOW(), true)
+          ON CONFLICT (id) DO UPDATE SET
+            last_sync_at = NOW(),
+            backfill_complete = true
+        `;
+        console.log(`✓ ${tool} backfill marked as complete`);
+        break;
+      }
+      case 'backfill:reset': {
+        const tool = args[1] as 'anthropic' | 'cursor';
+        if (!tool || !['anthropic', 'cursor'].includes(tool)) {
+          console.error('Error: Please specify tool (anthropic or cursor)');
+          console.error('Usage: npm run cli backfill:reset <tool>');
+          break;
+        }
+        console.log(`Resetting ${tool} backfill status...`);
+        if (tool === 'anthropic') {
+          await resetAnthropicBackfillComplete();
+        } else {
+          await resetCursorBackfillComplete();
+        }
+        console.log(`✓ ${tool} backfill status reset (can now re-backfill)`);
         break;
       }
       case 'import:cursor-csv': {

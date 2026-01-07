@@ -30,8 +30,8 @@ export function LifetimeStats({ totalCost, totalTokens, firstRecordDate, totalUs
       transition={{ duration: 0.4 }}
       className="border-b border-dashed border-white/10 bg-white/[0.01]"
     >
-      <div className="px-4 sm:px-8 flex items-center justify-center min-h-[48px]">
-        <div className="flex items-center justify-center gap-6 sm:gap-8 flex-wrap">
+      <div className="px-4 sm:px-8 flex items-center min-h-[48px]">
+        <div className="flex items-center gap-6 sm:gap-8 flex-wrap">
           <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-white/30 leading-none">
             Lifetime
           </span>
