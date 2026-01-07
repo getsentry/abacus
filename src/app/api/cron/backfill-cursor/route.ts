@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { wrapRouteHandlerWithSentry } from '@sentry/nextjs';
 import { backfillCursorUsage, getCursorBackfillState } from '@/lib/sync/cursor';
 
 // Target: backfill to the beginning of 2025
@@ -12,7 +13,7 @@ const BACKFILL_TARGET_DATE = '2025-01-01';
  * - Saves progress to database for next run
  * - No-ops once target date is reached or no more historical data
  */
-export async function GET(request: Request) {
+async function handler(request: Request) {
   // Verify cron secret - REQUIRED for security
   const authHeader = request.headers.get('authorization');
   const cronSecret = process.env.CRON_SECRET;
@@ -70,6 +71,12 @@ export async function GET(request: Request) {
   });
 }
 
-export async function POST(request: Request) {
-  return GET(request);
-}
+export const GET = wrapRouteHandlerWithSentry(handler, {
+  method: 'GET',
+  parameterizedRoute: '/api/cron/backfill-cursor',
+});
+
+export const POST = wrapRouteHandlerWithSentry(handler, {
+  method: 'POST',
+  parameterizedRoute: '/api/cron/backfill-cursor',
+});

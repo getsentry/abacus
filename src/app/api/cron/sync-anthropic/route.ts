@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { wrapRouteHandlerWithSentry } from '@sentry/nextjs';
 import { runAnthropicSync, getAnthropicSyncState } from '@/lib/sync';
 
 /**
@@ -12,7 +13,7 @@ import { runAnthropicSync, getAnthropicSyncState } from '@/lib/sync';
  * This endpoint is safe to call more frequently than daily -
  * it will simply return early if there's no new data to sync.
  */
-export async function GET(request: Request) {
+async function handler(request: Request) {
   // Verify cron secret
   const authHeader = request.headers.get('authorization');
   const cronSecret = process.env.CRON_SECRET;
@@ -53,6 +54,12 @@ export async function GET(request: Request) {
   });
 }
 
-export async function POST(request: Request) {
-  return GET(request);
-}
+export const GET = wrapRouteHandlerWithSentry(handler, {
+  method: 'GET',
+  parameterizedRoute: '/api/cron/sync-anthropic',
+});
+
+export const POST = wrapRouteHandlerWithSentry(handler, {
+  method: 'POST',
+  parameterizedRoute: '/api/cron/sync-anthropic',
+});

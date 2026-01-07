@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { wrapRouteHandlerWithSentry } from '@sentry/nextjs';
 import { backfillAnthropicUsage, getAnthropicBackfillState } from '@/lib/sync/anthropic';
 import { syncAnthropicApiKeyMappings } from '@/lib/sync/anthropic-mappings';
 
@@ -13,7 +14,7 @@ const BACKFILL_TARGET_DATE = '2025-01-01';
  * - Saves progress to database for next run
  * - No-ops once target date is reached
  */
-export async function GET(request: Request) {
+async function handler(request: Request) {
   // Verify cron secret - REQUIRED for security
   const authHeader = request.headers.get('authorization');
   const cronSecret = process.env.CRON_SECRET;
@@ -76,6 +77,12 @@ export async function GET(request: Request) {
   });
 }
 
-export async function POST(request: Request) {
-  return GET(request);
-}
+export const GET = wrapRouteHandlerWithSentry(handler, {
+  method: 'GET',
+  parameterizedRoute: '/api/cron/backfill-anthropic',
+});
+
+export const POST = wrapRouteHandlerWithSentry(handler, {
+  method: 'POST',
+  parameterizedRoute: '/api/cron/backfill-anthropic',
+});
