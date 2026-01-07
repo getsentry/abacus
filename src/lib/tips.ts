@@ -58,12 +58,12 @@ export const TIPS: Tip[] = [
   // Plan mode
   {
     id: 'plan-mode-intro',
-    text: 'Use plan mode (Shift+Tab twice) for complex changes - research first, then approve execution',
+    text: 'Use plan mode (Shift+Tab) for complex changes - research and plan before executing',
     guide: 'plan-mode',
   },
   {
     id: 'plan-mode-safety',
-    text: 'Plan mode blocks all write tools - perfect for safely exploring unfamiliar codebases',
+    text: 'Plan mode lets you explore unfamiliar codebases safely before making changes',
     guide: 'plan-mode',
   },
 
@@ -320,35 +320,33 @@ You can fork this repo or use it as inspiration for your own team skills.
     slug: 'plan-mode',
     title: 'Plan Mode',
     description: 'Research and plan before executing changes',
-    externalDocs: 'https://code.claude.com/docs/en/common-workflows',
-    tools: ['claude-code'],
+    tools: ['claude-code', 'cursor'],
     content: `
 ## What is Plan Mode?
 
-Plan Mode lets Claude research and plan without making changes. It can read files but not edit them until you approve.
+Plan Mode lets your AI research and create a detailed plan before making changes. Both Claude Code and Cursor support it via \`Shift+Tab\`.
 
 ## Try It: Planning a Refactor
 
 **Scenario**: You want to refactor the authentication system but aren't sure of the scope.
 
-**Step 1**: Enter plan mode (press \`Shift+Tab\` twice, or):
-\`\`\`
-claude --permission-mode plan
-\`\`\`
+**Step 1**: Enter plan mode by pressing \`Shift+Tab\` in the input
 
-**Step 2**: Ask Claude to investigate:
+**Step 2**: Describe what you want:
 \`\`\`
 I want to refactor auth from session-based to JWT.
 Analyze the current implementation and give me a plan.
 What files need to change? What's the risk?
 \`\`\`
 
-**Step 3**: Claude reads files, traces dependencies, identifies risks—but changes nothing.
+**Step 3**: Review the plan, answer clarifying questions, then approve execution.
 
-**Step 4**: Review the plan. When ready:
-\`\`\`
-Looks good. Exit plan mode and implement step 1.
-\`\`\`
+## How It Works
+
+| Tool | Behavior |
+|------|----------|
+| Claude Code | Blocks write tools during research. Exit plan mode to implement. |
+| Cursor | Creates a plan document with to-dos. Click "Build" to implement. |
 
 ## When to Use
 
@@ -359,11 +357,11 @@ Looks good. Exit plan mode and implement step 1.
 
 ## Quick Reference
 
-| Action | How |
-|--------|-----|
-| Enter plan mode | \`Shift+Tab\` twice |
-| Exit plan mode | \`Shift+Tab\` to cycle |
-| Start in plan mode | \`claude --permission-mode plan\` |
+| Action | Claude Code | Cursor |
+|--------|-------------|--------|
+| Enter plan mode | \`Shift+Tab\` twice | \`Shift+Tab\` |
+| Exit/cycle modes | \`Shift+Tab\` | \`Shift+Tab\` |
+| Save plan | Write to file manually | "Save to workspace" |
     `,
   },
 
