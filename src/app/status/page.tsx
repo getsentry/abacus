@@ -29,8 +29,9 @@ interface CronJob {
 }
 
 interface StatusData {
-  anthropic: ProviderStatus;
-  cursor: ProviderStatus;
+  providers: Record<string, ProviderStatus>;
+  anthropic: ProviderStatus | null;
+  cursor: ProviderStatus | null;
   crons: CronJob[];
 }
 
@@ -200,64 +201,76 @@ export default function StatusPage() {
         ) : data ? (
           <div className="max-w-4xl mx-auto space-y-8">
             {/* Provider Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <ProviderCard provider={data.anthropic} index={0} />
-              <ProviderCard provider={data.cursor} index={1} />
-            </div>
+            {Object.keys(data.providers).length > 0 ? (
+              <div className={`grid grid-cols-1 ${Object.keys(data.providers).length > 1 ? 'md:grid-cols-2' : ''} gap-6`}>
+                {Object.values(data.providers).map((provider, index) => (
+                  <ProviderCard key={provider.id} provider={provider} index={index} />
+                ))}
+              </div>
+            ) : (
+              <div className="bg-white/[0.02] border border-white/5 rounded-lg p-8 text-center">
+                <div className="text-white/40 font-mono text-sm mb-2">No providers configured</div>
+                <div className="text-white/20 font-mono text-xs">
+                  Set ANTHROPIC_ADMIN_KEY or CURSOR_ADMIN_KEY to enable tracking
+                </div>
+              </div>
+            )}
 
             {/* Cron Jobs Table */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5, delay: 0.3 }}
-              className="bg-white/[0.02] border border-white/5 rounded-lg overflow-hidden"
-            >
-              <div className="px-6 py-4 border-b border-white/5">
-                <h2 className="font-display text-lg text-white">Scheduled Jobs</h2>
-              </div>
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b border-white/5 bg-white/[0.02]">
-                    <th className="px-6 py-3 text-left text-[10px] uppercase tracking-[0.2em] text-white/40 font-mono">
-                      Endpoint
-                    </th>
-                    <th className="px-6 py-3 text-left text-[10px] uppercase tracking-[0.2em] text-white/40 font-mono">
-                      Type
-                    </th>
-                    <th className="px-6 py-3 text-left text-[10px] uppercase tracking-[0.2em] text-white/40 font-mono">
-                      Schedule
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {data.crons.map((cron, i) => (
-                    <motion.tr
-                      key={cron.path}
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      transition={{ duration: 0.3, delay: 0.4 + i * 0.05 }}
-                      className="border-b border-white/5 last:border-0"
-                    >
-                      <td className="px-6 py-3 text-sm text-white/80 font-mono">
-                        {cron.path}
-                      </td>
-                      <td className="px-6 py-3">
-                        <span className={`text-[10px] uppercase tracking-wider font-mono px-2 py-0.5 rounded ${
-                          cron.type === 'forward'
-                            ? 'text-emerald-400 bg-emerald-500/10'
-                            : 'text-cyan-400 bg-cyan-500/10'
-                        }`}>
-                          {cron.type}
-                        </span>
-                      </td>
-                      <td className="px-6 py-3 text-sm text-white/60 font-mono">
-                        {cron.schedule}
-                      </td>
-                    </motion.tr>
-                  ))}
-                </tbody>
-              </table>
-            </motion.div>
+            {data.crons.length > 0 && (
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.5, delay: 0.3 }}
+                className="bg-white/[0.02] border border-white/5 rounded-lg overflow-hidden"
+              >
+                <div className="px-6 py-4 border-b border-white/5">
+                  <h2 className="font-display text-lg text-white">Scheduled Jobs</h2>
+                </div>
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b border-white/5 bg-white/[0.02]">
+                      <th className="px-6 py-3 text-left text-[10px] uppercase tracking-[0.2em] text-white/40 font-mono">
+                        Endpoint
+                      </th>
+                      <th className="px-6 py-3 text-left text-[10px] uppercase tracking-[0.2em] text-white/40 font-mono">
+                        Type
+                      </th>
+                      <th className="px-6 py-3 text-left text-[10px] uppercase tracking-[0.2em] text-white/40 font-mono">
+                        Schedule
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {data.crons.map((cron, i) => (
+                      <motion.tr
+                        key={cron.path}
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        transition={{ duration: 0.3, delay: 0.4 + i * 0.05 }}
+                        className="border-b border-white/5 last:border-0"
+                      >
+                        <td className="px-6 py-3 text-sm text-white/80 font-mono">
+                          {cron.path}
+                        </td>
+                        <td className="px-6 py-3">
+                          <span className={`text-[10px] uppercase tracking-wider font-mono px-2 py-0.5 rounded ${
+                            cron.type === 'forward'
+                              ? 'text-emerald-400 bg-emerald-500/10'
+                              : 'text-cyan-400 bg-cyan-500/10'
+                          }`}>
+                            {cron.type}
+                          </span>
+                        </td>
+                        <td className="px-6 py-3 text-sm text-white/60 font-mono">
+                          {cron.schedule}
+                        </td>
+                      </motion.tr>
+                    ))}
+                  </tbody>
+                </table>
+              </motion.div>
+            )}
           </div>
         ) : null}
       </main>

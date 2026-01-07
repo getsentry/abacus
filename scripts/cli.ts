@@ -299,10 +299,28 @@ async function cmdSync(days: number = 7, tools: ('anthropic' | 'cursor')[] = ['a
   const endDate = new Date().toISOString().split('T')[0];
   const startDate = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
 
-  console.log(`🔄 Syncing usage data from ${startDate} to ${endDate}\n`);
+  // Filter to only configured providers
+  const configuredTools = tools.filter(tool => {
+    if (tool === 'anthropic' && !process.env.ANTHROPIC_ADMIN_KEY) {
+      console.log('⚠️  Skipping Anthropic: ANTHROPIC_ADMIN_KEY not configured');
+      return false;
+    }
+    if (tool === 'cursor' && !process.env.CURSOR_ADMIN_KEY) {
+      console.log('⚠️  Skipping Cursor: CURSOR_ADMIN_KEY not configured');
+      return false;
+    }
+    return true;
+  });
+
+  if (configuredTools.length === 0) {
+    console.log('\n❌ No providers configured. Set ANTHROPIC_ADMIN_KEY and/or CURSOR_ADMIN_KEY.');
+    return;
+  }
+
+  console.log(`\n🔄 Syncing usage data from ${startDate} to ${endDate}\n`);
 
   // Sync API key mappings FIRST so usage sync has them available
-  if (tools.includes('anthropic') && !skipMappings) {
+  if (configuredTools.includes('anthropic') && !skipMappings) {
     console.log('Syncing API key mappings...');
     const mappingsResult = await syncApiKeyMappingsSmart();
     console.log(`  Created: ${mappingsResult.mappingsCreated}, Skipped: ${mappingsResult.mappingsSkipped}`);
@@ -312,7 +330,7 @@ async function cmdSync(days: number = 7, tools: ('anthropic' | 'cursor')[] = ['a
     console.log('');
   }
 
-  if (tools.includes('anthropic')) {
+  if (configuredTools.includes('anthropic')) {
     console.log('Syncing Anthropic usage...');
     const anthropicResult = await syncAnthropicUsage(startDate, endDate);
     console.log(`  Imported: ${anthropicResult.recordsImported}, Skipped: ${anthropicResult.recordsSkipped}`);
@@ -321,8 +339,8 @@ async function cmdSync(days: number = 7, tools: ('anthropic' | 'cursor')[] = ['a
     }
   }
 
-  if (tools.includes('cursor')) {
-    if (tools.includes('anthropic')) console.log('');
+  if (configuredTools.includes('cursor')) {
+    if (configuredTools.includes('anthropic')) console.log('');
     console.log('Syncing Cursor usage...');
     const cursorResult = await syncCursorUsage(startDate, endDate);
     console.log(`  Imported: ${cursorResult.recordsImported}, Skipped: ${cursorResult.recordsSkipped}`);
@@ -335,6 +353,16 @@ async function cmdSync(days: number = 7, tools: ('anthropic' | 'cursor')[] = ['a
 }
 
 async function cmdBackfill(tool: 'anthropic' | 'cursor', fromDate: string, toDate: string) {
+  // Check if provider is configured
+  if (tool === 'anthropic' && !process.env.ANTHROPIC_ADMIN_KEY) {
+    console.error('❌ ANTHROPIC_ADMIN_KEY not configured');
+    return;
+  }
+  if (tool === 'cursor' && !process.env.CURSOR_ADMIN_KEY) {
+    console.error('❌ CURSOR_ADMIN_KEY not configured');
+    return;
+  }
+
   console.log(`📥 Backfilling ${tool} from ${fromDate} to ${toDate}\n`);
 
   if (tool === 'anthropic') {

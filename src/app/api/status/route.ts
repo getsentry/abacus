@@ -55,31 +55,26 @@ async function handler() {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  // Fetch all sync states in parallel
-  const [
-    anthropicSync,
-    anthropicBackfill,
-    cursorSync,
-    cursorBackfill
-  ] = await Promise.all([
-    getAnthropicSyncState(),
-    getAnthropicBackfillState(),
-    getCursorSyncState(),
-    getCursorBackfillState()
-  ]);
-
-  // Format Cursor's epoch ms to ISO string for display
-  const cursorLastSyncedDate = cursorSync.lastSyncedHourEnd
-    ? new Date(cursorSync.lastSyncedHourEnd).toISOString()
-    : null;
+  // Check which providers are configured
+  const anthropicConfigured = !!process.env.ANTHROPIC_ADMIN_KEY;
+  const cursorConfigured = !!process.env.CURSOR_ADMIN_KEY;
 
   const today = new Date().toISOString().split('T')[0];
+  const providers: Record<string, unknown> = {};
+  const crons: { path: string; schedule: string; type: string }[] = [];
 
-  return NextResponse.json({
-    anthropic: {
+  // Anthropic/Claude Code
+  if (anthropicConfigured) {
+    const [anthropicSync, anthropicBackfill] = await Promise.all([
+      getAnthropicSyncState(),
+      getAnthropicBackfillState()
+    ]);
+
+    providers.anthropic = {
       id: 'anthropic',
       name: 'Claude Code',
       color: 'amber',
+      configured: true,
       forwardSync: {
         lastSyncedDate: anthropicSync.lastSyncedDate,
         status: getForwardSyncStatus(anthropicSync.lastSyncedDate, false)
@@ -90,11 +85,30 @@ async function handler() {
         status: getBackfillStatus(anthropicBackfill.oldestDate, anthropicBackfill.isComplete),
         progress: calculateBackfillProgress(anthropicBackfill.oldestDate, today)
       }
-    },
-    cursor: {
+    };
+
+    crons.push(
+      { path: '/api/cron/sync-anthropic', schedule: 'Daily at 6 AM UTC', type: 'forward' },
+      { path: '/api/cron/backfill-anthropic', schedule: 'Every 6 hours', type: 'backfill' }
+    );
+  }
+
+  // Cursor
+  if (cursorConfigured) {
+    const [cursorSync, cursorBackfill] = await Promise.all([
+      getCursorSyncState(),
+      getCursorBackfillState()
+    ]);
+
+    const cursorLastSyncedDate = cursorSync.lastSyncedHourEnd
+      ? new Date(cursorSync.lastSyncedHourEnd).toISOString()
+      : null;
+
+    providers.cursor = {
       id: 'cursor',
       name: 'Cursor',
       color: 'cyan',
+      configured: true,
       forwardSync: {
         lastSyncedDate: cursorLastSyncedDate,
         status: getForwardSyncStatus(cursorLastSyncedDate, true)
@@ -105,13 +119,20 @@ async function handler() {
         status: getBackfillStatus(cursorBackfill.oldestDate, cursorBackfill.isComplete),
         progress: calculateBackfillProgress(cursorBackfill.oldestDate, today)
       }
-    },
-    crons: [
-      { path: '/api/cron/sync-anthropic', schedule: 'Daily at 6 AM UTC', type: 'forward' },
+    };
+
+    crons.push(
       { path: '/api/cron/sync-cursor', schedule: 'Hourly', type: 'forward' },
-      { path: '/api/cron/backfill-anthropic', schedule: 'Every 6 hours', type: 'backfill' },
       { path: '/api/cron/backfill-cursor', schedule: 'Every 6 hours', type: 'backfill' }
-    ]
+    );
+  }
+
+  return NextResponse.json({
+    providers,
+    crons,
+    // For backwards compatibility, also include at top level
+    anthropic: providers.anthropic || null,
+    cursor: providers.cursor || null
   });
 }
 

@@ -27,6 +27,16 @@ async function handler(request: Request) {
     throw new Error('Unauthorized: Invalid or missing cron secret');
   }
 
+  // Check if provider is configured
+  if (!process.env.ANTHROPIC_ADMIN_KEY) {
+    return NextResponse.json({
+      success: true,
+      service: 'anthropic',
+      skipped: true,
+      reason: 'ANTHROPIC_ADMIN_KEY not configured'
+    });
+  }
+
   // Check current backfill state (derived from actual usage data)
   const { oldestDate, isComplete } = await getAnthropicBackfillState();
 
