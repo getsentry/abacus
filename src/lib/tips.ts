@@ -28,7 +28,7 @@ export const TIPS: Tip[] = [
   },
   {
     id: 'subagents-explore',
-    text: 'Use explore subagents to scan codebases without polluting your main context',
+    text: 'Delegate research and exploration to subagents—keeps your main context clean',
     guide: 'subagents',
   },
 
