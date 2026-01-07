@@ -184,6 +184,8 @@ npm run cli sync cursor --days 7
 # Backfill (API-based, with progress tracking)
 npm run cli backfill anthropic --from 2025-01-01 --to 2025-06-01
 npm run cli backfill cursor --from 2025-01-01 --to 2025-06-01
+npm run cli backfill:complete anthropic  # Mark backfill as complete
+npm run cli backfill:reset cursor        # Reset backfill status
 
 # CSV Import
 npm run cli import:cursor-csv <file>
@@ -192,6 +194,11 @@ npm run cli import:cursor-csv <file>
 npm run cli mappings               # List current mappings
 npm run cli mappings:sync          # Sync from Anthropic API
 npm run cli mappings:fix           # Interactive unmapped key assignment
+
+# Data Analysis
+npm run cli gaps                   # Check for gaps in usage data
+npm run cli gaps anthropic         # Check Claude Code only
+npm run cli gaps cursor            # Check Cursor only
 
 # Status
 npm run cli anthropic:status       # Show Claude Code sync state
@@ -327,4 +334,4 @@ Each provider should:
 
 ## License
 
-MIT
+Apache 2.0 - see [LICENSE](LICENSE)
