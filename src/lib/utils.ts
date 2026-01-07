@@ -1,9 +1,12 @@
-export function formatTokens(n: number): string {
-  // Handle invalid/NaN values
-  if (!Number.isFinite(n)) return '0';
+export function formatTokens(n: number | bigint): string {
+  // Convert BigInt to Number if needed (safe for display purposes)
+  const num = typeof n === 'bigint' ? Number(n) : n;
 
-  const absN = Math.abs(n);
-  const sign = n < 0 ? '-' : '';
+  // Handle invalid/NaN values
+  if (!Number.isFinite(num)) return '0';
+
+  const absN = Math.abs(num);
+  const sign = num < 0 ? '-' : '';
 
   // For extremely large values (data corruption), show compact exponential
   if (absN >= 1e21) {
@@ -18,14 +21,17 @@ export function formatTokens(n: number): string {
   if (absN >= 1e9) return `${sign}${(absN / 1e9).toFixed(1)}B`;      // Billion
   if (absN >= 1e6) return `${sign}${(absN / 1e6).toFixed(1)}M`;      // Million
   if (absN >= 1e3) return `${sign}${(absN / 1e3).toFixed(0)}K`;      // Thousand
-  return n.toString();
+  return num.toString();
 }
 
-export function formatCurrency(n: number): string {
-  if (!Number.isFinite(n)) return '$0.00';
+export function formatCurrency(n: number | bigint): string {
+  // Convert BigInt to Number if needed
+  const num = typeof n === 'bigint' ? Number(n) : n;
 
-  const absN = Math.abs(n);
-  const sign = n < 0 ? '-' : '';
+  if (!Number.isFinite(num)) return '$0.00';
+
+  const absN = Math.abs(num);
+  const sign = num < 0 ? '-' : '';
 
   if (absN >= 1e9) return `${sign}$${(absN / 1e9).toFixed(1)}B`;
   if (absN >= 1e6) return `${sign}$${(absN / 1e6).toFixed(1)}M`;
