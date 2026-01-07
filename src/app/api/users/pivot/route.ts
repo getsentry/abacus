@@ -6,9 +6,10 @@ export async function GET(request: Request) {
   const sortBy = searchParams.get('sortBy') || 'totalTokens';
   const sortDir = (searchParams.get('sortDir') || 'desc') as 'asc' | 'desc';
   const search = searchParams.get('search') || undefined;
+  const days = parseInt(searchParams.get('days') || '30', 10);
 
   try {
-    const users = await getAllUsersPivot(sortBy, sortDir, search);
+    const users = await getAllUsersPivot(sortBy, sortDir, search, days);
     return NextResponse.json(users);
   } catch (error) {
     return NextResponse.json(

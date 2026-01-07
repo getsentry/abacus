@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { motion } from 'framer-motion';
 import { SearchInput } from '@/components/SearchInput';
 import { UserDetailPanel } from '@/components/UserDetailPanel';
+import { TimeRangeSelector } from '@/components/TimeRangeSelector';
 import { formatTokens, formatCurrency } from '@/lib/utils';
 
 interface UserPivotData {
@@ -47,6 +48,7 @@ export default function UsersPage() {
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedUser, setSelectedUser] = useState<string | null>(null);
+  const [days, setDays] = useState(30);
   const [visibleColumns, setVisibleColumns] = useState<Set<SortKey>>(
     new Set(['email', 'totalTokens', 'totalCost', 'claudeCodeTokens', 'cursorTokens', 'daysActive', 'avgTokensPerDay', 'lastActive'])
   );
@@ -58,6 +60,7 @@ export default function UsersPage() {
       const params = new URLSearchParams({
         sortBy,
         sortDir,
+        days: days.toString(),
         ...(searchQuery && { search: searchQuery }),
       });
       const res = await fetch(`/api/users/pivot?${params}`);
@@ -74,7 +77,7 @@ export default function UsersPage() {
     } finally {
       setLoading(false);
     }
-  }, [sortBy, sortDir, searchQuery]);
+  }, [sortBy, sortDir, searchQuery, days]);
 
   useEffect(() => {
     fetchUsers();
@@ -141,6 +144,7 @@ export default function UsersPage() {
               onChange={setSearchQuery}
               placeholder="Search users..."
             />
+            <TimeRangeSelector value={days} onChange={setDays} />
           </div>
         </div>
       </header>

@@ -432,7 +432,8 @@ export interface UserPivotData {
 export async function getAllUsersPivot(
   sortBy: string = 'totalTokens',
   sortDir: 'asc' | 'desc' = 'desc',
-  search?: string
+  search?: string,
+  days: number = 30
 ): Promise<UserPivotData[]> {
 
   const validSortColumns = [
@@ -443,7 +444,7 @@ export async function getAllUsersPivot(
   const safeSortBy = validSortColumns.includes(sortBy) ? sortBy : 'totalTokens';
   const searchPattern = search ? `%${search}%` : null;
 
-  // Get stats for last 30 days, but lastActive from all time
+  // Get stats for specified days, but lastActive from all time
   const result = searchPattern
     ? await sql`
         SELECT
@@ -468,7 +469,7 @@ export async function getAllUsersPivot(
         ) la ON r.email = la.email
         WHERE r.email != 'unknown'
           AND r.email LIKE ${searchPattern}
-          AND r.date >= CURRENT_DATE - 30
+          AND r.date >= CURRENT_DATE - ${days}::int
         GROUP BY r.email, la."lastActive"
         ORDER BY "totalTokens" DESC
       `
@@ -494,7 +495,7 @@ export async function getAllUsersPivot(
           GROUP BY email
         ) la ON r.email = la.email
         WHERE r.email != 'unknown'
-          AND r.date >= CURRENT_DATE - 30
+          AND r.date >= CURRENT_DATE - ${days}::int
         GROUP BY r.email, la."lastActive"
         ORDER BY "totalTokens" DESC
       `;
