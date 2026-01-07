@@ -3,6 +3,7 @@ import { wrapRouteHandlerWithSentry } from '@sentry/nextjs';
 import { getUserDetails, getUserDetailsExtended, getUserLifetimeStats, resolveUserEmail } from '@/lib/queries';
 import { getSession } from '@/lib/auth';
 import { isValidDateString } from '@/lib/utils';
+import { getPreviousPeriodDates } from '@/lib/comparison';
 
 async function handler(
   request: Request,
@@ -17,6 +18,7 @@ async function handler(
   const { searchParams } = new URL(request.url);
   const startDate = searchParams.get('startDate');
   const endDate = searchParams.get('endDate');
+  const includeComparison = searchParams.get('comparison') === 'true';
 
   // Validate date parameters
   if (startDate && !isValidDateString(startDate)) {
@@ -32,6 +34,29 @@ async function handler(
   const email = await resolveUserEmail(decoded);
   if (!email) {
     return NextResponse.json({ error: 'User not found' }, { status: 404 });
+  }
+
+  // Fetch comparison data if requested
+  if (includeComparison && startDate && endDate) {
+    const { prevStartDate, prevEndDate } = getPreviousPeriodDates(startDate, endDate);
+    const [details, prevDetails, lifetime] = await Promise.all([
+      getUserDetailsExtended(email, startDate, endDate),
+      getUserDetailsExtended(email, prevStartDate, prevEndDate),
+      getUserLifetimeStats(email),
+    ]);
+
+    if (!details.summary) {
+      return NextResponse.json({ error: 'User not found' }, { status: 404 });
+    }
+
+    return NextResponse.json({
+      ...details,
+      lifetime,
+      previousPeriod: prevDetails.summary ? {
+        totalTokens: Number(prevDetails.summary.totalTokens),
+        totalCost: Number(prevDetails.summary.totalCost),
+      } : undefined,
+    });
   }
 
   // Use extended query if date parameters are provided, and always fetch lifetime stats

@@ -16,6 +16,7 @@ import { PageContainer } from '@/components/PageContainer';
 import { useTimeRange } from '@/contexts/TimeRangeContext';
 import { formatTokens } from '@/lib/utils';
 import { type AdoptionStage, STAGE_CONFIG, STAGE_ORDER, isInactive } from '@/lib/adoption';
+import { calculateDelta } from '@/lib/comparison';
 
 interface AdoptionSummary {
   stages: Record<AdoptionStage, { count: number; percentage: number; users: string[] }>;
@@ -23,6 +24,11 @@ interface AdoptionSummary {
   inactive: { count: number; users: string[] };
   totalUsers: number;
   activeUsers: number;
+  previousPeriod?: {
+    avgScore: number;
+    activeUsers: number;
+    powerUserCount: number;
+  };
 }
 
 interface UserPivotData {
@@ -78,7 +84,7 @@ function AdoptionPageContent() {
     try {
       const { startDate, endDate } = getDateParams();
       const [summaryRes, usersRes] = await Promise.all([
-        fetch(`/api/adoption?startDate=${startDate}&endDate=${endDate}`),
+        fetch(`/api/adoption?startDate=${startDate}&endDate=${endDate}&comparison=true`),
         fetch(`/api/users/pivot?startDate=${startDate}&endDate=${endDate}`),
       ]);
 
@@ -193,6 +199,7 @@ function AdoptionPageContent() {
                 suffix="/100"
                 icon={TrendingUp}
                 accentColor="#10b981"
+                trend={summary.previousPeriod ? calculateDelta(summary.avgScore, summary.previousPeriod.avgScore) : undefined}
                 delay={0}
               >
                 <div className="h-1.5 rounded-full bg-white/5 overflow-hidden">
@@ -213,6 +220,7 @@ function AdoptionPageContent() {
                 suffix="users"
                 icon={Users}
                 accentColor="#06b6d4"
+                trend={summary.previousPeriod ? calculateDelta(summary.activeUsers, summary.previousPeriod.activeUsers) : undefined}
                 delay={0.1}
               >
                 <div className="flex gap-3">
@@ -238,17 +246,23 @@ function AdoptionPageContent() {
                 const productivePercent = summary.activeUsers > 0
                   ? Math.round((productiveCount / summary.activeUsers) * 100)
                   : 0;
+                // Calculate previous period productive count (power users only since we track that)
+                const prevPowerUserCount = summary.previousPeriod?.powerUserCount || 0;
                 return (
                   <StatCard
                     label="Productive"
                     days={days}
                     value={`${productivePercent}%`}
                     suffix="of active users"
-                    subValue={`${productiveCount} users in flow or power user stage`}
                     icon={Target}
                     accentColor="#06b6d4"
+                    trend={summary.previousPeriod ? calculateDelta(powerUserCount, prevPowerUserCount) : undefined}
                     delay={0.2}
-                  />
+                  >
+                    <p className="font-mono text-xs text-white/50">
+                      {productiveCount} in flow or power user
+                    </p>
+                  </StatCard>
                 );
               })()}
             </div>

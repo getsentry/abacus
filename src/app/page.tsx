@@ -16,6 +16,7 @@ import { PageContainer } from '@/components/PageContainer';
 import { formatTokens, formatCurrency } from '@/lib/utils';
 import { useTimeRange } from '@/contexts/TimeRangeContext';
 import { type AdoptionStage } from '@/lib/adoption';
+import { calculateDelta } from '@/lib/comparison';
 
 interface Stats {
   totalTokens: number;
@@ -26,6 +27,13 @@ interface Stats {
   unattributed?: {
     totalTokens: number;
     totalCost: number;
+  };
+  previousPeriod?: {
+    totalTokens: number;
+    totalCost: number;
+    activeUsers: number;
+    claudeCodeTokens: number;
+    cursorTokens: number;
   };
 }
 
@@ -98,7 +106,7 @@ function DashboardContent() {
       const params = new URLSearchParams({ startDate, endDate });
 
       const [statsRes, usersRes, trendsRes, modelsRes, adoptionRes] = await Promise.all([
-        fetch(`/api/stats?${params}`),
+        fetch(`/api/stats?${params}&comparison=true`),
         fetch(`/api/users?limit=10&${params}`),
         fetch(`/api/trends?${params}`),
         fetch(`/api/models?${params}`),
@@ -192,28 +200,37 @@ function DashboardContent() {
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
               <StatCard
                 label="Total Tokens"
+                days={days}
                 value={formatTokens(stats.totalTokens)}
-                subValue={rangeLabel}
+                trend={stats.previousPeriod ? calculateDelta(stats.totalTokens, stats.previousPeriod.totalTokens) : undefined}
                 delay={0}
               />
               <StatCard
                 label="Estimated Cost"
+                days={days}
                 value={formatCurrency(stats.totalCost)}
-                subValue={rangeLabel}
+                trend={stats.previousPeriod ? calculateDelta(stats.totalCost, stats.previousPeriod.totalCost) : undefined}
                 accentColor="#06b6d4"
                 delay={0.1}
               />
               <StatCard
                 label="Active Users"
+                days={days}
                 value={stats.activeUsers.toString()}
-                subValue={rangeLabel}
+                trend={stats.previousPeriod ? calculateDelta(stats.activeUsers, stats.previousPeriod.activeUsers) : undefined}
                 accentColor="#10b981"
                 delay={0.2}
               />
               <StatCard
                 label="Avg per User"
+                days={days}
                 value={formatTokens(stats.activeUsers > 0 ? Math.round(stats.totalTokens / stats.activeUsers) : 0)}
-                subValue={rangeLabel}
+                trend={stats.previousPeriod && stats.previousPeriod.activeUsers > 0
+                  ? calculateDelta(
+                      stats.activeUsers > 0 ? stats.totalTokens / stats.activeUsers : 0,
+                      stats.previousPeriod.totalTokens / stats.previousPeriod.activeUsers
+                    )
+                  : undefined}
                 accentColor="#8b5cf6"
                 delay={0.3}
               />

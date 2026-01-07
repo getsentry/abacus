@@ -6,6 +6,7 @@ import {
   calculateAdoptionScore,
   getAdoptionStage,
 } from './adoption';
+import { getPreviousPeriodDates } from './comparison';
 
 
 export interface UsageStats {
@@ -104,6 +105,81 @@ export async function getOverallStats(startDate?: string, endDate?: string): Pro
   }
 
   return result.rows[0] as UsageStats;
+}
+
+export interface UsageStatsWithComparison extends UsageStats {
+  previousPeriod: {
+    totalTokens: number;
+    totalCost: number;
+    activeUsers: number;
+    claudeCodeTokens: number;
+    cursorTokens: number;
+  };
+}
+
+export async function getOverallStatsWithComparison(
+  startDate: string,
+  endDate: string
+): Promise<UsageStatsWithComparison> {
+  const { prevStartDate, prevEndDate } = getPreviousPeriodDates(startDate, endDate);
+
+  const result = await sql`
+    SELECT
+      -- Current period
+      COALESCE(SUM(CASE WHEN date >= ${startDate} AND date <= ${endDate}
+        THEN input_tokens + cache_write_tokens + output_tokens ELSE 0 END), 0)::bigint as "totalTokens",
+      COALESCE(SUM(CASE WHEN date >= ${startDate} AND date <= ${endDate}
+        THEN cost ELSE 0 END), 0)::float as "totalCost",
+      COALESCE(SUM(CASE WHEN date >= ${startDate} AND date <= ${endDate}
+        THEN input_tokens ELSE 0 END), 0)::bigint as "totalInputTokens",
+      COALESCE(SUM(CASE WHEN date >= ${startDate} AND date <= ${endDate}
+        THEN output_tokens ELSE 0 END), 0)::bigint as "totalOutputTokens",
+      COALESCE(SUM(CASE WHEN date >= ${startDate} AND date <= ${endDate}
+        THEN cache_read_tokens ELSE 0 END), 0)::bigint as "totalCacheReadTokens",
+      COALESCE(SUM(CASE WHEN date >= ${startDate} AND date <= ${endDate} AND tool = 'claude_code'
+        THEN input_tokens + cache_write_tokens + output_tokens ELSE 0 END), 0)::bigint as "claudeCodeTokens",
+      COALESCE(SUM(CASE WHEN date >= ${startDate} AND date <= ${endDate} AND tool = 'cursor'
+        THEN input_tokens + cache_write_tokens + output_tokens ELSE 0 END), 0)::bigint as "cursorTokens",
+      -- Previous period
+      COALESCE(SUM(CASE WHEN date >= ${prevStartDate} AND date <= ${prevEndDate}
+        THEN input_tokens + cache_write_tokens + output_tokens ELSE 0 END), 0)::bigint as "prevTotalTokens",
+      COALESCE(SUM(CASE WHEN date >= ${prevStartDate} AND date <= ${prevEndDate}
+        THEN cost ELSE 0 END), 0)::float as "prevTotalCost",
+      COALESCE(SUM(CASE WHEN date >= ${prevStartDate} AND date <= ${prevEndDate} AND tool = 'claude_code'
+        THEN input_tokens + cache_write_tokens + output_tokens ELSE 0 END), 0)::bigint as "prevClaudeCodeTokens",
+      COALESCE(SUM(CASE WHEN date >= ${prevStartDate} AND date <= ${prevEndDate} AND tool = 'cursor'
+        THEN input_tokens + cache_write_tokens + output_tokens ELSE 0 END), 0)::bigint as "prevCursorTokens"
+    FROM usage_records
+    WHERE date >= ${prevStartDate} AND date <= ${endDate}
+  `;
+
+  // Active users need separate subqueries since COUNT DISTINCT with CASE doesn't work as expected
+  const activeUsersResult = await sql`
+    SELECT
+      (SELECT COUNT(DISTINCT email) FROM usage_records WHERE date >= ${startDate} AND date <= ${endDate})::int as "activeUsers",
+      (SELECT COUNT(DISTINCT email) FROM usage_records WHERE date >= ${prevStartDate} AND date <= ${prevEndDate})::int as "prevActiveUsers"
+  `;
+
+  const row = result.rows[0];
+  const activeRow = activeUsersResult.rows[0];
+
+  return {
+    totalTokens: Number(row.totalTokens),
+    totalCost: Number(row.totalCost),
+    totalInputTokens: Number(row.totalInputTokens),
+    totalOutputTokens: Number(row.totalOutputTokens),
+    totalCacheReadTokens: Number(row.totalCacheReadTokens),
+    activeUsers: Number(activeRow.activeUsers),
+    claudeCodeTokens: Number(row.claudeCodeTokens),
+    cursorTokens: Number(row.cursorTokens),
+    previousPeriod: {
+      totalTokens: Number(row.prevTotalTokens),
+      totalCost: Number(row.prevTotalCost),
+      activeUsers: Number(activeRow.prevActiveUsers),
+      claudeCodeTokens: Number(row.prevClaudeCodeTokens),
+      cursorTokens: Number(row.prevCursorTokens),
+    },
+  };
 }
 
 export interface UnattributedStats {

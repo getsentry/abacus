@@ -97,7 +97,7 @@ export function StatCard({
         )}
 
         {/* Custom children */}
-        {children && <div className="mt-3">{children}</div>}
+        {children && <div className="mt-2">{children}</div>}
       </div>
     </motion.div>
   );

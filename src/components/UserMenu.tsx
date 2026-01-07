@@ -20,7 +20,8 @@ export function UserMenu() {
   const menuRef = useRef<HTMLDivElement>(null);
 
   const user = session?.user;
-  const profileUrl = user?.email ? `/users/${encodeURIComponent(user.email)}?days=${days}` : '#';
+  const username = user?.email?.split('@')[0];
+  const profileUrl = username ? `/users/${encodeURIComponent(username)}?days=${days}` : '#';
 
   // Close menu when clicking outside
   useEffect(() => {

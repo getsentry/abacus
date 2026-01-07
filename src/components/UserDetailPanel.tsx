@@ -15,6 +15,7 @@ import {
   formatIntensity,
   isInactive,
 } from '@/lib/adoption';
+import { calculateDelta } from '@/lib/comparison';
 
 interface UserDetails {
   summary: {
@@ -29,6 +30,10 @@ interface UserDetails {
   };
   modelBreakdown: { model: string; tokens: number; cost: number; tool: string }[];
   dailyUsage: { date: string; claudeCode: number; cursor: number }[];
+  previousPeriod?: {
+    totalTokens: number;
+    totalCost: number;
+  };
 }
 
 interface UserDetailPanelProps {
@@ -68,7 +73,7 @@ export function UserDetailPanel({ email, onClose }: UserDetailPanelProps) {
       const { startDate, endDate } = getDateParams();
 
       // Fetch user details
-      fetch(`/api/users/${encodeURIComponent(email)}?startDate=${startDate}&endDate=${endDate}`)
+      fetch(`/api/users/${encodeURIComponent(email)}?startDate=${startDate}&endDate=${endDate}&comparison=true`)
         .then(res => res.json())
         .then(data => {
           setDetails(data);
@@ -202,7 +207,18 @@ export function UserDetailPanel({ email, onClose }: UserDetailPanelProps) {
                       <p className="font-mono text-[10px] uppercase tracking-wider text-white/40">Total Tokens</p>
                       <p className="font-mono text-[10px] text-white/30">{rangeLabel}</p>
                     </div>
-                    <p className="mt-1 font-display text-2xl text-white">{formatTokens(user.totalTokens)}</p>
+                    <div className="mt-1 flex items-baseline gap-2">
+                      <p className="font-display text-2xl text-white">{formatTokens(user.totalTokens)}</p>
+                      {details?.previousPeriod && (() => {
+                        const delta = calculateDelta(Number(user.totalTokens), details.previousPeriod.totalTokens);
+                        if (delta === undefined) return null;
+                        return (
+                          <span className={`font-mono text-xs ${delta >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                            {delta >= 0 ? '↑' : '↓'} {Math.abs(delta)}%
+                          </span>
+                        );
+                      })()}
+                    </div>
                     <p className="font-mono text-xs text-white/50">{formatCurrency(user.totalCost)} estimated cost</p>
                   </div>
 

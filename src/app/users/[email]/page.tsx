@@ -22,6 +22,7 @@ import {
   formatIntensity,
   isInactive,
 } from '@/lib/adoption';
+import { calculateDelta } from '@/lib/comparison';
 
 // Tool color palette - extensible for future tools
 const TOOL_COLORS: Record<string, { bg: string; text: string; gradient: string }> = {
@@ -104,6 +105,10 @@ interface UserDetails {
     cursor: number;
     cost: number;
   }[];
+  previousPeriod?: {
+    totalTokens: number;
+    totalCost: number;
+  };
 }
 
 function UserDetailContent() {
@@ -129,7 +134,7 @@ function UserDetailContent() {
     setError(null);
     try {
       const { startDate, endDate } = getDateParams();
-      const params = new URLSearchParams({ startDate, endDate });
+      const params = new URLSearchParams({ startDate, endDate, comparison: 'true' });
       const res = await fetch(`/api/users/${encodeURIComponent(username)}?${params}`);
       if (!res.ok) {
         const errData = await res.json();
@@ -287,20 +292,25 @@ function UserDetailContent() {
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
               <StatCard
                 label="Total Tokens"
+                days={days}
                 value={formatTokens(data.summary.totalTokens)}
                 subValue={`across ${data.summary.daysActive} days`}
+                trend={data.previousPeriod ? calculateDelta(Number(data.summary.totalTokens), data.previousPeriod.totalTokens) : undefined}
                 accentColor="#ffffff"
                 delay={0}
               />
               <StatCard
                 label="Total Cost"
+                days={days}
                 value={formatCurrency(data.summary.totalCost)}
                 subValue={`$${(data.summary.totalCost / Math.max(data.summary.daysActive, 1)).toFixed(2)}/day avg`}
+                trend={data.previousPeriod ? calculateDelta(Number(data.summary.totalCost), data.previousPeriod.totalCost) : undefined}
                 accentColor="#22c55e"
                 delay={0.05}
               />
               <StatCard
                 label="Avg per Day"
+                days={days}
                 value={formatTokens(Math.round(totalTokens / Math.max(data.summary.daysActive, 1)))}
                 subValue="tokens"
                 accentColor="#06b6d4"
