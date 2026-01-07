@@ -1,4 +1,5 @@
 import { sql } from '@vercel/postgres';
+import { DEFAULT_DAYS } from './constants';
 
 
 export interface UsageStats {
@@ -115,7 +116,7 @@ export async function getUnattributedStats(): Promise<UnattributedStats> {
   return result.rows[0] as UnattributedStats;
 }
 
-export async function getUserSummaries(limit = 50, offset = 0, search?: string): Promise<UserSummary[]> {
+export async function getUserSummaries(limit = 50, offset = 0, search?: string, days: number = DEFAULT_DAYS): Promise<UserSummary[]> {
 
   const searchPattern = search ? `%${search}%` : null;
 
@@ -130,6 +131,7 @@ export async function getUserSummaries(limit = 50, offset = 0, search?: string):
           MAX(date)::text as "lastActive"
         FROM usage_records
         WHERE email LIKE ${searchPattern} AND email != 'unknown'
+          AND date >= CURRENT_DATE - ${days}::int
         GROUP BY email
         ORDER BY "totalTokens" DESC
         LIMIT ${limit} OFFSET ${offset}
@@ -144,6 +146,7 @@ export async function getUserSummaries(limit = 50, offset = 0, search?: string):
           MAX(date)::text as "lastActive"
         FROM usage_records
         WHERE email != 'unknown'
+          AND date >= CURRENT_DATE - ${days}::int
         GROUP BY email
         ORDER BY "totalTokens" DESC
         LIMIT ${limit} OFFSET ${offset}
@@ -151,13 +154,14 @@ export async function getUserSummaries(limit = 50, offset = 0, search?: string):
 
   const users = usersResult.rows;
 
-  // Get favorite model for each user
+  // Get favorite model for each user (within same time range)
   const results: UserSummary[] = [];
   for (const user of users) {
     const modelResult = await sql`
       SELECT model, SUM(input_tokens + cache_write_tokens + output_tokens)::bigint as tokens
       FROM usage_records
       WHERE email = ${user.email}
+        AND date >= CURRENT_DATE - ${days}::int
       GROUP BY model
       ORDER BY tokens DESC
       LIMIT 1
@@ -251,7 +255,7 @@ export interface UserDetailsExtended {
   }[];
 }
 
-export async function getUserDetailsExtended(email: string, days: number = 30): Promise<UserDetailsExtended> {
+export async function getUserDetailsExtended(email: string, days: number = DEFAULT_DAYS): Promise<UserDetailsExtended> {
   const summaryResult = await sql`
     SELECT
       email,

@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { formatTokens, formatCurrency, formatModelName } from '@/lib/utils';
+import { DEFAULT_DAYS } from '@/lib/constants';
 
 interface UserDetails {
   summary: {
@@ -25,7 +26,7 @@ interface UserDetailPanelProps {
   days?: number;
 }
 
-export function UserDetailPanel({ email, onClose, days = 30 }: UserDetailPanelProps) {
+export function UserDetailPanel({ email, onClose, days = DEFAULT_DAYS }: UserDetailPanelProps) {
   const [details, setDetails] = useState<UserDetails | null>(null);
   const [loading, setLoading] = useState(false);
 

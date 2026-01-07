@@ -3,6 +3,7 @@
 import { motion } from 'framer-motion';
 import Link from 'next/link';
 import { formatTokens, formatCurrency } from '@/lib/utils';
+import { DEFAULT_DAYS } from '@/lib/constants';
 
 interface UserSummary {
   email: string;
@@ -20,7 +21,7 @@ interface UserTableProps {
   days?: number;
 }
 
-export function UserTable({ users, onUserClick, days = 30 }: UserTableProps) {
+export function UserTable({ users, onUserClick, days = DEFAULT_DAYS }: UserTableProps) {
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}

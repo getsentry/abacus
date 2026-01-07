@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
 import { useSearchParams, useRouter, usePathname } from 'next/navigation';
+import { DEFAULT_DAYS } from '@/lib/constants';
 
 interface TimeRangeContextValue {
   days: number;
@@ -14,15 +15,15 @@ export function TimeRangeProvider({ children }: { children: ReactNode }) {
   const searchParams = useSearchParams();
   const router = useRouter();
   const pathname = usePathname();
-  const initialDays = parseInt(searchParams.get('days') || '30', 10);
+  const initialDays = parseInt(searchParams.get('days') || String(DEFAULT_DAYS), 10) || DEFAULT_DAYS;
   const [days, setDaysState] = useState(initialDays);
 
   // Sync state from URL changes (e.g., back/forward navigation)
   useEffect(() => {
     const urlDays = searchParams.get('days');
     if (urlDays) {
-      const parsed = parseInt(urlDays, 10);
-      if (!isNaN(parsed) && parsed !== days) {
+      const parsed = parseInt(urlDays, 10) || DEFAULT_DAYS;
+      if (parsed !== days && parsed > 0) {
         setDaysState(parsed);
       }
     }
