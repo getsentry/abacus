@@ -1,6 +1,7 @@
-export function formatTokens(n: number | bigint): string {
-  // Convert BigInt to Number if needed (safe for display purposes)
-  const num = typeof n === 'bigint' ? Number(n) : n;
+export function formatTokens(n: number | bigint | string): string {
+  // Convert string (from PostgreSQL bigint) or BigInt to Number
+  const num = typeof n === 'string' ? parseFloat(n) :
+              typeof n === 'bigint' ? Number(n) : n;
 
   // Handle invalid/NaN values
   if (!Number.isFinite(num)) return '0';
@@ -24,9 +25,10 @@ export function formatTokens(n: number | bigint): string {
   return num.toString();
 }
 
-export function formatCurrency(n: number | bigint): string {
-  // Convert BigInt to Number if needed
-  const num = typeof n === 'bigint' ? Number(n) : n;
+export function formatCurrency(n: number | bigint | string): string {
+  // Convert string (from PostgreSQL bigint) or BigInt to Number
+  const num = typeof n === 'string' ? parseFloat(n) :
+              typeof n === 'bigint' ? Number(n) : n;
 
   if (!Number.isFinite(num)) return '$0.00';
 
