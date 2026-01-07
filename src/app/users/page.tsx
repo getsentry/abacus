@@ -34,8 +34,6 @@ const columns: { key: SortKey; label: string; align: 'left' | 'right'; format?: 
   { key: 'totalCost', label: 'Cost', align: 'right', format: formatCurrency },
   { key: 'claudeCodeTokens', label: 'Claude Code', align: 'right', format: formatTokens },
   { key: 'cursorTokens', label: 'Cursor', align: 'right', format: formatTokens },
-  { key: 'inputTokens', label: 'Input', align: 'right', format: formatTokens },
-  { key: 'outputTokens', label: 'Output', align: 'right', format: formatTokens },
   { key: 'daysActive', label: 'Days Active', align: 'right', format: (v) => v.toString() },
   { key: 'avgTokensPerDay', label: 'Avg/Day', align: 'right', format: formatTokens },
   { key: 'lastActive', label: 'Last Active', align: 'right' },
@@ -59,7 +57,7 @@ function UsersPageContent() {
   const [searchQuery, setSearchQuery] = useState(initialSearch);
   const [selectedUser, setSelectedUser] = useState<string | null>(null);
   const [visibleColumns, setVisibleColumns] = useState<Set<SortKey>>(
-    new Set(['email', 'totalTokens', 'totalCost', 'claudeCodeTokens', 'cursorTokens', 'daysActive', 'avgTokensPerDay', 'lastActive'])
+    new Set(['email', 'totalTokens', 'totalCost', 'claudeCodeTokens', 'cursorTokens', 'avgTokensPerDay', 'lastActive'])
   );
 
   const fetchUsers = useCallback(async () => {
@@ -129,10 +127,8 @@ function UsersPageContent() {
       totalCost: acc.totalCost + Number(u.totalCost),
       claudeCodeTokens: acc.claudeCodeTokens + Number(u.claudeCodeTokens),
       cursorTokens: acc.cursorTokens + Number(u.cursorTokens),
-      inputTokens: acc.inputTokens + Number(u.inputTokens),
-      outputTokens: acc.outputTokens + Number(u.outputTokens),
     }),
-    { totalTokens: 0, totalCost: 0, claudeCodeTokens: 0, cursorTokens: 0, inputTokens: 0, outputTokens: 0 }
+    { totalTokens: 0, totalCost: 0, claudeCodeTokens: 0, cursorTokens: 0 }
   );
 
   return (

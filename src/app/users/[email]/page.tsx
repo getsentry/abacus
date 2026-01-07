@@ -71,9 +71,6 @@ interface UserDetails {
     totalCost: number;
     claudeCodeTokens: number;
     cursorTokens: number;
-    inputTokens: number;
-    outputTokens: number;
-    cacheReadTokens: number;
     lastActive: string;
     firstActive: string;
     daysActive: number;
@@ -83,12 +80,11 @@ interface UserDetails {
     totalCost: number;
     firstRecordDate: string | null;
     favoriteTool: string | null;
+    recordDay: { date: string; tokens: number } | null;
   };
   modelBreakdown: {
     model: string;
     tokens: number;
-    inputTokens: number;
-    outputTokens: number;
     cost: number;
     tool: string;
   }[];
@@ -96,8 +92,6 @@ interface UserDetails {
     date: string;
     claudeCode: number;
     cursor: number;
-    inputTokens: number;
-    outputTokens: number;
     cost: number;
   }[];
 }
@@ -144,10 +138,6 @@ function UserDetailContent() {
   }, [fetchData]);
 
   const totalTokens = Number(data?.summary?.totalTokens || 0);
-  const inputTokens = Number(data?.summary?.inputTokens || 0);
-  const outputTokens = Number(data?.summary?.outputTokens || 0);
-  const inputRatio = totalTokens > 0 ? (inputTokens / totalTokens) * 100 : 0;
-  const outputRatio = totalTokens > 0 ? (outputTokens / totalTokens) * 100 : 0;
 
   // Calculate tool breakdown from model data (aggregated by tool)
   const toolBreakdown = useMemo<ToolBreakdown[]>(() => {
@@ -328,136 +318,119 @@ function UserDetailContent() {
               />
             </motion.div>
 
-            {/* Two Column Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
-              {/* Input/Output Breakdown */}
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.25 }}
-                className="rounded-lg border border-white/5 bg-white/[0.02] p-4 sm:p-6"
-              >
-                <h3 className="font-mono text-xs uppercase tracking-wider text-white/60 mb-6">
-                  Token Breakdown
-                </h3>
+            {/* Models Used - Full Width */}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.25 }}
+              className="rounded-lg border border-white/5 bg-white/[0.02] p-4 sm:p-6"
+            >
+              <h3 className="font-mono text-xs uppercase tracking-wider text-white/60 mb-4 sm:mb-6">
+                Models Used
+              </h3>
 
-                <div className="space-y-5">
-                  {/* Input Tokens */}
-                  <div>
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="font-mono text-xs text-white/70">Input Tokens</span>
-                      <span className="font-mono text-xs text-white">{formatTokens(inputTokens)}</span>
-                    </div>
-                    <div className="h-2 rounded-full bg-white/5 overflow-hidden">
-                      <motion.div
-                        initial={{ width: 0 }}
-                        animate={{ width: `${inputRatio}%` }}
-                        transition={{ duration: 0.8, delay: 0.3 }}
-                        className="h-full rounded-full bg-gradient-to-r from-white/60 to-white/40"
-                      />
-                    </div>
-                    <div className="mt-1 font-mono text-[10px] text-white/40">
-                      {inputRatio.toFixed(1)}% of total tokens
-                    </div>
-                  </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                {data.modelBreakdown.slice(0, 9).map((model, i) => {
+                  const totalModelTokens = data.modelBreakdown.reduce((sum, m) => sum + Number(m.tokens), 0);
+                  const percentage = totalModelTokens > 0 ? (Number(model.tokens) / totalModelTokens) * 100 : 0;
+                  const displayName = formatModelName(model.model);
+                  const colors = getToolColor(model.tool);
 
-                  {/* Output Tokens */}
-                  <div>
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="font-mono text-xs text-white/70">Output Tokens</span>
-                      <span className="font-mono text-xs text-white">{formatTokens(outputTokens)}</span>
-                    </div>
-                    <div className="h-2 rounded-full bg-white/5 overflow-hidden">
-                      <motion.div
-                        initial={{ width: 0 }}
-                        animate={{ width: `${outputRatio}%` }}
-                        transition={{ duration: 0.8, delay: 0.35 }}
-                        className="h-full rounded-full bg-gradient-to-r from-emerald-500/80 to-emerald-400/60"
-                      />
-                    </div>
-                    <div className="mt-1 font-mono text-[10px] text-white/40">
-                      {outputRatio.toFixed(1)}% of total tokens
-                    </div>
-                  </div>
-
-                  {/* Cache Read Tokens */}
-                  {data.summary.cacheReadTokens > 0 && (
-                    <div>
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="font-mono text-xs text-white/70">Cache Read</span>
-                        <span className="font-mono text-xs text-white">{formatTokens(data.summary.cacheReadTokens)}</span>
-                      </div>
-                      <div className="h-2 rounded-full bg-white/5 overflow-hidden">
-                        <motion.div
-                          initial={{ width: 0 }}
-                          animate={{ width: `${Math.min((data.summary.cacheReadTokens / totalTokens) * 100, 100)}%` }}
-                          transition={{ duration: 0.8, delay: 0.4 }}
-                          className="h-full rounded-full bg-gradient-to-r from-purple-500/80 to-purple-400/60"
-                        />
-                      </div>
-                      <div className="mt-1 font-mono text-[10px] text-white/40">
-                        Cached tokens (not counted in total)
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </motion.div>
-
-              {/* Model Breakdown */}
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.3 }}
-                className="rounded-lg border border-white/5 bg-white/[0.02] p-4 sm:p-6"
-              >
-                <h3 className="font-mono text-xs uppercase tracking-wider text-white/60 mb-4 sm:mb-6">
-                  Models Used
-                </h3>
-
-                <div className="space-y-3">
-                  {data.modelBreakdown.slice(0, 6).map((model, i) => {
-                    const maxTokens = data.modelBreakdown[0]?.tokens || 1;
-                    const percentage = (model.tokens / maxTokens) * 100;
-                    const displayName = formatModelName(model.model);
-                    const colors = getToolColor(model.tool);
-
-                    return (
-                      <motion.div
-                        key={`${model.model}-${model.tool}`}
-                        initial={{ opacity: 0, x: -10 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        transition={{ delay: 0.35 + i * 0.03 }}
-                      >
-                        <div className="flex items-center justify-between mb-1.5">
-                          <div className="flex items-center gap-2">
-                            <div className={`w-1.5 h-1.5 rounded-full ${colors.bg}`} />
-                            <span className="font-mono text-xs text-white/80 truncate max-w-[180px]">
-                              {displayName}
-                            </span>
-                          </div>
-                          <span className="font-mono text-xs text-white/50">
-                            {formatTokens(model.tokens)}
+                  return (
+                    <motion.div
+                      key={`${model.model}-${model.tool}`}
+                      initial={{ opacity: 0, scale: 0.95 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      transition={{ delay: 0.3 + i * 0.03 }}
+                      className="p-3 rounded-lg bg-white/[0.02] border border-white/5"
+                    >
+                      <div className="flex items-start justify-between mb-2">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <div className={`w-2 h-2 rounded-full ${colors.bg} shrink-0`} />
+                          <span className="font-mono text-xs text-white/80 truncate">
+                            {displayName}
                           </span>
                         </div>
-                        <div className="h-1.5 rounded-full bg-white/5 overflow-hidden">
-                          <motion.div
-                            initial={{ width: 0 }}
-                            animate={{ width: `${percentage}%` }}
-                            transition={{ duration: 0.6, delay: 0.4 + i * 0.03 }}
-                            className={`h-full rounded-full bg-gradient-to-r ${colors.gradient}`}
-                          />
-                        </div>
-                      </motion.div>
-                    );
-                  })}
-                  {data.modelBreakdown.length > 6 && (
-                    <div className="font-mono text-[10px] text-white/30 pt-2">
-                      +{data.modelBreakdown.length - 6} more models
-                    </div>
-                  )}
+                        <span className="font-mono text-[10px] text-white/40 shrink-0 ml-2">
+                          {percentage.toFixed(1)}%
+                        </span>
+                      </div>
+                      <div className="flex items-baseline justify-between">
+                        <span className="font-mono text-sm text-white">
+                          {formatTokens(model.tokens)}
+                        </span>
+                        <span className="font-mono text-[10px] text-white/40">
+                          {formatCurrency(model.cost)}
+                        </span>
+                      </div>
+                      <div className="mt-2 h-1 rounded-full bg-white/5 overflow-hidden">
+                        <motion.div
+                          initial={{ width: 0 }}
+                          animate={{ width: `${percentage}%` }}
+                          transition={{ duration: 0.6, delay: 0.35 + i * 0.03 }}
+                          className={`h-full rounded-full bg-gradient-to-r ${colors.gradient}`}
+                        />
+                      </div>
+                    </motion.div>
+                  );
+                })}
+              </div>
+              {data.modelBreakdown.length > 9 && (
+                <div className="font-mono text-[10px] text-white/30 pt-4 text-center">
+                  +{data.modelBreakdown.length - 9} more models
                 </div>
-              </motion.div>
-            </div>
+              )}
+            </motion.div>
+
+            {/* Weekly Activity Pattern */}
+            {data.dailyUsage && data.dailyUsage.length > 0 && (() => {
+              // Calculate tokens by day of week
+              const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+              const byDayOfWeek = data.dailyUsage.reduce((acc, d) => {
+                const dayIndex = new Date(d.date).getDay();
+                acc[dayIndex] = (acc[dayIndex] || 0) + Number(d.claudeCode) + Number(d.cursor);
+                return acc;
+              }, {} as Record<number, number>);
+
+              const maxDayTokens = Math.max(...Object.values(byDayOfWeek), 1);
+
+              return (
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.3 }}
+                  className="rounded-lg border border-white/5 bg-white/[0.02] p-4 sm:p-6"
+                >
+                  <h3 className="font-mono text-xs uppercase tracking-wider text-white/60 mb-4">
+                    Weekly Pattern
+                  </h3>
+                  <div className="flex items-end justify-between gap-2">
+                    {dayNames.map((day, i) => {
+                      const tokens = byDayOfWeek[i] || 0;
+                      const heightPx = maxDayTokens > 0 ? Math.round((tokens / maxDayTokens) * 64) : 0;
+                      const isWeekend = i === 0 || i === 6;
+
+                      return (
+                        <div key={day} className="flex-1 flex flex-col items-center gap-2">
+                          <div className="h-16 w-full flex items-end">
+                            <motion.div
+                              initial={{ height: 0 }}
+                              animate={{ height: heightPx }}
+                              transition={{ duration: 0.6, delay: 0.35 + i * 0.05 }}
+                              className={`w-full rounded-t ${isWeekend ? 'bg-white/20' : 'bg-gradient-to-t from-amber-500/60 to-amber-500'}`}
+                              style={{ minHeight: tokens > 0 ? 4 : 0 }}
+                            />
+                          </div>
+                          <span className={`font-mono text-[10px] ${isWeekend ? 'text-white/30' : 'text-white/50'}`}>
+                            {day}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </motion.div>
+              );
+            })()}
 
             {/* Activity Metadata */}
             <motion.div

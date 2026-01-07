@@ -11,6 +11,7 @@ interface UserProfileHeaderProps {
     totalTokens: number;
     firstRecordDate: string | null;
     favoriteTool: string | null;
+    recordDay: { date: string; tokens: number } | null;
   } | null;
   days: number;
 }
@@ -125,6 +126,20 @@ export function UserProfileHeader({ email, lifetime, days }: UserProfileHeaderPr
                       {formatToolName(lifetime.favoriteTool)}
                     </span>
                   </div>
+                </div>
+              </>
+            )}
+
+            {lifetime.recordDay && (
+              <>
+                <div className="w-px h-10 bg-white/10 hidden sm:block" />
+                <div className="hidden sm:block">
+                  <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-white/30 block mb-1">
+                    Record Day
+                  </span>
+                  <span className="font-mono text-sm text-white/60">
+                    {formatTokens(lifetime.recordDay.tokens)}
+                  </span>
                 </div>
               </>
             )}

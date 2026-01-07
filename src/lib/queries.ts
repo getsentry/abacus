@@ -648,10 +648,11 @@ export interface UserLifetimeStats {
   totalCost: number;
   firstRecordDate: string | null;
   favoriteTool: string | null;
+  recordDay: { date: string; tokens: number } | null;
 }
 
 export async function getUserLifetimeStats(email: string): Promise<UserLifetimeStats> {
-  const [statsResult, toolResult] = await Promise.all([
+  const [statsResult, toolResult, recordDayResult] = await Promise.all([
     sql`
       SELECT
         COALESCE(SUM(input_tokens + cache_write_tokens + output_tokens), 0)::bigint as "totalTokens",
@@ -667,11 +668,23 @@ export async function getUserLifetimeStats(email: string): Promise<UserLifetimeS
       GROUP BY tool
       ORDER BY tokens DESC
       LIMIT 1
+    `,
+    sql`
+      SELECT date::text, SUM(input_tokens + cache_write_tokens + output_tokens)::bigint as tokens
+      FROM usage_records
+      WHERE email = ${email}
+      GROUP BY date
+      ORDER BY tokens DESC
+      LIMIT 1
     `
   ]);
 
   return {
     ...statsResult.rows[0],
-    favoriteTool: toolResult.rows[0]?.tool || null
+    favoriteTool: toolResult.rows[0]?.tool || null,
+    recordDay: recordDayResult.rows[0] ? {
+      date: recordDayResult.rows[0].date,
+      tokens: Number(recordDayResult.rows[0].tokens)
+    } : null
   } as UserLifetimeStats;
 }
