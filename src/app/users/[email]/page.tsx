@@ -106,15 +106,13 @@ function UserDetailContent() {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
                 </svg>
               </Link>
-              <div className="min-w-0">
-                <motion.h1
-                  initial={{ opacity: 0, x: -20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  className="font-display text-lg sm:text-2xl font-medium tracking-tight truncate"
-                >
-                  {email}
-                </motion.h1>
-              </div>
+              <motion.h1
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                className="font-display text-lg sm:text-2xl font-medium tracking-tight truncate min-w-0"
+              >
+                {email}
+              </motion.h1>
             </div>
             <motion.div
               initial={{ opacity: 0, x: 20 }}

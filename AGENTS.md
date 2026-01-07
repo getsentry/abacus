@@ -1,5 +1,30 @@
 # Agent Instructions
 
+## Internal Navigation
+
+Use `<AppLink>` for all internal links to automatically preserve the time range (days) parameter across navigation.
+
+```tsx
+import { AppLink } from '@/components/AppLink';
+
+// Automatically adds ?days=N to the href
+<AppLink href="/users">All Users</AppLink>
+
+// Skip days param for certain links (e.g., external or auth)
+<AppLink href="/status" skipDays>Status</AppLink>
+```
+
+The time range is managed via `TimeRangeContext`. Pages can access or update it:
+
+```tsx
+import { useTimeRange } from '@/contexts/TimeRangeContext';
+
+function MyComponent() {
+  const { days, setDays } = useTimeRange();
+  // ...
+}
+```
+
 ## Database Migrations
 
 Drizzle migrations are in `/drizzle/`. The migration system has issues with the remote Vercel Postgres database, so run SQL directly:

@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import { Providers } from "./providers";
 
 export const metadata: Metadata = {
   title: "AI Usage Tracker",
@@ -14,7 +15,9 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className="antialiased noise-overlay">
-        {children}
+        <Providers>
+          {children}
+        </Providers>
       </body>
     </html>
   );

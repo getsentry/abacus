@@ -17,7 +17,7 @@ export function TimeRangeSelector({
         <button
           key={days}
           onClick={() => onChange(days)}
-          className={`px-3 py-1.5 rounded font-mono text-xs transition-colors ${
+          className={`px-3 py-1.5 rounded font-mono text-xs transition-colors cursor-pointer ${
             value === days
               ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
               : 'bg-white/5 text-white/40 border border-white/10 hover:bg-white/10 hover:text-white/60'
