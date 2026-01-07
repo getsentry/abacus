@@ -25,39 +25,32 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  try {
-    // Get current sync state for logging
-    const stateBefore = await getAnthropicSyncState();
+  // Get current sync state for logging
+  const stateBefore = await getAnthropicSyncState();
 
-    const result = await runAnthropicSync({ includeMappings: true });
+  const result = await runAnthropicSync({ includeMappings: true });
 
-    // Check if we actually synced anything
-    const didSync = result.anthropic.syncedRange !== undefined;
+  // Check if we actually synced anything
+  const didSync = result.anthropic.syncedRange !== undefined;
 
-    return NextResponse.json({
-      success: result.anthropic.success,
-      service: 'anthropic',
-      didSync,
-      syncedRange: result.anthropic.syncedRange || null,
-      previousSyncState: stateBefore.lastSyncedDate,
-      result: {
-        anthropic: {
-          recordsImported: result.anthropic.recordsImported,
-          recordsSkipped: result.anthropic.recordsSkipped,
-          errors: result.anthropic.errors.slice(0, 5) // Limit errors in response
-        },
-        mappings: result.mappings ? {
-          mappingsCreated: result.mappings.mappingsCreated,
-          mappingsSkipped: result.mappings.mappingsSkipped
-        } : null
-      }
-    });
-  } catch (error) {
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Unknown error' },
-      { status: 500 }
-    );
-  }
+  return NextResponse.json({
+    success: result.anthropic.success,
+    service: 'anthropic',
+    didSync,
+    syncedRange: result.anthropic.syncedRange || null,
+    previousSyncState: stateBefore.lastSyncedDate,
+    result: {
+      anthropic: {
+        recordsImported: result.anthropic.recordsImported,
+        recordsSkipped: result.anthropic.recordsSkipped,
+        errors: result.anthropic.errors.slice(0, 5) // Limit errors in response
+      },
+      mappings: result.mappings ? {
+        mappingsCreated: result.mappings.mappingsCreated,
+        mappingsSkipped: result.mappings.mappingsSkipped
+      } : null
+    }
+  });
 }
 
 export async function POST(request: Request) {

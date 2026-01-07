@@ -9,7 +9,6 @@ import { UserDetailPanel } from '@/components/UserDetailPanel';
 import { SearchInput } from '@/components/SearchInput';
 import { TimeRangeSelector } from '@/components/TimeRangeSelector';
 import { MainNav } from '@/components/MainNav';
-import { ImportModal } from '@/components/ImportModal';
 import { formatTokens, formatCurrency } from '@/lib/utils';
 import { useTimeRange } from '@/contexts/TimeRangeContext';
 
@@ -57,7 +56,6 @@ function DashboardContent() {
   const [trends, setTrends] = useState<DailyUsage[]>([]);
   const [models, setModels] = useState<ModelData[]>([]);
   const [selectedUser, setSelectedUser] = useState<string | null>(null);
-  const [isImportOpen, setIsImportOpen] = useState(false);
   const [loading, setLoading] = useState(true);
 
   const fetchData = useCallback(async () => {
@@ -103,12 +101,6 @@ function DashboardContent() {
           <div className="flex items-center gap-3">
             <SearchInput days={days} placeholder="Search users..." />
             <TimeRangeSelector value={days} onChange={setDays} />
-            <button
-              onClick={() => setIsImportOpen(true)}
-              className="rounded-lg bg-amber-500 px-3 py-2 font-mono text-xs text-black hover:bg-amber-400 transition-colors"
-            >
-              Import
-            </button>
           </div>
         </div>
       </header>
@@ -123,15 +115,9 @@ function DashboardContent() {
           <div className="flex flex-col items-center justify-center py-20 px-4">
             <div className="text-6xl mb-4">📊</div>
             <h2 className="font-display text-2xl text-white mb-2 text-center">No usage data yet</h2>
-            <p className="font-mono text-sm text-white/40 mb-6 text-center">
-              Import a CSV export from Claude Code or Cursor to get started
+            <p className="font-mono text-sm text-white/40 text-center">
+              Usage data will appear here once synced from Anthropic and Cursor APIs
             </p>
-            <button
-              onClick={() => setIsImportOpen(true)}
-              className="rounded-lg bg-amber-500 px-6 py-3 font-mono text-sm text-black hover:bg-amber-400 transition-colors"
-            >
-              Import Your First CSV
-            </button>
           </div>
         ) : (
           <div className="space-y-4 sm:space-y-6">
@@ -198,13 +184,6 @@ function DashboardContent() {
 
       {/* User Detail Panel */}
       <UserDetailPanel email={selectedUser} onClose={() => setSelectedUser(null)} days={days} />
-
-      {/* Import Modal */}
-      <ImportModal
-        isOpen={isImportOpen}
-        onClose={() => setIsImportOpen(false)}
-        onImportComplete={fetchData}
-      />
     </div>
   );
 }

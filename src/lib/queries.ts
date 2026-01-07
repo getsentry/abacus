@@ -535,14 +535,22 @@ export async function getAllUsersPivot(
   })) as UserPivotData[];
 
   // Apply sorting in JS since we can't do dynamic ORDER BY
+  // Note: bigint columns come back as strings from postgres, so we need to handle
+  // numeric string comparison properly
+  const stringColumns = new Set(['email', 'firstActive', 'lastActive']);
   if (safeSortBy !== 'totalTokens' || sortDir !== 'desc') {
     users = users.sort((a, b) => {
       const aVal = a[safeSortBy as keyof UserPivotData];
       const bVal = b[safeSortBy as keyof UserPivotData];
-      if (typeof aVal === 'string' && typeof bVal === 'string') {
-        return sortDir === 'asc' ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal);
+      if (stringColumns.has(safeSortBy)) {
+        return sortDir === 'asc'
+          ? String(aVal).localeCompare(String(bVal))
+          : String(bVal).localeCompare(String(aVal));
       }
-      return sortDir === 'asc' ? (aVal as number) - (bVal as number) : (bVal as number) - (aVal as number);
+      // Numeric comparison (handles bigint strings from postgres)
+      return sortDir === 'asc'
+        ? Number(aVal) - Number(bVal)
+        : Number(bVal) - Number(aVal);
     });
   }
 

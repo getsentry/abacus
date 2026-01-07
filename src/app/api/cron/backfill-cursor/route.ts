@@ -25,56 +25,49 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  try {
-    // Check current backfill state (derived from actual usage data)
-    const { oldestDate, isComplete } = await getCursorBackfillState();
+  // Check current backfill state (derived from actual usage data)
+  const { oldestDate, isComplete } = await getCursorBackfillState();
 
-    // If we've already reached the target or marked complete, nothing to do
-    if (isComplete || (oldestDate && oldestDate <= BACKFILL_TARGET_DATE)) {
-      return NextResponse.json({
-        success: true,
-        status: 'complete',
-        message: isComplete
-          ? `Backfill complete - no more historical data available (oldest: ${oldestDate})`
-          : `Backfill complete - already reached ${oldestDate}`,
-        targetDate: BACKFILL_TARGET_DATE,
-        currentOldestDate: oldestDate
-      });
-    }
-
-    // Run backfill - will abort on rate limit and save progress
-    // Works backwards from current oldest date (or today if never run)
-    const result = await backfillCursorUsage(BACKFILL_TARGET_DATE);
-
-    // Get updated state
-    const { oldestDate: newOldestDate, isComplete: nowComplete } = await getCursorBackfillState();
-
-    const status = result.rateLimited
-      ? 'rate_limited'
-      : (nowComplete || (newOldestDate && newOldestDate <= BACKFILL_TARGET_DATE))
-        ? 'complete'
-        : 'in_progress';
-
+  // If we've already reached the target or marked complete, nothing to do
+  if (isComplete || (oldestDate && oldestDate <= BACKFILL_TARGET_DATE)) {
     return NextResponse.json({
-      success: result.success,
-      status,
+      success: true,
+      status: 'complete',
+      message: isComplete
+        ? `Backfill complete - no more historical data available (oldest: ${oldestDate})`
+        : `Backfill complete - already reached ${oldestDate}`,
       targetDate: BACKFILL_TARGET_DATE,
-      previousOldestDate: oldestDate,
-      currentOldestDate: newOldestDate,
-      lastProcessedDate: result.lastProcessedDate,
-      result: {
-        recordsImported: result.recordsImported,
-        recordsSkipped: result.recordsSkipped,
-        rateLimited: result.rateLimited,
-        errors: result.errors.slice(0, 5)
-      }
+      currentOldestDate: oldestDate
     });
-  } catch (error) {
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Unknown error' },
-      { status: 500 }
-    );
   }
+
+  // Run backfill - will abort on rate limit and save progress
+  // Works backwards from current oldest date (or today if never run)
+  const result = await backfillCursorUsage(BACKFILL_TARGET_DATE);
+
+  // Get updated state
+  const { oldestDate: newOldestDate, isComplete: nowComplete } = await getCursorBackfillState();
+
+  const status = result.rateLimited
+    ? 'rate_limited'
+    : (nowComplete || (newOldestDate && newOldestDate <= BACKFILL_TARGET_DATE))
+      ? 'complete'
+      : 'in_progress';
+
+  return NextResponse.json({
+    success: result.success,
+    status,
+    targetDate: BACKFILL_TARGET_DATE,
+    previousOldestDate: oldestDate,
+    currentOldestDate: newOldestDate,
+    lastProcessedDate: result.lastProcessedDate,
+    result: {
+      recordsImported: result.recordsImported,
+      recordsSkipped: result.recordsSkipped,
+      rateLimited: result.rateLimited,
+      errors: result.errors.slice(0, 5)
+    }
+  });
 }
 
 export async function POST(request: Request) {

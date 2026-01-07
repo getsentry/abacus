@@ -119,7 +119,9 @@ async function fetchAllApiKeys(adminKey: string, status: 'active' | 'inactive' |
   return apiKeys;
 }
 
-export async function syncAnthropicApiKeyMappings(): Promise<MappingResult> {
+export async function syncAnthropicApiKeyMappings(
+  options: { includeArchived?: boolean } = {}
+): Promise<MappingResult> {
   const adminKey = process.env.ANTHROPIC_ADMIN_KEY;
   if (!adminKey) {
     return {
@@ -139,10 +141,21 @@ export async function syncAnthropicApiKeyMappings(): Promise<MappingResult> {
 
   try {
     // Fetch all users and API keys in parallel
-    const [userMap, apiKeys] = await Promise.all([
+    // Include archived keys when backfilling historical data
+    const fetchPromises: Promise<unknown>[] = [
       fetchAllUsers(adminKey),
-      fetchAllApiKeys(adminKey)
-    ]);
+      fetchAllApiKeys(adminKey, 'active')
+    ];
+
+    if (options.includeArchived) {
+      fetchPromises.push(fetchAllApiKeys(adminKey, 'archived'));
+    }
+
+    const results = await Promise.all(fetchPromises);
+    const userMap = results[0] as Map<string, string>;
+    const activeKeys = results[1] as AnthropicApiKey[];
+    const archivedKeys = options.includeArchived ? (results[2] as AnthropicApiKey[]) : [];
+    const apiKeys = [...activeKeys, ...archivedKeys];
 
     // Get existing mappings to avoid duplicates
     const existingMappings = await getApiKeyMappings();
