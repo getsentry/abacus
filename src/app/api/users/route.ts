@@ -11,8 +11,10 @@ async function handler(request: Request) {
   }
 
   const { searchParams } = new URL(request.url);
-  const limit = Math.min(parseInt(searchParams.get('limit') || '50', 10), 100);
-  const offset = parseInt(searchParams.get('offset') || '0', 10);
+  const limitParsed = parseInt(searchParams.get('limit') || '50', 10);
+  const limit = Number.isNaN(limitParsed) ? 50 : Math.min(limitParsed, 100);
+  const offsetParsed = parseInt(searchParams.get('offset') || '0', 10);
+  const offset = Number.isNaN(offsetParsed) ? 0 : offsetParsed;
   const search = searchParams.get('search') || undefined;
   const startDate = searchParams.get('startDate') || undefined;
   const endDate = searchParams.get('endDate') || undefined;

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { wrapRouteHandlerWithSentry } from '@sentry/nextjs';
 import { runFullSync, getSyncState, syncMappings } from '@/lib/sync';
 import { getSession } from '@/lib/auth';
+import { isValidDateString } from '@/lib/utils';
 
 // Get sync status
 async function getHandler() {
@@ -27,6 +28,14 @@ async function postHandler(request: Request) {
 
   const body = await request.json().catch(() => ({}));
   const { startDate, endDate, includeMappings, mappingsOnly } = body;
+
+  // Validate date parameters if provided
+  if (startDate && !isValidDateString(startDate)) {
+    return NextResponse.json({ error: 'Invalid startDate format. Use YYYY-MM-DD.' }, { status: 400 });
+  }
+  if (endDate && !isValidDateString(endDate)) {
+    return NextResponse.json({ error: 'Invalid endDate format. Use YYYY-MM-DD.' }, { status: 400 });
+  }
 
   // If only syncing mappings
   if (mappingsOnly) {

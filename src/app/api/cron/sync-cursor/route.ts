@@ -18,12 +18,8 @@ async function handler(request: Request) {
   const authHeader = request.headers.get('authorization');
   const cronSecret = process.env.CRON_SECRET;
 
-  if (!cronSecret) {
-    throw new Error('CRON_SECRET not configured');
-  }
-
-  if (authHeader !== `Bearer ${cronSecret}`) {
-    throw new Error('Unauthorized: Invalid or missing cron secret');
+  if (!cronSecret || authHeader !== `Bearer ${cronSecret}`) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
   // Check if provider is configured

@@ -12,12 +12,15 @@ async function handler(request: Request) {
 
   const { searchParams } = new URL(request.url);
   const sortBy = searchParams.get('sortBy') || 'totalTokens';
-  const sortDir = (searchParams.get('sortDir') || 'desc') as 'asc' | 'desc';
+  const sortDirParam = searchParams.get('sortDir');
+  const sortDir: 'asc' | 'desc' = sortDirParam === 'asc' ? 'asc' : 'desc';
   const search = searchParams.get('search') || undefined;
   const startDate = searchParams.get('startDate') || undefined;
   const endDate = searchParams.get('endDate') || undefined;
-  const limit = Math.min(parseInt(searchParams.get('limit') || '500', 10), 1000);
-  const offset = parseInt(searchParams.get('offset') || '0', 10);
+  const limitParsed = parseInt(searchParams.get('limit') || '500', 10);
+  const limit = Number.isNaN(limitParsed) ? 500 : Math.min(limitParsed, 1000);
+  const offsetParsed = parseInt(searchParams.get('offset') || '0', 10);
+  const offset = Number.isNaN(offsetParsed) ? 0 : offsetParsed;
 
   // Validate date parameters
   if (startDate && !isValidDateString(startDate)) {

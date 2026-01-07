@@ -25,6 +25,8 @@ async function getHandler(request: Request) {
   });
 }
 
+const VALID_TOOLS = ['claude_code', 'cursor'];
+
 async function postHandler(request: Request) {
   const session = await getSession();
   if (!session) {
@@ -38,6 +40,14 @@ async function postHandler(request: Request) {
       { error: 'tool, externalId, and email are required' },
       { status: 400 }
     );
+  }
+
+  if (!VALID_TOOLS.includes(tool)) {
+    return NextResponse.json({ error: 'Invalid tool' }, { status: 400 });
+  }
+
+  if (!email.includes('@')) {
+    return NextResponse.json({ error: 'Invalid email format' }, { status: 400 });
   }
 
   await setToolIdentityMapping(tool, externalId, email);
@@ -54,6 +64,10 @@ async function deleteHandler(request: Request) {
 
   if (!tool || !externalId) {
     return NextResponse.json({ error: 'tool and externalId are required' }, { status: 400 });
+  }
+
+  if (!VALID_TOOLS.includes(tool)) {
+    return NextResponse.json({ error: 'Invalid tool' }, { status: 400 });
   }
 
   await deleteToolIdentityMapping(tool, externalId);

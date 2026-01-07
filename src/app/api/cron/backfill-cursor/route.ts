@@ -14,16 +14,12 @@ const BACKFILL_TARGET_DATE = '2025-01-01';
  * - No-ops once target date is reached or no more historical data
  */
 async function handler(request: Request) {
-  // Verify cron secret - REQUIRED for security
+  // Verify cron secret
   const authHeader = request.headers.get('authorization');
   const cronSecret = process.env.CRON_SECRET;
 
-  if (!cronSecret) {
-    throw new Error('CRON_SECRET not configured');
-  }
-
-  if (authHeader !== `Bearer ${cronSecret}`) {
-    throw new Error('Unauthorized: Invalid or missing cron secret');
+  if (!cronSecret || authHeader !== `Bearer ${cronSecret}`) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
   // Check if provider is configured
