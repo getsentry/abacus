@@ -1,20 +1,19 @@
 import { NextResponse } from 'next/server';
+import { wrapRouteHandlerWithSentry } from '@sentry/nextjs';
 import { getModelBreakdown } from '@/lib/queries';
 import { getSession } from '@/lib/auth';
 
-export async function GET() {
+async function handler() {
   const session = await getSession();
   if (!session) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  try {
-    const models = await getModelBreakdown();
-    return NextResponse.json(models);
-  } catch (error) {
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Unknown error' },
-      { status: 500 }
-    );
-  }
+  const models = await getModelBreakdown();
+  return NextResponse.json(models);
 }
+
+export const GET = wrapRouteHandlerWithSentry(handler, {
+  method: 'GET',
+  parameterizedRoute: '/api/models',
+});

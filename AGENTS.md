@@ -30,14 +30,30 @@ Only these routes are accessible without authentication:
 
 ### Adding New API Routes
 
-When creating new API routes, ALWAYS add session validation at the start of each handler (GET, POST, etc.):
+When creating new API routes, ALWAYS:
+
+1. **Wrap handlers with Sentry** - Next.js `onRequestError` only captures Server Component errors, NOT Route Handler errors. Use `wrapRouteHandlerWithSentry`:
 
 ```tsx
-const session = await getSession();
-if (!session) {
-  return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+import { NextResponse } from 'next/server';
+import { wrapRouteHandlerWithSentry } from '@sentry/nextjs';
+import { getSession } from '@/lib/auth';
+
+async function handler(request: Request) {
+  const session = await getSession();
+  if (!session) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+  // ... rest of handler (no try/catch needed, Sentry captures errors)
 }
+
+export const GET = wrapRouteHandlerWithSentry(handler, {
+  method: 'GET',
+  parameterizedRoute: '/api/your-route',
+});
 ```
+
+2. **Add session validation** at the start of each handler (GET, POST, etc.) - except for cron routes which use `CRON_SECRET`
 
 ## Internal Navigation
 

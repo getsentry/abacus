@@ -1,8 +1,9 @@
 import { NextResponse } from 'next/server';
+import { wrapRouteHandlerWithSentry } from '@sentry/nextjs';
 import { getUserDetails, getUserDetailsExtended, resolveUserEmail } from '@/lib/queries';
 import { getSession } from '@/lib/auth';
 
-export async function GET(
+async function handler(
   request: Request,
   { params }: { params: Promise<{ email: string }> }
 ) {
@@ -15,28 +16,26 @@ export async function GET(
   const { searchParams } = new URL(request.url);
   const days = searchParams.get('days');
 
-  try {
-    const decoded = decodeURIComponent(usernameOrEmail);
+  const decoded = decodeURIComponent(usernameOrEmail);
 
-    // Resolve username to full email if needed
-    const email = await resolveUserEmail(decoded);
-    if (!email) {
-      return NextResponse.json({ error: 'User not found' }, { status: 404 });
-    }
-
-    // Use extended query if days parameter is provided
-    const details = days
-      ? await getUserDetailsExtended(email, parseInt(days, 10))
-      : await getUserDetails(email);
-
-    if (!details.summary) {
-      return NextResponse.json({ error: 'User not found' }, { status: 404 });
-    }
-    return NextResponse.json(details);
-  } catch (error) {
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Unknown error' },
-      { status: 500 }
-    );
+  // Resolve username to full email if needed
+  const email = await resolveUserEmail(decoded);
+  if (!email) {
+    return NextResponse.json({ error: 'User not found' }, { status: 404 });
   }
+
+  // Use extended query if days parameter is provided
+  const details = days
+    ? await getUserDetailsExtended(email, parseInt(days, 10))
+    : await getUserDetails(email);
+
+  if (!details.summary) {
+    return NextResponse.json({ error: 'User not found' }, { status: 404 });
+  }
+  return NextResponse.json(details);
 }
+
+export const GET = wrapRouteHandlerWithSentry(handler, {
+  method: 'GET',
+  parameterizedRoute: '/api/users/[email]',
+});

@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { wrapRouteHandlerWithSentry } from '@sentry/nextjs';
 import { getAnthropicSyncState, getAnthropicBackfillState } from '@/lib/sync/anthropic';
 import { getCursorSyncState, getCursorBackfillState } from '@/lib/sync/cursor';
 import { getSession } from '@/lib/auth';
@@ -48,75 +49,73 @@ function calculateBackfillProgress(oldestDate: string | null, newestDate: string
   return Math.round((completedRange / totalRange) * 100);
 }
 
-export async function GET() {
+async function handler() {
   const session = await getSession();
   if (!session) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  try {
-    // Fetch all sync states in parallel
-    const [
-      anthropicSync,
-      anthropicBackfill,
-      cursorSync,
-      cursorBackfill
-    ] = await Promise.all([
-      getAnthropicSyncState(),
-      getAnthropicBackfillState(),
-      getCursorSyncState(),
-      getCursorBackfillState()
-    ]);
+  // Fetch all sync states in parallel
+  const [
+    anthropicSync,
+    anthropicBackfill,
+    cursorSync,
+    cursorBackfill
+  ] = await Promise.all([
+    getAnthropicSyncState(),
+    getAnthropicBackfillState(),
+    getCursorSyncState(),
+    getCursorBackfillState()
+  ]);
 
-    // Format Cursor's epoch ms to ISO string for display
-    const cursorLastSyncedDate = cursorSync.lastSyncedHourEnd
-      ? new Date(cursorSync.lastSyncedHourEnd).toISOString()
-      : null;
+  // Format Cursor's epoch ms to ISO string for display
+  const cursorLastSyncedDate = cursorSync.lastSyncedHourEnd
+    ? new Date(cursorSync.lastSyncedHourEnd).toISOString()
+    : null;
 
-    const today = new Date().toISOString().split('T')[0];
+  const today = new Date().toISOString().split('T')[0];
 
-    return NextResponse.json({
-      anthropic: {
-        id: 'anthropic',
-        name: 'Claude Code',
-        color: 'amber',
-        forwardSync: {
-          lastSyncedDate: anthropicSync.lastSyncedDate,
-          status: getForwardSyncStatus(anthropicSync.lastSyncedDate, false)
-        },
-        backfill: {
-          oldestDate: anthropicBackfill.oldestDate,
-          targetDate: BACKFILL_TARGET_DATE,
-          status: getBackfillStatus(anthropicBackfill.oldestDate, anthropicBackfill.isComplete),
-          progress: calculateBackfillProgress(anthropicBackfill.oldestDate, today)
-        }
+  return NextResponse.json({
+    anthropic: {
+      id: 'anthropic',
+      name: 'Claude Code',
+      color: 'amber',
+      forwardSync: {
+        lastSyncedDate: anthropicSync.lastSyncedDate,
+        status: getForwardSyncStatus(anthropicSync.lastSyncedDate, false)
       },
-      cursor: {
-        id: 'cursor',
-        name: 'Cursor',
-        color: 'cyan',
-        forwardSync: {
-          lastSyncedDate: cursorLastSyncedDate,
-          status: getForwardSyncStatus(cursorLastSyncedDate, true)
-        },
-        backfill: {
-          oldestDate: cursorBackfill.oldestDate,
-          targetDate: BACKFILL_TARGET_DATE,
-          status: getBackfillStatus(cursorBackfill.oldestDate, cursorBackfill.isComplete),
-          progress: calculateBackfillProgress(cursorBackfill.oldestDate, today)
-        }
+      backfill: {
+        oldestDate: anthropicBackfill.oldestDate,
+        targetDate: BACKFILL_TARGET_DATE,
+        status: getBackfillStatus(anthropicBackfill.oldestDate, anthropicBackfill.isComplete),
+        progress: calculateBackfillProgress(anthropicBackfill.oldestDate, today)
+      }
+    },
+    cursor: {
+      id: 'cursor',
+      name: 'Cursor',
+      color: 'cyan',
+      forwardSync: {
+        lastSyncedDate: cursorLastSyncedDate,
+        status: getForwardSyncStatus(cursorLastSyncedDate, true)
       },
-      crons: [
-        { path: '/api/cron/sync-anthropic', schedule: 'Daily at 6 AM UTC', type: 'forward' },
-        { path: '/api/cron/sync-cursor', schedule: 'Hourly', type: 'forward' },
-        { path: '/api/cron/backfill-anthropic', schedule: 'Every 6 hours', type: 'backfill' },
-        { path: '/api/cron/backfill-cursor', schedule: 'Every 6 hours', type: 'backfill' }
-      ]
-    });
-  } catch (error) {
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Unknown error' },
-      { status: 500 }
-    );
-  }
+      backfill: {
+        oldestDate: cursorBackfill.oldestDate,
+        targetDate: BACKFILL_TARGET_DATE,
+        status: getBackfillStatus(cursorBackfill.oldestDate, cursorBackfill.isComplete),
+        progress: calculateBackfillProgress(cursorBackfill.oldestDate, today)
+      }
+    },
+    crons: [
+      { path: '/api/cron/sync-anthropic', schedule: 'Daily at 6 AM UTC', type: 'forward' },
+      { path: '/api/cron/sync-cursor', schedule: 'Hourly', type: 'forward' },
+      { path: '/api/cron/backfill-anthropic', schedule: 'Every 6 hours', type: 'backfill' },
+      { path: '/api/cron/backfill-cursor', schedule: 'Every 6 hours', type: 'backfill' }
+    ]
+  });
 }
+
+export const GET = wrapRouteHandlerWithSentry(handler, {
+  method: 'GET',
+  parameterizedRoute: '/api/status',
+});
