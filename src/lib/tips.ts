@@ -18,105 +18,106 @@ export interface Guide {
 }
 
 // Tips shown in the TipBar - rotate randomly on each load
+// Pattern: Action verb + concise advice, use em-dash (—) for breaks
 export const TIPS: Tip[] = [
   // Subagents
   {
     id: 'subagents-intro',
-    text: 'Use subagents to parallelize tasks - they run in isolated contexts without polluting your main conversation',
+    text: 'Use subagents to parallelize tasks in isolated contexts',
     guide: 'subagents',
   },
   {
     id: 'subagents-explore',
-    text: 'Use explore/search subagents to scan codebases without filling your main context',
+    text: 'Use explore subagents to scan codebases without polluting your main context',
     guide: 'subagents',
   },
 
   // Compaction
   {
     id: 'compact-when',
-    text: 'Use /compact at logical breakpoints rather than hitting context limits mid-task',
+    text: 'Run /compact at logical breakpoints—don\'t wait until you hit context limits',
     guide: 'compaction',
   },
   {
     id: 'compact-vs-clear',
-    text: '/compact preserves key decisions in a summary, /clear starts completely fresh',
+    text: '/compact preserves key decisions in a summary—/clear starts completely fresh',
     guide: 'compaction',
   },
 
   // Skills
   {
     id: 'skills-intro',
-    text: 'Use skills for repetitive workflows - Claude auto-applies them when your request matches',
+    text: 'Create skills for repetitive workflows—Claude applies them automatically',
     guide: 'skills',
   },
   {
     id: 'slash-commands',
-    text: 'Create custom slash commands in .claude/commands/ for frequently used prompts',
+    text: 'Create slash commands in .claude/commands/ for frequently used prompts',
     guide: 'skills',
   },
 
   // Plan mode
   {
     id: 'plan-mode-intro',
-    text: 'Use plan mode (Shift+Tab) for complex changes - research and plan before executing',
+    text: 'Use plan mode (Shift+Tab) for complex changes—research before executing',
     guide: 'plan-mode',
   },
   {
     id: 'plan-mode-safety',
-    text: 'Plan mode lets you explore unfamiliar codebases safely before making changes',
+    text: 'Enter plan mode to explore unfamiliar codebases safely before making changes',
     guide: 'plan-mode',
   },
 
   // Model selection
   {
     id: 'model-selection',
-    text: 'Use faster models (Sonnet, Haiku) for routine edits, save Opus or GPT-5.2 Pro for architecture and hard bugs',
+    text: 'Use Sonnet/Haiku for routine edits—save Opus for architecture and hard bugs',
     guide: 'model-selection',
   },
   {
     id: 'thinking-models',
-    text: 'Use thinking models (Opus, GPT-5.2 Pro) for complex architecture decisions and tricky debugging',
+    text: 'Escalate to Opus when stuck—deeper reasoning catches what faster models miss',
     guide: 'model-selection',
   },
 
   // Context management
   {
     id: 'fresh-context',
-    text: 'Start fresh chats for new tasks - context pollution leads to worse results',
+    text: 'Start fresh chats for new tasks—context pollution degrades quality',
     guide: 'context-management',
   },
   {
     id: 'scoped-prompts',
-    text: 'Keep prompts short and scoped - specify exactly which files to touch',
+    text: 'Keep prompts short and scoped—specify exactly which files to touch',
     guide: 'context-management',
   },
 
   // Workflow
   {
     id: 'commit-before',
-    text: 'Commit before agent sessions - easy to revert if things go wrong',
+    text: 'Commit before agent sessions—easy to revert if things go wrong',
     guide: 'git-workflow',
   },
   {
     id: 'multi-agent',
-    text: 'Try multi-agent workflows - run parallel agents on different branches/worktrees',
+    text: 'Try multi-agent workflows—run parallel agents on different branches',
     guide: 'multi-agent',
   },
   {
     id: 'project-conventions',
-    text: 'Use CLAUDE.md or .cursorrules to encode project conventions the agent should follow',
+    text: 'Create AGENTS.md to define project conventions for AI tools',
     guide: 'project-config',
   },
 
   // MCP
   {
     id: 'mcp-intro',
-    text: 'Connect MCP servers to access external tools like Sentry, GitHub, and databases from your AI',
+    text: 'Connect MCP servers to access Sentry, GitHub, and databases from your AI',
     guide: 'mcp',
   },
   {
     id: 'mcp-sentry',
-    text: 'Add Sentry MCP to debug issues directly - search errors and trigger root cause analysis',
+    text: 'Add Sentry MCP to debug issues—search errors and trigger root cause analysis',
     guide: 'mcp',
   },
 ];
