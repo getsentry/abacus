@@ -50,12 +50,17 @@ export function cn(...classes: (string | boolean | undefined | null)[]): string 
 
 /**
  * Normalize model name to canonical form at write-time.
- * Handles variations like "4-sonnet" → "sonnet-4", "4-sonnet (T)" → "sonnet-4 (T)"
+ * Target format: "{family}-{version}" e.g., "sonnet-4", "haiku-3.5", "opus-4.5"
+ *
+ * Handles:
+ * - Full Anthropic names: "claude-3-5-haiku-20241022" → "haiku-3.5"
+ * - Reversed short forms: "4-sonnet" → "sonnet-4"
+ * - Suffixes: "4-sonnet (T)" → "sonnet-4 (T)"
  */
 export function normalizeModelName(model: string): string {
   if (!model) return model;
 
-  let normalized = model.trim();
+  let normalized = model.trim().toLowerCase();
 
   // Extract suffix like (T) or (Thinking) if present
   const suffixMatch = normalized.match(/\s*\(([^)]+)\)\s*$/);
@@ -63,26 +68,54 @@ export function normalizeModelName(model: string): string {
   if (suffixMatch) {
     suffix = suffixMatch[1];
     normalized = normalized.replace(suffixMatch[0], '').trim();
+    // Normalize suffix
+    if (suffix.toLowerCase() === 'thinking') suffix = 'T';
+    suffix = suffix.toUpperCase();
   }
 
-  // Normalize suffix abbreviations
-  const suffixMap: Record<string, string> = {
-    'T': 'T',           // Keep as T for storage
-    'Thinking': 'T',    // Normalize to T
-  };
-  if (suffix && suffixMap[suffix]) {
-    suffix = suffixMap[suffix];
+  // Handle full Anthropic model names with dates
+  // "claude-3-5-haiku-20241022" → "haiku-3.5"
+  let match = normalized.match(/^claude-(\d+)-(\d+)-([a-z]+)-\d{8}$/);
+  if (match) {
+    normalized = `${match[3]}-${match[1]}.${match[2]}`;
   }
 
-  // Handle reversed patterns: "4-sonnet" → "sonnet-4", "4-opus" → "opus-4"
-  const reversedMatch = normalized.match(/^(\d+(?:\.\d+)?)-([a-z]+)$/i);
-  if (reversedMatch) {
-    normalized = `${reversedMatch[2].toLowerCase()}-${reversedMatch[1]}`;
+  // "claude-sonnet-4-20250514" → "sonnet-4"
+  if (!match) {
+    match = normalized.match(/^claude-([a-z]+)-(\d+)-\d{8}$/);
+    if (match) {
+      normalized = `${match[1]}-${match[2]}`;
+    }
   }
 
-  // Handle standalone version numbers (needs model family context)
-  // "4" alone when referring to Claude typically means "sonnet-4"
-  // But we can't know for sure without context, so leave it for display-time
+  // "claude-opus-4-5-20251101" → "opus-4.5"
+  if (!match) {
+    match = normalized.match(/^claude-([a-z]+)-(\d+)-(\d+)-\d{8}$/);
+    if (match) {
+      normalized = `${match[1]}-${match[2]}.${match[3]}`;
+    }
+  }
+
+  // Handle without claude- prefix: "3-5-haiku-20241022" → "haiku-3.5"
+  if (!match) {
+    match = normalized.match(/^(\d+)-(\d+)-([a-z]+)-\d{8}$/);
+    if (match) {
+      normalized = `${match[3]}-${match[1]}.${match[2]}`;
+    }
+  }
+
+  // Handle reversed patterns: "4-sonnet" → "sonnet-4", "4.5-opus" → "opus-4.5"
+  if (!match) {
+    match = normalized.match(/^(\d+(?:\.\d+)?)-([a-z]+)$/);
+    if (match) {
+      normalized = `${match[2]}-${match[1]}`;
+    }
+  }
+
+  // Handle standalone version numbers: "4" → "sonnet-4"
+  if (normalized.match(/^\d+(\.\d+)?$/)) {
+    normalized = `sonnet-${normalized}`;
+  }
 
   // Reconstruct with suffix if present
   if (suffix) {
