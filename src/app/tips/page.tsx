@@ -78,26 +78,25 @@ function TipsIndexContent() {
 
       <TipBar />
 
-      {/* Page Header */}
-      <div className="relative border-b border-white/5 px-4 sm:px-8 py-8">
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="max-w-3xl"
-        >
-          <h1 className="font-display text-3xl sm:text-4xl text-white mb-3">
-            AI Productivity Tips
-          </h1>
-          <p className="font-mono text-sm text-white/50 leading-relaxed">
-            Practical guides for getting the most out of Claude Code and Cursor.
-            Each guide includes real examples you can try immediately.
-          </p>
-        </motion.div>
-      </div>
-
       {/* Main Content */}
       <main className="relative z-10 p-4 sm:p-8">
-        <div className="max-w-5xl mx-auto space-y-12">
+        <div className="max-w-5xl mx-auto">
+          {/* Page Header */}
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mb-10"
+          >
+            <h1 className="font-display text-3xl sm:text-4xl text-white mb-3">
+              AI Productivity Tips
+            </h1>
+            <p className="font-mono text-sm text-white/50 leading-relaxed max-w-2xl">
+              Practical guides for getting the most out of Claude Code and Cursor.
+              Each guide includes real examples you can try immediately.
+            </p>
+          </motion.div>
+
+          <div className="space-y-12">
           {CATEGORIES.map((category, categoryIndex) => (
             <motion.section
               key={category.name}
@@ -175,8 +174,8 @@ function TipsIndexContent() {
               </div>
             </motion.section>
           ))}
+          </div>
         </div>
-
       </main>
     </div>
   );
