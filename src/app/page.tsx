@@ -51,7 +51,8 @@ interface ModelData {
 }
 
 function DashboardContent() {
-  const { range, setRange, days, isPending, getDateParams } = useTimeRange();
+  const { range, setRange, days, isPending, getDateParams, getDisplayLabel } = useTimeRange();
+  const rangeLabel = getDisplayLabel();
 
   const [stats, setStats] = useState<Stats | null>(null);
   const [users, setUsers] = useState<UserSummary[]>([]);
@@ -162,26 +163,27 @@ function DashboardContent() {
               <StatCard
                 label="Total Tokens"
                 value={formatTokens(stats.totalTokens)}
-                subValue="all time"
+                subValue={rangeLabel}
                 delay={0}
               />
               <StatCard
                 label="Estimated Cost"
                 value={formatCurrency(stats.totalCost)}
+                subValue={rangeLabel}
                 accentColor="#06b6d4"
                 delay={0.1}
               />
               <StatCard
                 label="Active Users"
                 value={stats.activeUsers.toString()}
-                subValue="with usage"
+                subValue={rangeLabel}
                 accentColor="#10b981"
                 delay={0.2}
               />
               <StatCard
                 label="Avg per User"
                 value={formatTokens(stats.activeUsers > 0 ? Math.round(stats.totalTokens / stats.activeUsers) : 0)}
-                subValue="tokens"
+                subValue={rangeLabel}
                 accentColor="#8b5cf6"
                 delay={0.3}
               />
@@ -202,7 +204,7 @@ function DashboardContent() {
       </main>
 
       {/* User Detail Panel */}
-      <UserDetailPanel email={selectedUser} onClose={() => setSelectedUser(null)} days={days} />
+      <UserDetailPanel email={selectedUser} onClose={() => setSelectedUser(null)} />
     </div>
   );
 }

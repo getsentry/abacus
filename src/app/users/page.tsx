@@ -43,7 +43,8 @@ const columns: { key: SortKey; label: string; align: 'left' | 'right'; format?: 
 ];
 
 function UsersPageContent() {
-  const { range, setRange, days, isPending, getDateParams } = useTimeRange();
+  const { range, setRange, days, isPending, getDateParams, getDisplayLabel } = useTimeRange();
+  const rangeLabel = getDisplayLabel();
   const searchParams = useSearchParams();
   const initialSearch = searchParams.get('search') || '';
 
@@ -159,6 +160,7 @@ function UsersPageContent() {
           <h2 className="font-mono text-[10px] uppercase tracking-[0.2em] text-white/40">
             {loading ? '\u00A0' : `${users.length} users`}
           </h2>
+          <span className="font-mono text-[10px] text-white/30">{rangeLabel}</span>
         </div>
       </div>
 
@@ -289,7 +291,7 @@ function UsersPageContent() {
       </main>
 
       {/* User Detail Panel */}
-      <UserDetailPanel email={selectedUser} onClose={() => setSelectedUser(null)} days={days} />
+      <UserDetailPanel email={selectedUser} onClose={() => setSelectedUser(null)} />
     </div>
   );
 }

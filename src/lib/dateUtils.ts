@@ -221,11 +221,22 @@ export function formatDateRange(startDate: string, endDate: string): string {
 }
 
 /**
- * Get display label for a time range
+ * Get display label for a time range (compact form for buttons)
  */
 export function getTimeRangeLabel(range: TimeRange): string {
   if (range.type === 'relative') {
     return `${range.days}d`;
+  }
+  return formatDateRange(range.startDate, range.endDate);
+}
+
+/**
+ * Get a descriptive label for a time range (for section headers)
+ * Returns "Last 7 days", "Last 30 days", or "Jan 1 – Jan 15" for custom ranges
+ */
+export function getTimeRangeDescription(range: TimeRange): string {
+  if (range.type === 'relative') {
+    return `Last ${range.days} days`;
   }
   return formatDateRange(range.startDate, range.endDate);
 }

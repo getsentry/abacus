@@ -2,10 +2,10 @@
 
 import { motion, AnimatePresence } from 'framer-motion';
 import { useEffect, useState, useMemo } from 'react';
-import Link from 'next/link';
 import { formatTokens, formatCurrency, formatModelName } from '@/lib/utils';
-import { DEFAULT_DAYS } from '@/lib/constants';
 import { getToolConfig, formatToolName, calculateToolBreakdown, type ToolBreakdown } from '@/lib/tools';
+import { useTimeRange } from '@/contexts/TimeRangeContext';
+import { AppLink } from '@/components/AppLink';
 
 interface UserDetails {
   summary: {
@@ -24,20 +24,23 @@ interface UserDetails {
 interface UserDetailPanelProps {
   email: string | null;
   onClose: () => void;
-  days?: number;
 }
 
-export function UserDetailPanel({ email, onClose, days = DEFAULT_DAYS }: UserDetailPanelProps) {
+export function UserDetailPanel({ email, onClose }: UserDetailPanelProps) {
+  const { getDateParams, getDisplayLabel } = useTimeRange();
   const [details, setDetails] = useState<UserDetails | null>(null);
   const [loading, setLoading] = useState(false);
 
   // Show refreshing state when loading but already have data
   const isRefreshing = loading && details !== null;
 
+  const rangeLabel = getDisplayLabel();
+
   useEffect(() => {
     if (email) {
       setLoading(true);
-      fetch(`/api/users/${encodeURIComponent(email)}?days=${days}`)
+      const { startDate, endDate } = getDateParams();
+      fetch(`/api/users/${encodeURIComponent(email)}?startDate=${startDate}&endDate=${endDate}`)
         .then(res => res.json())
         .then(data => {
           setDetails(data);
@@ -47,7 +50,7 @@ export function UserDetailPanel({ email, onClose, days = DEFAULT_DAYS }: UserDet
     } else {
       setDetails(null);
     }
-  }, [email, days]);
+  }, [email, getDateParams]);
 
   const user = details?.summary;
 
@@ -80,7 +83,7 @@ export function UserDetailPanel({ email, onClose, days = DEFAULT_DAYS }: UserDet
           >
             <button
               onClick={onClose}
-              className="absolute right-4 top-4 text-white/40 hover:text-white transition-colors"
+              className="absolute right-4 top-4 text-white/40 hover:text-white transition-colors cursor-pointer"
             >
               <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M6 18L18 6M6 6l12 12" />
@@ -95,20 +98,23 @@ export function UserDetailPanel({ email, onClose, days = DEFAULT_DAYS }: UserDet
               <div className={`transition-opacity duration-300 ${isRefreshing ? 'opacity-60' : 'opacity-100'}`}>
                 <div className="mb-6">
                   <h2 className="font-display text-2xl text-white">{user.email}</h2>
-                  <Link
-                    href={`/users/${encodeURIComponent(user.email.split('@')[0])}?days=${days}`}
+                  <AppLink
+                    href={`/users/${encodeURIComponent(user.email.split('@')[0])}`}
                     className="mt-3 inline-flex items-center gap-1.5 font-mono text-xs text-amber-400 hover:text-amber-300 transition-colors"
                   >
                     View Full Details
                     <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                     </svg>
-                  </Link>
+                  </AppLink>
                 </div>
 
                 <div className="space-y-4">
                   <div className="rounded-lg border border-white/5 bg-white/[0.02] p-4">
-                    <p className="font-mono text-[10px] uppercase tracking-wider text-white/40">Total Tokens</p>
+                    <div className="flex items-baseline justify-between">
+                      <p className="font-mono text-[10px] uppercase tracking-wider text-white/40">Total Tokens</p>
+                      <p className="font-mono text-[10px] text-white/30">{rangeLabel}</p>
+                    </div>
                     <p className="mt-1 font-display text-2xl text-white">{formatTokens(user.totalTokens)}</p>
                     <p className="font-mono text-xs text-white/50">{formatCurrency(user.totalCost)} estimated cost</p>
                   </div>
@@ -185,11 +191,11 @@ export function UserDetailPanel({ email, onClose, days = DEFAULT_DAYS }: UserDet
 
                   {details?.dailyUsage && details.dailyUsage.length > 0 && (
                     <div className="rounded-lg border border-white/5 bg-white/[0.02] p-4">
-                      <p className="mb-3 font-mono text-[10px] uppercase tracking-wider text-white/40">Recent Activity</p>
-                      <div className="flex h-16 items-end gap-1">
-                        {details.dailyUsage.slice(-14).map((d) => {
+                      <p className="mb-3 font-mono text-[10px] uppercase tracking-wider text-white/40">Daily Activity</p>
+                      <div className="flex h-16 items-end gap-0.5">
+                        {details.dailyUsage.map((d) => {
                           const total = Number(d.claudeCode) + Number(d.cursor);
-                          const maxDaily = Math.max(...details.dailyUsage.slice(-14).map(dd => Number(dd.claudeCode) + Number(dd.cursor)), 1);
+                          const maxDaily = Math.max(...details.dailyUsage.map(dd => Number(dd.claudeCode) + Number(dd.cursor)), 1);
                           const height = (total / maxDaily) * 100;
                           return (
                             <div
@@ -201,7 +207,7 @@ export function UserDetailPanel({ email, onClose, days = DEFAULT_DAYS }: UserDet
                         })}
                       </div>
                       <div className="mt-1 flex justify-between font-mono text-[8px] text-white/30">
-                        <span>14d ago</span>
+                        <span>{details.dailyUsage.length}d ago</span>
                         <span>Today</span>
                       </div>
                     </div>
