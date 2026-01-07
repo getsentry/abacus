@@ -4,12 +4,15 @@ import { useState, useEffect, useCallback, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { InlineSearchInput } from '@/components/SearchInput';
-import { UserDetailPanel } from '@/components/UserDetailPanel';
 import { TimeRangeSelector } from '@/components/TimeRangeSelector';
 import { MainNav } from '@/components/MainNav';
 import { UserMenu } from '@/components/UserMenu';
+import { AdoptionBadge } from '@/components/AdoptionBadge';
+import { UserLink } from '@/components/UserLink';
+import { TipBar } from '@/components/TipBar';
 import { formatTokens, formatCurrency } from '@/lib/utils';
 import { useTimeRange } from '@/contexts/TimeRangeContext';
+import { type AdoptionStage, isInactive } from '@/lib/adoption';
 
 interface UserPivotData {
   email: string;
@@ -24,12 +27,18 @@ interface UserPivotData {
   lastActive: string;
   daysActive: number;
   avgTokensPerDay: number;
+  toolCount: number;
+  hasThinkingModels: boolean;
+  adoptionScore: number;
+  adoptionStage: AdoptionStage;
+  daysSinceLastActive: number;
 }
 
 type SortKey = keyof UserPivotData;
 
-const columns: { key: SortKey; label: string; align: 'left' | 'right'; format?: (v: number) => string }[] = [
+const columns: { key: SortKey; label: string; align: 'left' | 'right'; format?: (v: number) => string; isAdoption?: boolean }[] = [
   { key: 'email', label: 'User', align: 'left' },
+  { key: 'adoptionStage', label: 'Stage', align: 'left', isAdoption: true },
   { key: 'totalTokens', label: 'Total Tokens', align: 'right', format: formatTokens },
   { key: 'totalCost', label: 'Cost', align: 'right', format: formatCurrency },
   { key: 'claudeCodeTokens', label: 'Claude Code', align: 'right', format: formatTokens },
@@ -55,9 +64,8 @@ function UsersPageContent() {
   const [sortBy, setSortBy] = useState<SortKey>('totalTokens');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
   const [searchQuery, setSearchQuery] = useState(initialSearch);
-  const [selectedUser, setSelectedUser] = useState<string | null>(null);
   const [visibleColumns, setVisibleColumns] = useState<Set<SortKey>>(
-    new Set(['email', 'totalTokens', 'totalCost', 'claudeCodeTokens', 'cursorTokens', 'avgTokensPerDay', 'lastActive'])
+    new Set(['email', 'adoptionStage', 'totalTokens', 'totalCost', 'claudeCodeTokens', 'cursorTokens', 'avgTokensPerDay', 'lastActive'])
   );
 
   const fetchUsers = useCallback(async () => {
@@ -155,6 +163,8 @@ function UsersPageContent() {
         </div>
       </header>
 
+      <TipBar />
+
       {/* Page Title with Time Range Selector */}
       <div className="border-b border-white/5 px-4 sm:px-8 py-3">
         <div className="flex items-center justify-between">
@@ -237,8 +247,7 @@ function UsersPageContent() {
                   {users.map((user, i) => (
                     <tr
                       key={user.email}
-                      onClick={() => setSelectedUser(user.email)}
-                      className="border-b border-white/5 cursor-pointer hover:bg-white/[0.02] transition-colors"
+                      className="border-b border-white/5 hover:bg-white/[0.02] transition-colors"
                     >
                       {activeColumns.map(col => (
                         <td
@@ -248,9 +257,13 @@ function UsersPageContent() {
                           }`}
                         >
                           {col.key === 'email' ? (
-                            <span className="text-white hover:text-amber-400 transition-colors">
-                              {user.email}
-                            </span>
+                            <UserLink email={user.email} className="text-white" />
+                          ) : col.isAdoption ? (
+                            <AdoptionBadge
+                              stage={user.adoptionStage}
+                              size="sm"
+                              isInactive={isInactive(user.daysSinceLastActive)}
+                            />
                           ) : col.key === 'claudeCodeTokens' ? (
                             <span className="text-amber-400/80">{col.format!(user[col.key] as number)}</span>
                           ) : col.key === 'cursorTokens' ? (
@@ -292,9 +305,6 @@ function UsersPageContent() {
           </motion.div>
         )}
       </main>
-
-      {/* User Detail Panel */}
-      <UserDetailPanel email={selectedUser} onClose={() => setSelectedUser(null)} />
     </div>
   );
 }

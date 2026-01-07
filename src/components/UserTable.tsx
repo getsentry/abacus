@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { formatTokens, formatCurrency } from '@/lib/utils';
 import { DEFAULT_DAYS } from '@/lib/constants';
 import { getToolConfig, formatToolName } from '@/lib/tools';
+import { UserLink } from '@/components/UserLink';
 
 interface UserSummary {
   email: string;
@@ -30,11 +31,11 @@ function getToolBreakdownFromSummary(user: UserSummary) {
 
 interface UserTableProps {
   users: UserSummary[];
-  onUserClick: (email: string) => void;
+  onUserClick?: (email: string) => void; // Deprecated, use UserLink context
   days?: number;
 }
 
-export function UserTable({ users, onUserClick, days = DEFAULT_DAYS }: UserTableProps) {
+export function UserTable({ users, days = DEFAULT_DAYS }: UserTableProps) {
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -72,16 +73,16 @@ export function UserTable({ users, onUserClick, days = DEFAULT_DAYS }: UserTable
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={{ delay: 0.8 + i * 0.03 }}
-                onClick={() => onUserClick(user.email)}
-                className="group cursor-pointer border-b border-white/5 transition-colors hover:bg-white/[0.02]"
+                className="group border-b border-white/5 transition-colors hover:bg-white/[0.02]"
               >
                 <td className="py-2.5 sm:py-3 pr-2 w-8 sm:w-10">
                   <span className="font-mono text-[10px] sm:text-xs text-white/30">{i + 1}</span>
                 </td>
                 <td className="py-2.5 sm:py-3 pr-3">
-                  <p className="font-mono text-xs sm:text-sm text-white group-hover:text-amber-400 transition-colors truncate max-w-[140px] sm:max-w-[200px] lg:max-w-[280px]">
-                    {user.email}
-                  </p>
+                  <UserLink
+                    email={user.email}
+                    className="font-mono text-xs sm:text-sm text-white truncate block max-w-[140px] sm:max-w-[200px] lg:max-w-[280px]"
+                  />
                 </td>
                 <td className="py-2.5 sm:py-3 pr-3 text-right w-20 sm:w-24">
                   <span className="font-mono text-xs sm:text-sm text-white/80">{formatTokens(user.totalTokens)}</span>

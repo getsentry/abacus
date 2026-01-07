@@ -28,11 +28,14 @@
     "dotenv": "^17.2.3",
     "drizzle-orm": "^0.45.1",
     "framer-motion": "^12.24.7",
+    "lucide-react": "^0.562.0",
     "next": "16.1.1",
     "papaparse": "^5.5.3",
     "react": "19.2.3",
     "react-dom": "19.2.3",
-    "recharts": "^3.6.0"
+    "react-markdown": "^10.1.0",
+    "recharts": "^3.6.0",
+    "remark-gfm": "^4.0.1"
   },
   "simple-git-hooks": {
     "pre-commit": "npx lint-staged"

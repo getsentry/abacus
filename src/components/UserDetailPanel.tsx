@@ -6,7 +6,15 @@ import { formatTokens, formatCurrency, formatModelName } from '@/lib/utils';
 import { getToolConfig, formatToolName, calculateToolBreakdown, type ToolBreakdown } from '@/lib/tools';
 import { useTimeRange } from '@/contexts/TimeRangeContext';
 import { AppLink } from '@/components/AppLink';
+import { AdoptionBadge } from '@/components/AdoptionBadge';
 import { DOMAIN } from '@/lib/constants';
+import {
+  calculateAdoptionScore,
+  getAdoptionStage,
+  getStageGuidance,
+  formatIntensity,
+  isInactive,
+} from '@/lib/adoption';
 
 interface UserDetails {
   summary: {
@@ -17,6 +25,7 @@ interface UserDetails {
     cursorTokens: number;
     lastActive: string;
     firstActive: string;
+    daysActive?: number;
   };
   modelBreakdown: { model: string; tokens: number; cost: number; tool: string }[];
   dailyUsage: { date: string; claudeCode: number; cursor: number }[];
@@ -43,6 +52,7 @@ export function UserDetailPanel({ email, onClose }: UserDetailPanelProps) {
   const { getDateParams, getDisplayLabel } = useTimeRange();
   const [details, setDetails] = useState<UserDetails | null>(null);
   const [loading, setLoading] = useState(false);
+  const [percentile, setPercentile] = useState<number | null>(null);
 
   const rangeLabel = getDisplayLabel();
 
@@ -54,7 +64,10 @@ export function UserDetailPanel({ email, onClose }: UserDetailPanelProps) {
     if (email) {
       setLoading(true);
       setDetails(null); // Clear previous user's data
+      setPercentile(null);
       const { startDate, endDate } = getDateParams();
+
+      // Fetch user details
       fetch(`/api/users/${encodeURIComponent(email)}?startDate=${startDate}&endDate=${endDate}`)
         .then(res => res.json())
         .then(data => {
@@ -62,8 +75,19 @@ export function UserDetailPanel({ email, onClose }: UserDetailPanelProps) {
           setLoading(false);
         })
         .catch(() => setLoading(false));
+
+      // Fetch percentile separately
+      fetch(`/api/users/${encodeURIComponent(email)}/percentile?startDate=${startDate}&endDate=${endDate}`)
+        .then(res => res.json())
+        .then(data => {
+          if (data.percentile !== undefined) {
+            setPercentile(data.percentile);
+          }
+        })
+        .catch(() => { /* Percentile is optional */ });
     } else {
       setDetails(null);
+      setPercentile(null);
     }
   }, [email, getDateParams]);
 
@@ -74,6 +98,45 @@ export function UserDetailPanel({ email, onClose }: UserDetailPanelProps) {
     if (!details?.modelBreakdown) return [];
     return calculateToolBreakdown(details.modelBreakdown);
   }, [details?.modelBreakdown]);
+
+  // Calculate adoption metrics
+  const adoptionData = useMemo(() => {
+    if (!user) return null;
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const lastActiveDate = new Date(user.lastActive);
+    lastActiveDate.setHours(0, 0, 0, 0);
+    const daysSinceLastActive = Math.floor((today.getTime() - lastActiveDate.getTime()) / (1000 * 60 * 60 * 24));
+
+    // Calculate daysActive from daily usage if not provided
+    const daysActive = user.daysActive ?? details?.dailyUsage?.filter(d =>
+      Number(d.claudeCode) + Number(d.cursor) > 0
+    ).length ?? 1;
+
+    const adoptionMetrics = {
+      totalTokens: Number(user.totalTokens),
+      daysActive,
+      daysSinceLastActive,
+    };
+
+    const score = calculateAdoptionScore(adoptionMetrics);
+    const stage = getAdoptionStage(adoptionMetrics);
+    const inactive = isInactive(daysSinceLastActive);
+    const guidance = getStageGuidance(stage);
+    const avgTokensPerDay = daysActive > 0 ? Number(user.totalTokens) / daysActive : 0;
+
+    return {
+      score,
+      stage,
+      inactive,
+      daysSinceLastActive,
+      guidance,
+      avgTokensPerDay,
+      daysActive,
+    };
+  }, [user, details?.dailyUsage]);
 
   return (
     <AnimatePresence>
@@ -142,6 +205,74 @@ export function UserDetailPanel({ email, onClose }: UserDetailPanelProps) {
                     <p className="mt-1 font-display text-2xl text-white">{formatTokens(user.totalTokens)}</p>
                     <p className="font-mono text-xs text-white/50">{formatCurrency(user.totalCost)} estimated cost</p>
                   </div>
+
+                  {/* Adoption Journey - Redesigned */}
+                  {adoptionData && (
+                    <div className={`rounded-lg border bg-gradient-to-b from-white/[0.03] to-transparent overflow-hidden ${
+                      adoptionData.stage === 'exploring' ? 'border-slate-500/20' :
+                      adoptionData.stage === 'building_momentum' ? 'border-amber-500/20' :
+                      adoptionData.stage === 'in_flow' ? 'border-cyan-500/20' :
+                      'border-emerald-500/20'
+                    }`}>
+                      {/* Header with stage glow */}
+                      <div className={`px-4 pt-4 pb-3 relative ${
+                        adoptionData.stage === 'exploring' ? 'bg-slate-500/5' :
+                        adoptionData.stage === 'building_momentum' ? 'bg-amber-500/5' :
+                        adoptionData.stage === 'in_flow' ? 'bg-cyan-500/5' :
+                        'bg-emerald-500/5'
+                      }`}>
+                        <div className="flex items-center gap-2">
+                          <AdoptionBadge
+                            stage={adoptionData.stage}
+                            size="md"
+                            showLabel={false}
+                            isInactive={adoptionData.inactive}
+                          />
+                          <p className={`font-mono text-sm ${
+                            adoptionData.inactive ? 'text-zinc-400' :
+                            adoptionData.stage === 'exploring' ? 'text-slate-300' :
+                            adoptionData.stage === 'building_momentum' ? 'text-amber-300' :
+                            adoptionData.stage === 'in_flow' ? 'text-cyan-300' :
+                            'text-emerald-300'
+                          }`}>
+                            {adoptionData.inactive ? `Inactive (${adoptionData.daysSinceLastActive}d)` : adoptionData.guidance.headline}
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Intensity Stats */}
+                      {!adoptionData.inactive && (
+                        <div className="px-4 py-3 border-t border-white/5">
+                          <div className="flex items-baseline justify-between mb-1">
+                            <p className="font-display text-xl text-white">
+                              {formatIntensity(adoptionData.avgTokensPerDay)}
+                              <span className="text-white/40 text-sm ml-1">tokens/day</span>
+                            </p>
+                            {percentile !== null && percentile > 50 && (
+                              <span className={`font-mono text-[10px] px-1.5 py-0.5 rounded ${
+                                percentile >= 75 ? 'bg-emerald-500/20 text-emerald-400' :
+                                'bg-cyan-500/20 text-cyan-400'
+                              }`}>
+                                Top {100 - percentile}%
+                              </span>
+                            )}
+                          </div>
+                          <p className="font-mono text-[10px] text-white/30 mt-0.5">
+                            {adoptionData.daysActive} active days in period
+                          </p>
+                        </div>
+                      )}
+
+                      {/* Inactive message */}
+                      {adoptionData.inactive && (
+                        <div className="px-4 py-3 border-t border-white/5">
+                          <p className="font-mono text-[11px] text-white/40 leading-relaxed">
+                            {adoptionData.guidance.description}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  )}
 
                   {/* Tool Breakdown - Dynamic */}
                   {toolBreakdown.length > 0 && (

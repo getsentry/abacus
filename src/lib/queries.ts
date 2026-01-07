@@ -1,6 +1,11 @@
 import { sql } from '@vercel/postgres';
 import { DEFAULT_DAYS } from './constants';
 import { escapeLikePattern } from './utils';
+import {
+  type AdoptionStage,
+  calculateAdoptionScore,
+  getAdoptionStage,
+} from './adoption';
 
 
 export interface UsageStats {
@@ -480,6 +485,12 @@ export interface UserPivotData {
   lastActive: string;
   daysActive: number;
   avgTokensPerDay: number;
+  // Adoption metrics
+  toolCount: number;
+  hasThinkingModels: boolean;
+  adoptionScore: number;
+  adoptionStage: AdoptionStage;
+  daysSinceLastActive: number;
 }
 
 export interface UserPivotResult {
@@ -500,7 +511,7 @@ export async function getAllUsersPivot(
   const validSortColumns = [
     'email', 'totalTokens', 'totalCost', 'claudeCodeTokens', 'cursorTokens',
     'inputTokens', 'outputTokens', 'firstActive', 'lastActive',
-    'daysActive', 'avgTokensPerDay'
+    'daysActive', 'avgTokensPerDay', 'adoptionScore', 'adoptionStage'
   ];
   const safeSortBy = validSortColumns.includes(sortBy) ? sortBy : 'totalTokens';
   const searchPattern = search ? `%${escapeLikePattern(search)}%` : null;
@@ -519,7 +530,9 @@ export async function getAllUsersPivot(
           SUM(r.cache_read_tokens)::bigint as "cacheReadTokens",
           MIN(r.date)::text as "firstActive",
           la."lastActive",
-          COUNT(DISTINCT r.date)::int as "daysActive"
+          COUNT(DISTINCT r.date)::int as "daysActive",
+          COUNT(DISTINCT r.tool)::int as "toolCount",
+          BOOL_OR(r.model LIKE '%(%T%)' OR r.model LIKE '%(%HT%)')::boolean as "hasThinkingModels"
         FROM usage_records r
         JOIN (
           SELECT email, MAX(date)::text as "lastActive"
@@ -545,7 +558,9 @@ export async function getAllUsersPivot(
           SUM(r.cache_read_tokens)::bigint as "cacheReadTokens",
           MIN(r.date)::text as "firstActive",
           la."lastActive",
-          COUNT(DISTINCT r.date)::int as "daysActive"
+          COUNT(DISTINCT r.date)::int as "daysActive",
+          COUNT(DISTINCT r.tool)::int as "toolCount",
+          BOOL_OR(r.model LIKE '%(%T%)' OR r.model LIKE '%(%HT%)')::boolean as "hasThinkingModels"
         FROM usage_records r
         JOIN (
           SELECT email, MAX(date)::text as "lastActive"
@@ -559,15 +574,39 @@ export async function getAllUsersPivot(
         ORDER BY "totalTokens" DESC
       `;
 
-  let users = result.rows.map(u => ({
-    ...u,
-    avgTokensPerDay: u.daysActive > 0 ? Math.round(Number(u.totalTokens) / u.daysActive) : 0
-  })) as UserPivotData[];
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  let users = result.rows.map(u => {
+    // Calculate days since last active
+    const lastActiveDate = new Date(u.lastActive);
+    lastActiveDate.setHours(0, 0, 0, 0);
+    const daysSinceLastActive = Math.floor((today.getTime() - lastActiveDate.getTime()) / (1000 * 60 * 60 * 24));
+
+    // Build adoption metrics
+    const adoptionMetrics = {
+      totalTokens: Number(u.totalTokens),
+      daysActive: u.daysActive,
+      daysSinceLastActive,
+    };
+
+    // Calculate adoption score and stage
+    const adoptionScore = calculateAdoptionScore(adoptionMetrics);
+    const adoptionStage = getAdoptionStage(adoptionMetrics);
+
+    return {
+      ...u,
+      avgTokensPerDay: u.daysActive > 0 ? Math.round(Number(u.totalTokens) / u.daysActive) : 0,
+      daysSinceLastActive,
+      adoptionScore,
+      adoptionStage,
+    };
+  }) as UserPivotData[];
 
   // Apply sorting in JS since we can't do dynamic ORDER BY
   // Note: bigint columns come back as strings from postgres, so we need to handle
   // numeric string comparison properly
-  const stringColumns = new Set(['email', 'firstActive', 'lastActive']);
+  const stringColumns = new Set(['email', 'firstActive', 'lastActive', 'adoptionStage']);
   if (safeSortBy !== 'totalTokens' || sortDir !== 'desc') {
     users = users.sort((a, b) => {
       const aVal = a[safeSortBy as keyof UserPivotData];
@@ -687,4 +726,109 @@ export async function getUserLifetimeStats(email: string): Promise<UserLifetimeS
       tokens: Number(recordDayResult.rows[0].tokens)
     } : null
   } as UserLifetimeStats;
+}
+
+export interface AdoptionSummary {
+  stages: Record<AdoptionStage, { count: number; percentage: number; users: string[] }>;
+  avgScore: number;
+  inactive: { count: number; users: string[] };
+  totalUsers: number;
+  activeUsers: number;
+}
+
+export async function getAdoptionSummary(
+  startDate?: string,
+  endDate?: string
+): Promise<AdoptionSummary> {
+  // Get all users with adoption data
+  const { users } = await getAllUsersPivot('totalTokens', 'desc', undefined, startDate, endDate, 10000, 0);
+
+  // Initialize stage counts
+  const stages: Record<AdoptionStage, { count: number; percentage: number; users: string[] }> = {
+    exploring: { count: 0, percentage: 0, users: [] },
+    building_momentum: { count: 0, percentage: 0, users: [] },
+    in_flow: { count: 0, percentage: 0, users: [] },
+    power_user: { count: 0, percentage: 0, users: [] },
+  };
+
+  const inactive: { count: number; users: string[] } = { count: 0, users: [] };
+  let totalScore = 0;
+
+  // Count users by stage
+  for (const user of users) {
+    stages[user.adoptionStage].count++;
+    stages[user.adoptionStage].users.push(user.email);
+    totalScore += user.adoptionScore;
+
+    // Check if user is inactive (30+ days)
+    if (user.daysSinceLastActive >= 30) {
+      inactive.count++;
+      inactive.users.push(user.email);
+    }
+  }
+
+  // Calculate percentages
+  const totalUsers = users.length;
+  const activeUsers = totalUsers - inactive.count;
+  for (const stage of Object.keys(stages) as AdoptionStage[]) {
+    stages[stage].percentage = totalUsers > 0
+      ? Math.round((stages[stage].count / totalUsers) * 100)
+      : 0;
+  }
+
+  return {
+    stages,
+    avgScore: totalUsers > 0 ? Math.round(totalScore / totalUsers) : 0,
+    inactive,
+    totalUsers,
+    activeUsers,
+  };
+}
+
+/**
+ * Get a user's percentile rank based on avgTokensPerDay compared to all users
+ * Returns a number 0-100 where higher = better (e.g., 85 means top 15%)
+ */
+export async function getUserPercentile(
+  email: string,
+  startDate: string,
+  endDate: string
+): Promise<number> {
+  // Get all users' avgTokensPerDay for the period
+  const result = await sql`
+    SELECT
+      email,
+      CASE
+        WHEN COUNT(DISTINCT date) > 0
+        THEN SUM(input_tokens + cache_write_tokens + output_tokens)::float / COUNT(DISTINCT date)
+        ELSE 0
+      END as avg_tokens_per_day
+    FROM usage_records
+    WHERE email != 'unknown'
+      AND date >= ${startDate} AND date <= ${endDate}
+    GROUP BY email
+    HAVING COUNT(DISTINCT date) >= 2
+    ORDER BY avg_tokens_per_day DESC
+  `;
+
+  const users = result.rows;
+  const totalUsers = users.length;
+
+  if (totalUsers === 0) {
+    return 50; // Default to middle if no data
+  }
+
+  // Find the user's position
+  const userIndex = users.findIndex(u => u.email === email);
+
+  if (userIndex === -1) {
+    return 0; // User not found or doesn't meet min days threshold
+  }
+
+  // Calculate percentile (0 = worst, 100 = best)
+  // Position 0 (best) = 100th percentile
+  // Position last = 0th percentile
+  const percentile = Math.round(((totalUsers - 1 - userIndex) / (totalUsers - 1)) * 100);
+
+  return Math.max(0, Math.min(100, percentile));
 }

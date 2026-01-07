@@ -5,14 +5,16 @@ import { StatCard } from '@/components/StatCard';
 import { UsageChart } from '@/components/UsageChart';
 import { ModelBreakdown } from '@/components/ModelBreakdown';
 import { UserTable } from '@/components/UserTable';
-import { UserDetailPanel } from '@/components/UserDetailPanel';
 import { SearchInput } from '@/components/SearchInput';
+import { TipBar } from '@/components/TipBar';
 import { TimeRangeSelector } from '@/components/TimeRangeSelector';
 import { MainNav } from '@/components/MainNav';
 import { UserMenu } from '@/components/UserMenu';
 import { LifetimeStats } from '@/components/LifetimeStats';
+import { AdoptionDistribution } from '@/components/AdoptionDistribution';
 import { formatTokens, formatCurrency } from '@/lib/utils';
 import { useTimeRange } from '@/contexts/TimeRangeContext';
+import { type AdoptionStage } from '@/lib/adoption';
 
 interface Stats {
   totalTokens: number;
@@ -57,6 +59,14 @@ interface ModelData {
   tool: string;
 }
 
+interface AdoptionData {
+  stages: Record<AdoptionStage, { count: number; percentage: number; users: string[] }>;
+  avgScore: number;
+  inactive: { count: number; users: string[] };
+  totalUsers: number;
+  activeUsers: number;
+}
+
 function DashboardContent() {
   const { range, setRange, days, isPending, getDateParams, getDisplayLabel } = useTimeRange();
   const rangeLabel = getDisplayLabel();
@@ -66,7 +76,7 @@ function DashboardContent() {
   const [users, setUsers] = useState<UserSummary[]>([]);
   const [trends, setTrends] = useState<DailyUsage[]>([]);
   const [models, setModels] = useState<ModelData[]>([]);
-  const [selectedUser, setSelectedUser] = useState<string | null>(null);
+  const [adoptionData, setAdoptionData] = useState<AdoptionData | null>(null);
   const [loading, setLoading] = useState(true);
 
   // Show refreshing state when pending or loading with existing data
@@ -86,24 +96,27 @@ function DashboardContent() {
       const { startDate, endDate } = getDateParams();
       const params = new URLSearchParams({ startDate, endDate });
 
-      const [statsRes, usersRes, trendsRes, modelsRes] = await Promise.all([
+      const [statsRes, usersRes, trendsRes, modelsRes, adoptionRes] = await Promise.all([
         fetch(`/api/stats?${params}`),
         fetch(`/api/users?limit=10&${params}`),
         fetch(`/api/trends?${params}`),
         fetch(`/api/models?${params}`),
+        fetch(`/api/adoption?${params}`),
       ]);
 
-      const [statsData, usersData, trendsData, modelsData] = await Promise.all([
+      const [statsData, usersData, trendsData, modelsData, adoptionDataRes] = await Promise.all([
         statsRes.json(),
         usersRes.json(),
         trendsRes.json(),
         modelsRes.json(),
+        adoptionRes.json(),
       ]);
 
       setStats(statsData);
       setUsers(usersData);
       setTrends(trendsData);
       setModels(modelsData);
+      setAdoptionData(adoptionDataRes);
     } catch (error) {
       console.error('Failed to fetch data:', error);
     } finally {
@@ -136,6 +149,8 @@ function DashboardContent() {
           </div>
         </div>
       </header>
+
+      <TipBar />
 
       {/* Lifetime Stats Strip */}
       {lifetimeStats && (
@@ -200,6 +215,14 @@ function DashboardContent() {
               />
             </div>
 
+            {/* Adoption Distribution */}
+            {adoptionData && (
+              <AdoptionDistribution
+                stages={adoptionData.stages}
+                totalUsers={adoptionData.totalUsers}
+              />
+            )}
+
             {/* Charts Row */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
               <div className="lg:col-span-2">
@@ -209,13 +232,10 @@ function DashboardContent() {
             </div>
 
             {/* Users Table */}
-            <UserTable users={users} onUserClick={setSelectedUser} days={days} />
+            <UserTable users={users} days={days} />
           </div>
         )}
       </main>
-
-      {/* User Detail Panel */}
-      <UserDetailPanel email={selectedUser} onClose={() => setSelectedUser(null)} />
     </div>
   );
 }

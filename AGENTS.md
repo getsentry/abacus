@@ -109,3 +109,27 @@ All model names should be normalized at write-time to: `{family}-{version}[ (T|H
 Examples: `sonnet-4`, `haiku-3.5`, `opus-4.5 (T)`, `sonnet-4 (HT)`
 
 Use `normalizeModelName()` from `@/lib/utils` when inserting records.
+
+## Adoption Stages
+
+Adoption stages help users understand their AI tool engagement. Key guidelines:
+
+- **Positive framing only** - No negative labels like "Struggling" or "At Risk"
+- **No gamification** - No progress bars, "level up" messaging, or XP-style mechanics
+- **Stages**: Exploring → Building Momentum → In the Flow → Power User
+- **Based on intensity** (avg tokens/day when active), not just frequency
+- **Inactive = 30+ days** with no activity (hide by default in lists)
+- **Thresholds**: Power User (3M+), In Flow (1M+), Building Momentum (250K+)
+- **Percentile rankings are OK** (e.g., "Top 15%")
+
+See `src/lib/adoption.ts` for stage definitions and guidance content.
+
+## Tips & Guides
+
+Tips are productivity hints shown in the TipBar. Each tip links to a guide page.
+
+**Use the `write-tip` skill** when creating or editing tips. It contains the full format specification, quality checklist, and examples. The skill will automatically activate when you're working on tip content.
+
+Key files:
+- `src/lib/tips.ts` - All tips and guides
+- `.claude/skills/write-tip/SKILL.md` - Full writing guidelines
