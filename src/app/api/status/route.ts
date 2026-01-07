@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { wrapRouteHandlerWithSentry } from '@sentry/nextjs';
 import { getAnthropicSyncState, getAnthropicBackfillState } from '@/lib/sync/anthropic';
 import { getCursorSyncState, getCursorBackfillState } from '@/lib/sync/cursor';
+import { getOpenAISyncState, getOpenAIBackfillState } from '@/lib/sync/openai';
 import { getUnattributedStats } from '@/lib/queries';
 import { getSession } from '@/lib/auth';
 
@@ -42,6 +43,7 @@ async function handler() {
   // Check which providers are configured
   const anthropicConfigured = !!process.env.ANTHROPIC_ADMIN_KEY;
   const cursorConfigured = !!process.env.CURSOR_ADMIN_KEY;
+  const openaiConfigured = !!process.env.OPENAI_ADMIN_KEY;
 
   const providers: Record<string, unknown> = {};
   const crons: { path: string; schedule: string; type: string }[] = [];
@@ -106,6 +108,33 @@ async function handler() {
     );
   }
 
+  // OpenAI
+  if (openaiConfigured) {
+    const [openaiSync, openaiBackfill] = await Promise.all([
+      getOpenAISyncState(),
+      getOpenAIBackfillState()
+    ]);
+
+    providers.openai = {
+      id: 'openai',
+      name: 'OpenAI',
+      color: 'green',
+      configured: true,
+      forwardSync: {
+        lastSyncedDate: openaiSync.lastSyncedDate,
+        status: getForwardSyncStatus(openaiSync.lastSyncedDate, false)
+      },
+      backfill: {
+        oldestDate: openaiBackfill.oldestDate,
+        status: getBackfillStatus(openaiBackfill.oldestDate, openaiBackfill.isComplete)
+      }
+    };
+
+    crons.push(
+      { path: '/api/cron/sync-openai', schedule: 'Daily at 7 AM UTC', type: 'forward' }
+    );
+  }
+
   // Get unattributed usage stats
   const unattributed = await getUnattributedStats();
 
@@ -115,7 +144,8 @@ async function handler() {
     unattributed,
     // For backwards compatibility, also include at top level
     anthropic: providers.anthropic || null,
-    cursor: providers.cursor || null
+    cursor: providers.cursor || null,
+    openai: providers.openai || null
   });
 }
 

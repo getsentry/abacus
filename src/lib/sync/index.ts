@@ -1,12 +1,16 @@
 import { syncAnthropicUsage, syncAnthropicCron, backfillAnthropicUsage, getAnthropicSyncState, resetAnthropicBackfillComplete, SyncResult as AnthropicResult } from './anthropic';
 import { syncCursorCron, syncCursorUsage, backfillCursorUsage, getCursorSyncState, resetCursorBackfillComplete, SyncResult as CursorResult } from './cursor';
+import { syncOpenAIUsage, syncOpenAICron, backfillOpenAIUsage, getOpenAISyncState, resetOpenAIBackfillComplete, SyncResult as OpenAIResult } from './openai';
 import { syncAnthropicApiKeyMappings, syncApiKeyMappingsSmart, MappingResult } from './anthropic-mappings';
+import { syncOpenAIUserMappings, syncOpenAIUserMappingsSmart, MappingResult as OpenAIMappingResult } from './openai-mappings';
 import { sql } from '@vercel/postgres';
 
 export interface FullSyncResult {
   anthropic: AnthropicResult;
   cursor: CursorResult;
+  openai: OpenAIResult;
   mappings?: MappingResult;
+  openaiMappings?: OpenAIMappingResult;
 }
 
 export async function getSyncState(id: string): Promise<{ lastSyncAt: string | null; lastCursor: string | null }> {
@@ -58,7 +62,27 @@ export async function runCursorSync(): Promise<CursorResult> {
 }
 
 /**
- * Run full sync for both services.
+ * Run OpenAI cron sync.
+ * Only syncs new data since last sync.
+ * Safe to call frequently - will skip if already synced.
+ */
+export async function runOpenAISync(options: { includeMappings?: boolean } = {}): Promise<{ openai: OpenAIResult; mappings?: OpenAIMappingResult }> {
+  // Sync user mappings FIRST so usage sync has them available
+  let mappingsResult: OpenAIMappingResult | undefined;
+  if (options.includeMappings) {
+    mappingsResult = await syncOpenAIUserMappingsSmart();
+  }
+
+  const openaiResult = await syncOpenAICron();
+
+  return {
+    openai: openaiResult,
+    mappings: mappingsResult
+  };
+}
+
+/**
+ * Run full sync for all services.
  * For backwards compatibility and manual syncs via CLI.
  */
 export async function runFullSync(
@@ -70,17 +94,22 @@ export async function runFullSync(
   const end = endDate || new Date().toISOString().split('T')[0];
   const start = startDate || new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
 
-  // Sync API key mappings FIRST so usage sync has them available
+  // Sync API key/user mappings FIRST so usage sync has them available
   let mappingsResult: MappingResult | undefined;
+  let openaiMappingsResult: OpenAIMappingResult | undefined;
   if (options.includeMappings) {
-    mappingsResult = await syncApiKeyMappingsSmart();
+    [mappingsResult, openaiMappingsResult] = await Promise.all([
+      syncApiKeyMappingsSmart(),
+      syncOpenAIUserMappingsSmart()
+    ]);
   }
 
   // Run usage syncs in parallel
   // Note: For manual syncs, use date-based sync
-  const [anthropicResult, cursorResult] = await Promise.all([
+  const [anthropicResult, cursorResult, openaiResult] = await Promise.all([
     syncAnthropicUsage(start, end),
-    syncCursorUsage(start, end)
+    syncCursorUsage(start, end),
+    syncOpenAIUsage(start, end)
   ]);
 
   // Update sync state
@@ -89,7 +118,9 @@ export async function runFullSync(
   return {
     anthropic: anthropicResult,
     cursor: cursorResult,
-    mappings: mappingsResult
+    openai: openaiResult,
+    mappings: mappingsResult,
+    openaiMappings: openaiMappingsResult
   };
 }
 
@@ -114,5 +145,12 @@ export {
   backfillCursorUsage,
   getCursorSyncState,
   resetCursorBackfillComplete,
-  syncAnthropicApiKeyMappings
+  syncOpenAIUsage,
+  syncOpenAICron,
+  backfillOpenAIUsage,
+  getOpenAISyncState,
+  resetOpenAIBackfillComplete,
+  syncAnthropicApiKeyMappings,
+  syncOpenAIUserMappings,
+  syncOpenAIUserMappingsSmart
 };

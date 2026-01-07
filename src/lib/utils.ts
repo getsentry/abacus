@@ -174,6 +174,26 @@ export function normalizeModelName(model: string): string {
     normalized = `sonnet-${normalized}`;
   }
 
+  // OpenAI model normalization
+  // "gpt-4o-2024-08-06" → "gpt-4o"
+  // "gpt-4-turbo-2024-04-09" → "gpt-4-turbo"
+  // "gpt-3.5-turbo-0125" → "gpt-3.5-turbo"
+  if (normalized.startsWith('gpt-')) {
+    // Strip date suffixes (YYYY-MM-DD or MMDD format)
+    normalized = normalized.replace(/-\d{4}-\d{2}-\d{2}$/, '');
+    normalized = normalized.replace(/-\d{4}$/, '');
+  }
+
+  // "o1-2024-12-17" → "o1", "o1-mini-2024-09-12" → "o1-mini", "o3-mini-2025-01-31" → "o3-mini"
+  if (normalized.match(/^o[13]/)) {
+    normalized = normalized.replace(/-\d{4}-\d{2}-\d{2}$/, '');
+  }
+
+  // "codex-mini-latest" → "codex-mini"
+  if (normalized.startsWith('codex-')) {
+    normalized = normalized.replace(/-latest$/, '');
+  }
+
   // Reconstruct with suffix if present
   if (suffix) {
     normalized = `${normalized} (${suffix})`;
@@ -207,6 +227,20 @@ export function formatModelName(model: string): string {
       display = `${family.charAt(0).toUpperCase()}${family.slice(1)} ${version}${rest}`;
       break;
     }
+  }
+
+  // Format OpenAI models nicely
+  // "gpt-4o" → "GPT-4o", "gpt-3.5-turbo" → "GPT-3.5-turbo"
+  if (display.startsWith('gpt-')) {
+    display = 'GPT-' + display.slice(4);
+  }
+  // "o1-mini" → "O1-mini", "o3-mini" → "O3-mini"
+  if (display.match(/^o[13]/)) {
+    display = display.charAt(0).toUpperCase() + display.slice(1);
+  }
+  // "codex-mini" → "Codex-mini"
+  if (display.startsWith('codex-')) {
+    display = 'Codex-' + display.slice(6);
   }
 
   return display;
