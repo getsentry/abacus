@@ -582,11 +582,11 @@ git worktree remove ../myapp-tests
     content: `
 ## Why Configure?
 
-A \`CLAUDE.md\` or \`.cursorrules\` file tells the AI your project's conventions. Without it, the AI guesses—and often guesses wrong.
+An \`AGENTS.md\` file tells AI tools your project's conventions. Without it, the AI guesses—and often guesses wrong.
 
-## Try It: Create a CLAUDE.md
+## Try It: Create an AGENTS.md
 
-**Step 1**: Create \`CLAUDE.md\` in your project root:
+**Step 1**: Create \`AGENTS.md\` in your project root:
 
 \`\`\`markdown
 # Project: MyApp
@@ -608,7 +608,14 @@ A \`CLAUDE.md\` or \`.cursorrules\` file tells the AI your project's conventions
 \`npm run build\` - production build
 \`\`\`
 
-**Step 2**: Now when you ask:
+**Step 2**: Symlink for Claude Code compatibility:
+\`\`\`bash
+ln -s AGENTS.md CLAUDE.md
+\`\`\`
+
+Claude Code reads \`CLAUDE.md\`, so the symlink ensures both files stay in sync.
+
+**Step 3**: Now when you ask:
 \`\`\`
 Add a new API route for user preferences
 \`\`\`
@@ -626,9 +633,14 @@ Claude automatically:
 - **Commands** - how to build, test, lint
 - **Gotchas** - project-specific quirks
 
-## For Cursor
+## File Names
 
-Create \`.cursorrules\` with similar content. Cursor reads it automatically.
+| Tool | File |
+|------|------|
+| Most tools | \`AGENTS.md\` |
+| Claude Code | \`CLAUDE.md\` |
+
+Create \`AGENTS.md\` as your source of truth, then symlink \`CLAUDE.md\` to it for Claude Code compatibility.
     `,
   },
 };
