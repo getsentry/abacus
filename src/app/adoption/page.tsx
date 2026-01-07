@@ -273,22 +273,22 @@ function AdoptionPageContent() {
             {/* User Table */}
             <div className="rounded-lg border border-white/5 bg-white/[0.02] overflow-hidden">
               <div className="overflow-x-auto">
-                <table className="w-full table-fixed">
+                <table className="w-full">
                   <thead>
                     <tr className="border-b border-white/10 bg-white/[0.02]">
-                      <th className="w-[40%] px-4 py-3 text-left font-mono text-[10px] uppercase tracking-wider text-white/60">
+                      <th className="px-4 py-3 text-left font-mono text-[10px] uppercase tracking-wider text-white/60">
                         User
                       </th>
-                      <th className="w-[20%] px-4 py-3 text-left font-mono text-[10px] uppercase tracking-wider text-white/60">
+                      <th className="px-4 py-3 text-left font-mono text-[10px] uppercase tracking-wider text-white/60 w-32">
                         Stage
                       </th>
-                      <th className="w-[10%] px-4 py-3 text-right font-mono text-[10px] uppercase tracking-wider text-white/60">
+                      <th className="px-4 py-3 text-right font-mono text-[10px] uppercase tracking-wider text-white/60 w-20">
                         Score
                       </th>
-                      <th className="w-[15%] px-4 py-3 text-right font-mono text-[10px] uppercase tracking-wider text-white/60">
+                      <th className="px-4 py-3 text-right font-mono text-[10px] uppercase tracking-wider text-white/60 w-24">
                         Tokens
                       </th>
-                      <th className="w-[15%] px-4 py-3 text-right font-mono text-[10px] uppercase tracking-wider text-white/60">
+                      <th className="px-4 py-3 text-right font-mono text-[10px] uppercase tracking-wider text-white/60 w-28">
                         Last Active
                       </th>
                     </tr>
@@ -308,28 +308,28 @@ function AdoptionPageContent() {
                           key={user.email}
                           className="border-b border-white/5 hover:bg-white/[0.02] transition-colors"
                         >
-                          <td className="px-4 py-3 truncate">
+                          <td className="px-4 py-3">
                             <UserLink
                               email={user.email}
-                              className="font-mono text-xs text-white"
+                              className="font-mono text-xs text-white truncate block"
                             />
                           </td>
-                          <td className="px-4 py-3">
+                          <td className="px-4 py-3 w-32">
                             <AdoptionBadge
                               stage={user.adoptionStage}
                               size="sm"
                               isInactive={isInactive(user.daysSinceLastActive)}
                             />
                           </td>
-                          <td className="px-4 py-3 text-right">
+                          <td className="px-4 py-3 text-right w-20 whitespace-nowrap">
                             <span className="font-mono text-xs text-white/60">{user.adoptionScore}</span>
                           </td>
-                          <td className="px-4 py-3 text-right">
+                          <td className="px-4 py-3 text-right w-24 whitespace-nowrap">
                             <span className="font-mono text-xs text-white/60">
                               {formatTokens(user.totalTokens)}
                             </span>
                           </td>
-                          <td className="px-4 py-3 text-right">
+                          <td className="px-4 py-3 text-right w-28 whitespace-nowrap">
                             <span className="font-mono text-xs text-white/40">{user.lastActive}</span>
                           </td>
                         </tr>

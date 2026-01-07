@@ -226,6 +226,9 @@ For charts, tables, and lists - use the standard card wrapper:
 
 ### Tables
 
+Data tables should use consistent column widths based on content type.
+
+**Basic structure:**
 ```tsx
 <div className="rounded-lg border border-white/5 bg-white/[0.02] overflow-hidden">
   <div className="overflow-x-auto">
@@ -248,6 +251,74 @@ For charts, tables, and lists - use the standard card wrapper:
   </div>
 </div>
 ```
+
+**Column width guidelines:**
+
+| Column Type | Width | Class | Notes |
+|-------------|-------|-------|-------|
+| Primary identifier (email, name) | Flexible | (none) | Takes remaining space, add `truncate` |
+| Status/Badge | 128px | `w-32` | Fits badge with label |
+| Score/Small number | 80px | `w-20` | 2-3 digit numbers |
+| Tokens/Currency | 96px | `w-24` | Formatted numbers (e.g., "1.2M") |
+| Date | 112px | `w-28` | "Jan 15, 2025" format |
+| Percentage | 80px | `w-20` | "42%" format |
+| Actions | 80-128px | `w-20` to `w-32` | Icon buttons or links |
+
+**Column width pattern:**
+```tsx
+<table className="w-full">
+  <thead>
+    <tr className="border-b border-white/10 bg-white/[0.02]">
+      {/* Flexible column - takes remaining space */}
+      <th className="px-4 py-3 text-left font-mono text-[10px] uppercase tracking-wider text-white/60">
+        User
+      </th>
+      {/* Fixed width columns */}
+      <th className="px-4 py-3 text-left font-mono text-[10px] uppercase tracking-wider text-white/60 w-32">
+        Stage
+      </th>
+      <th className="px-4 py-3 text-right font-mono text-[10px] uppercase tracking-wider text-white/60 w-20">
+        Score
+      </th>
+      <th className="px-4 py-3 text-right font-mono text-[10px] uppercase tracking-wider text-white/60 w-24">
+        Tokens
+      </th>
+      <th className="px-4 py-3 text-right font-mono text-[10px] uppercase tracking-wider text-white/60 w-28">
+        Last Active
+      </th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr className="border-b border-white/5 hover:bg-white/[0.02] transition-colors">
+      {/* Flexible column with truncation */}
+      <td className="px-4 py-3">
+        <span className="font-mono text-xs text-white truncate block">email@example.com</span>
+      </td>
+      {/* Fixed width cells - match header widths */}
+      <td className="px-4 py-3 w-32">
+        <Badge />
+      </td>
+      <td className="px-4 py-3 text-right w-20 whitespace-nowrap">
+        <span className="font-mono text-xs text-white/60">72</span>
+      </td>
+      <td className="px-4 py-3 text-right w-24 whitespace-nowrap">
+        <span className="font-mono text-xs text-white/60">1.2M</span>
+      </td>
+      <td className="px-4 py-3 text-right w-28 whitespace-nowrap">
+        <span className="font-mono text-xs text-white/40">Jan 15, 2025</span>
+      </td>
+    </tr>
+  </tbody>
+</table>
+```
+
+**Key principles:**
+- Use `w-full` on table, NOT `table-fixed` (allows flexible primary column)
+- One flexible column (usually the identifier) takes remaining space
+- Fixed columns use explicit `w-*` classes on both `<th>` and `<td>`
+- Numeric/date columns use `whitespace-nowrap` to prevent wrapping
+- Right-align numeric data with `text-right`
+- Add `truncate block` to flexible text columns
 
 ## Color System
 
