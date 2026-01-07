@@ -7,7 +7,7 @@ import { motion } from 'framer-motion';
 import { StatCard } from '@/components/StatCard';
 import { StackedBarChart } from '@/components/StackedBarChart';
 import { TimeRangeSelector } from '@/components/TimeRangeSelector';
-import { formatTokens, formatCurrency, formatDate } from '@/lib/utils';
+import { formatTokens, formatCurrency, formatDate, formatModelName } from '@/lib/utils';
 
 interface UserDetails {
   summary: {
@@ -282,10 +282,7 @@ export default function UserDetailPage() {
                   {data.modelBreakdown.slice(0, 8).map((model, i) => {
                     const maxTokens = data.modelBreakdown[0]?.tokens || 1;
                     const percentage = (model.tokens / maxTokens) * 100;
-                    const displayName = model.model
-                      .replace('claude-', '')
-                      .replace('-20', ' ')
-                      .replace(/-/g, ' ');
+                    const displayName = formatModelName(model.model);
 
                     return (
                       <motion.div

@@ -1,4 +1,5 @@
 import { insertUsageRecord } from '../queries';
+import { normalizeModelName } from '../utils';
 import { sql } from '@vercel/postgres';
 
 interface CursorUsageEvent {
@@ -227,7 +228,8 @@ async function processAndInsertEvents(
     // Convert timestamp string to date
     const date = new Date(parseInt(event.timestamp)).toISOString().split('T')[0];
     const email = event.userEmail;
-    const key = makeKey(date, email, event.model);
+    const model = normalizeModelName(event.model);
+    const key = makeKey(date, email, model);
 
     const existing = aggregated.get(key);
     if (existing) {
@@ -239,7 +241,7 @@ async function processAndInsertEvents(
     } else {
       aggregated.set(key, {
         email,
-        model: event.model,
+        model,
         inputTokens: tokenUsage?.inputTokens || 0,
         outputTokens: tokenUsage?.outputTokens || 0,
         cacheWriteTokens: tokenUsage?.cacheWriteTokens || 0,

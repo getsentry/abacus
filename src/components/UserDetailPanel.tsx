@@ -3,7 +3,7 @@
 import { motion, AnimatePresence } from 'framer-motion';
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { formatTokens, formatCurrency } from '@/lib/utils';
+import { formatTokens, formatCurrency, formatModelName } from '@/lib/utils';
 
 interface UserDetails {
   summary: {
@@ -139,7 +139,7 @@ export function UserDetailPanel({ email, onClose }: UserDetailPanelProps) {
                         {details.modelBreakdown.slice(0, 5).map(m => (
                           <div key={`${m.model}-${m.tool}`} className="flex justify-between">
                             <span className="font-mono text-xs text-white/70 truncate max-w-[180px]">
-                              {m.model.replace('claude-', '').split('-').slice(0, 2).join('-')}
+                              {formatModelName(m.model)}
                             </span>
                             <span className="font-mono text-xs text-white/40">{formatTokens(m.tokens)}</span>
                           </div>
