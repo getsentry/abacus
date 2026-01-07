@@ -50,7 +50,7 @@ interface ModelData {
 }
 
 function DashboardContent() {
-  const { days, setDays } = useTimeRange();
+  const { days, setDays, isPending } = useTimeRange();
 
   const [stats, setStats] = useState<Stats | null>(null);
   const [users, setUsers] = useState<UserSummary[]>([]);
@@ -58,6 +58,9 @@ function DashboardContent() {
   const [models, setModels] = useState<ModelData[]>([]);
   const [selectedUser, setSelectedUser] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+
+  // Show refreshing state when pending or loading with existing data
+  const isRefreshing = isPending || (loading && stats !== null);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -95,13 +98,20 @@ function DashboardContent() {
 
   return (
     <div className="min-h-screen bg-[#0a0a0f] text-white grid-bg">
+      {/* Loading Progress Bar */}
+      {isRefreshing && (
+        <div className="fixed top-0 left-0 right-0 z-50 h-0.5 bg-amber-500/20 overflow-hidden">
+          <div className="h-full bg-amber-500 animate-progress" />
+        </div>
+      )}
+
       {/* Header */}
       <header className="relative z-10 border-b border-white/5 px-4 sm:px-8 py-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <MainNav days={days} />
           <div className="flex items-center gap-3">
             <SearchInput days={days} placeholder="Search users..." />
-            <TimeRangeSelector value={days} onChange={setDays} />
+            <TimeRangeSelector value={days} onChange={setDays} isPending={isPending} />
             <div className="w-px h-6 bg-white/10 mx-1" />
             <UserMenu />
           </div>
@@ -109,7 +119,9 @@ function DashboardContent() {
       </header>
 
       {/* Main Content */}
-      <main className="relative z-10 p-4 sm:p-8">
+      <main className={`relative z-10 p-4 sm:p-8 transition-opacity duration-300 ${
+        isRefreshing ? 'opacity-60' : 'opacity-100'
+      }`}>
         {loading && !stats ? (
           <div className="flex h-64 items-center justify-center">
             <div className="font-mono text-sm text-white/40">Loading...</div>

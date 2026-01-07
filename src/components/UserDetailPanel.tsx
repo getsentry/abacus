@@ -31,6 +31,9 @@ export function UserDetailPanel({ email, onClose, days = DEFAULT_DAYS }: UserDet
   const [details, setDetails] = useState<UserDetails | null>(null);
   const [loading, setLoading] = useState(false);
 
+  // Show refreshing state when loading but already have data
+  const isRefreshing = loading && details !== null;
+
   useEffect(() => {
     if (email) {
       setLoading(true);
@@ -84,12 +87,12 @@ export function UserDetailPanel({ email, onClose, days = DEFAULT_DAYS }: UserDet
               </svg>
             </button>
 
-            {loading ? (
+            {loading && !details ? (
               <div className="flex h-full items-center justify-center">
                 <div className="font-mono text-sm text-white/40">Loading...</div>
               </div>
             ) : user ? (
-              <>
+              <div className={`transition-opacity duration-300 ${isRefreshing ? 'opacity-60' : 'opacity-100'}`}>
                 <div className="mb-6">
                   <h2 className="font-display text-2xl text-white">{user.email}</h2>
                   <Link
@@ -215,7 +218,7 @@ export function UserDetailPanel({ email, onClose, days = DEFAULT_DAYS }: UserDet
                     </div>
                   </div>
                 </div>
-              </>
+              </div>
             ) : (
               <div className="flex h-full items-center justify-center">
                 <div className="font-mono text-sm text-white/40">User not found</div>

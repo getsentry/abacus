@@ -42,12 +42,15 @@ const columns: { key: SortKey; label: string; align: 'left' | 'right'; format?: 
 ];
 
 function UsersPageContent() {
-  const { days, setDays } = useTimeRange();
+  const { days, setDays, isPending } = useTimeRange();
   const searchParams = useSearchParams();
   const initialSearch = searchParams.get('search') || '';
 
   const [users, setUsers] = useState<UserPivotData[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // Show refreshing state when pending or loading with existing data
+  const isRefreshing = isPending || (loading && users.length > 0);
   const [error, setError] = useState<string | null>(null);
   const [sortBy, setSortBy] = useState<SortKey>('totalTokens');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
@@ -123,6 +126,13 @@ function UsersPageContent() {
 
   return (
     <div className="min-h-screen bg-[#0a0a0f] text-white grid-bg">
+      {/* Loading Progress Bar */}
+      {isRefreshing && (
+        <div className="fixed top-0 left-0 right-0 z-50 h-0.5 bg-amber-500/20 overflow-hidden">
+          <div className="h-full bg-amber-500 animate-progress" />
+        </div>
+      )}
+
       {/* Header */}
       <header className="relative z-10 border-b border-white/5 px-4 sm:px-8 py-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -133,7 +143,7 @@ function UsersPageContent() {
               onChange={setSearchQuery}
               placeholder="Filter users..."
             />
-            <TimeRangeSelector value={days} onChange={setDays} />
+            <TimeRangeSelector value={days} onChange={setDays} isPending={isPending} />
             <div className="w-px h-6 bg-white/10 mx-1" />
             <UserMenu />
           </div>
@@ -171,8 +181,10 @@ function UsersPageContent() {
       </div>
 
       {/* Main Content */}
-      <main className="relative z-10 p-4 sm:p-8">
-        {loading ? (
+      <main className={`relative z-10 p-4 sm:p-8 transition-opacity duration-300 ${
+        isRefreshing ? 'opacity-60' : 'opacity-100'
+      }`}>
+        {loading && users.length === 0 ? (
           <div className="flex h-64 items-center justify-center">
             <div className="font-mono text-sm text-white/40">Loading...</div>
           </div>

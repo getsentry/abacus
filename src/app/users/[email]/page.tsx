@@ -97,7 +97,7 @@ interface UserDetails {
 
 function UserDetailContent() {
   const params = useParams();
-  const { days, setDays } = useTimeRange();
+  const { days, setDays, isPending } = useTimeRange();
 
   // URL uses username (e.g., /users/david), API resolves to full email
   const username = decodeURIComponent(params.email as string);
@@ -105,6 +105,9 @@ function UserDetailContent() {
   const [data, setData] = useState<UserDetails | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // Show refreshing state when pending or loading with existing data
+  const isRefreshing = isPending || (loading && data !== null);
 
   // Get full email from loaded data, fallback to username for display during load
   const email = data?.summary?.email || username;
@@ -164,12 +167,19 @@ function UserDetailContent() {
 
   return (
     <div className="min-h-screen bg-[#0a0a0f] text-white grid-bg">
+      {/* Loading Progress Bar */}
+      {isRefreshing && (
+        <div className="fixed top-0 left-0 right-0 z-50 h-0.5 bg-amber-500/20 overflow-hidden">
+          <div className="h-full bg-amber-500 animate-progress" />
+        </div>
+      )}
+
       {/* Header */}
       <header className="relative z-10 border-b border-white/5 px-4 sm:px-8 py-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <MainNav days={days} />
           <div className="flex items-center gap-3">
-            <TimeRangeSelector value={days} onChange={setDays} />
+            <TimeRangeSelector value={days} onChange={setDays} isPending={isPending} />
             <div className="w-px h-6 bg-white/10 mx-1" />
             <UserMenu />
           </div>
@@ -197,8 +207,10 @@ function UserDetailContent() {
       </div>
 
       {/* Main Content */}
-      <main className="relative z-10 p-4 sm:p-8">
-        {loading ? (
+      <main className={`relative z-10 p-4 sm:p-8 transition-opacity duration-300 ${
+        isRefreshing ? 'opacity-60' : 'opacity-100'
+      }`}>
+        {loading && !data ? (
           <div className="flex h-64 items-center justify-center">
             <div className="flex flex-col items-center gap-3">
               <div className="h-8 w-8 border-2 border-amber-500/30 border-t-amber-500 rounded-full animate-spin" />

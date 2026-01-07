@@ -94,3 +94,24 @@ body {
 .animate-slide-up {
   animation: slideUp 0.5s ease-out;
 }
+
+/* Loading progress bar */
+@keyframes progress {
+  0% {
+    width: 0%;
+    left: 0;
+  }
+  50% {
+    width: 30%;
+    left: 35%;
+  }
+  100% {
+    width: 0%;
+    left: 100%;
+  }
+}
+
+.animate-progress {
+  position: absolute;
+  animation: progress 1s ease-in-out infinite;
+}

@@ -1,12 +1,13 @@
 'use client';
 
-import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect, useCallback, useTransition, ReactNode } from 'react';
 import { useSearchParams, useRouter, usePathname } from 'next/navigation';
 import { DEFAULT_DAYS } from '@/lib/constants';
 
 interface TimeRangeContextValue {
   days: number;
   setDays: (days: number) => void;
+  isPending: boolean;
 }
 
 const TimeRangeContext = createContext<TimeRangeContextValue | null>(null);
@@ -17,6 +18,7 @@ export function TimeRangeProvider({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const initialDays = parseInt(searchParams.get('days') || String(DEFAULT_DAYS), 10) || DEFAULT_DAYS;
   const [days, setDaysState] = useState(initialDays);
+  const [isPending, startTransition] = useTransition();
 
   // Sync state from URL changes (e.g., back/forward navigation)
   useEffect(() => {
@@ -29,18 +31,20 @@ export function TimeRangeProvider({ children }: { children: ReactNode }) {
     }
   }, [searchParams, days]);
 
-  // Update both state and URL when days changes
+  // Update both state and URL when days changes - wrapped in transition
   const setDays = useCallback((newDays: number) => {
-    setDaysState(newDays);
+    startTransition(() => {
+      setDaysState(newDays);
 
-    // Update URL with new days value
-    const params = new URLSearchParams(searchParams.toString());
-    params.set('days', newDays.toString());
-    router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+      // Update URL with new days value
+      const params = new URLSearchParams(searchParams.toString());
+      params.set('days', newDays.toString());
+      router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+    });
   }, [searchParams, router, pathname]);
 
   return (
-    <TimeRangeContext.Provider value={{ days, setDays }}>
+    <TimeRangeContext.Provider value={{ days, setDays, isPending }}>
       {children}
     </TimeRangeContext.Provider>
   );
