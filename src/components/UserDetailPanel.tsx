@@ -6,6 +6,7 @@ import { formatTokens, formatCurrency, formatModelName } from '@/lib/utils';
 import { getToolConfig, formatToolName, calculateToolBreakdown, type ToolBreakdown } from '@/lib/tools';
 import { useTimeRange } from '@/contexts/TimeRangeContext';
 import { AppLink } from '@/components/AppLink';
+import { DOMAIN } from '@/lib/constants';
 
 interface UserDetails {
   summary: {
@@ -26,19 +27,33 @@ interface UserDetailPanelProps {
   onClose: () => void;
 }
 
+// Skeleton loader for cards
+function CardSkeleton({ lines = 2 }: { lines?: number }) {
+  return (
+    <div className="rounded-lg border border-white/5 bg-white/[0.02] p-4 animate-pulse">
+      <div className="h-2 w-20 bg-white/10 rounded mb-3" />
+      {Array.from({ length: lines }).map((_, i) => (
+        <div key={i} className={`h-4 bg-white/5 rounded ${i === 0 ? 'w-32' : 'w-24'} ${i > 0 ? 'mt-2' : 'mt-1'}`} />
+      ))}
+    </div>
+  );
+}
+
 export function UserDetailPanel({ email, onClose }: UserDetailPanelProps) {
   const { getDateParams, getDisplayLabel } = useTimeRange();
   const [details, setDetails] = useState<UserDetails | null>(null);
   const [loading, setLoading] = useState(false);
 
-  // Show refreshing state when loading but already have data
-  const isRefreshing = loading && details !== null;
-
   const rangeLabel = getDisplayLabel();
+
+  // Construct display email from prop (with domain if available)
+  const displayEmail = email?.includes('@') ? email : (email && DOMAIN ? `${email}@${DOMAIN}` : email);
+  const username = email?.includes('@') ? email.split('@')[0] : email;
 
   useEffect(() => {
     if (email) {
       setLoading(true);
+      setDetails(null); // Clear previous user's data
       const { startDate, endDate } = getDateParams();
       fetch(`/api/users/${encodeURIComponent(email)}?startDate=${startDate}&endDate=${endDate}`)
         .then(res => res.json())
@@ -90,26 +105,35 @@ export function UserDetailPanel({ email, onClose }: UserDetailPanelProps) {
               </svg>
             </button>
 
-            {loading && !details ? (
-              <div className="flex h-full items-center justify-center">
-                <div className="font-mono text-sm text-white/40">Loading...</div>
+            {/* Header - Always visible immediately */}
+            <div className="mb-6">
+              <h2 className="font-display text-2xl text-white">{user?.email || displayEmail}</h2>
+              <AppLink
+                href={`/users/${encodeURIComponent(username || '')}`}
+                className="mt-3 inline-flex items-center gap-1.5 font-mono text-xs text-amber-400 hover:text-amber-300 transition-colors"
+              >
+                View Full Details
+                <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                </svg>
+              </AppLink>
+            </div>
+
+            {/* Content - Shows skeleton while loading, then animates in */}
+            {loading ? (
+              <div className="space-y-4">
+                <CardSkeleton lines={2} />
+                <CardSkeleton lines={3} />
+                <CardSkeleton lines={4} />
+                <CardSkeleton lines={2} />
               </div>
             ) : user ? (
-              <div className={`transition-opacity duration-300 ${isRefreshing ? 'opacity-60' : 'opacity-100'}`}>
-                <div className="mb-6">
-                  <h2 className="font-display text-2xl text-white">{user.email}</h2>
-                  <AppLink
-                    href={`/users/${encodeURIComponent(user.email.split('@')[0])}`}
-                    className="mt-3 inline-flex items-center gap-1.5 font-mono text-xs text-amber-400 hover:text-amber-300 transition-colors"
-                  >
-                    View Full Details
-                    <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                    </svg>
-                  </AppLink>
-                </div>
-
-                <div className="space-y-4">
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.3 }}
+                className="space-y-4"
+              >
                   <div className="rounded-lg border border-white/5 bg-white/[0.02] p-4">
                     <div className="flex items-baseline justify-between">
                       <p className="font-mono text-[10px] uppercase tracking-wider text-white/40">Total Tokens</p>
@@ -213,23 +237,22 @@ export function UserDetailPanel({ email, onClose }: UserDetailPanelProps) {
                     </div>
                   )}
 
-                  <div className="rounded-lg border border-white/5 bg-white/[0.02] p-4">
-                    <div className="flex justify-between">
-                      <span className="font-mono text-[10px] uppercase tracking-wider text-white/40">First Active</span>
-                      <span className="font-mono text-xs text-white/60">{user.firstActive}</span>
-                    </div>
-                    <div className="flex justify-between mt-2">
-                      <span className="font-mono text-[10px] uppercase tracking-wider text-white/40">Last Active</span>
-                      <span className="font-mono text-xs text-white/60">{user.lastActive}</span>
-                    </div>
+                <div className="rounded-lg border border-white/5 bg-white/[0.02] p-4">
+                  <div className="flex justify-between">
+                    <span className="font-mono text-[10px] uppercase tracking-wider text-white/40">First Active</span>
+                    <span className="font-mono text-xs text-white/60">{user.firstActive}</span>
+                  </div>
+                  <div className="flex justify-between mt-2">
+                    <span className="font-mono text-[10px] uppercase tracking-wider text-white/40">Last Active</span>
+                    <span className="font-mono text-xs text-white/60">{user.lastActive}</span>
                   </div>
                 </div>
-              </div>
-            ) : (
-              <div className="flex h-full items-center justify-center">
+              </motion.div>
+            ) : !loading ? (
+              <div className="flex h-64 items-center justify-center">
                 <div className="font-mono text-sm text-white/40">User not found</div>
               </div>
-            )}
+            ) : null}
           </motion.div>
         </>
       )}

@@ -5,6 +5,7 @@ import { motion } from 'framer-motion';
 import { MainNav } from '@/components/MainNav';
 import { UserMenu } from '@/components/UserMenu';
 import { DEFAULT_DAYS } from '@/lib/constants';
+import { formatTokens, formatCurrency } from '@/lib/utils';
 
 interface ProviderStatus {
   id: string;
@@ -28,11 +29,17 @@ interface CronJob {
   type: 'forward' | 'backfill';
 }
 
+interface UnattributedStats {
+  totalTokens: number;
+  totalCost: number;
+}
+
 interface StatusData {
   providers: Record<string, ProviderStatus>;
   anthropic: ProviderStatus | null;
   cursor: ProviderStatus | null;
   crons: CronJob[];
+  unattributed: UnattributedStats;
 }
 
 function formatDate(dateStr: string | null): string {
@@ -200,6 +207,44 @@ export default function StatusPage() {
           <div className="text-red-400 text-center py-12 font-mono">{error}</div>
         ) : data ? (
           <div className="max-w-4xl mx-auto space-y-8">
+            {/* Unattributed Usage Alert */}
+            {data.unattributed && data.unattributed.totalTokens > 0 && (
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.5 }}
+                className="bg-white/[0.02] border border-amber-500/20 rounded-lg p-6"
+              >
+                <div className="flex items-start gap-4">
+                  <div className="text-amber-500 text-2xl">!</div>
+                  <div className="flex-1">
+                    <h3 className="font-display text-lg text-white mb-2">Unattributed Usage</h3>
+                    <p className="font-mono text-sm text-white/60 mb-4">
+                      Usage from API keys that aren&apos;t mapped to users. Consider mapping these keys to track usage by person.
+                    </p>
+                    <div className="flex items-center gap-6">
+                      <div>
+                        <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-white/40 block mb-1">
+                          Tokens
+                        </span>
+                        <span className="font-display text-xl text-white">
+                          {formatTokens(data.unattributed.totalTokens)}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-white/40 block mb-1">
+                          Estimated Cost
+                        </span>
+                        <span className="font-display text-xl text-white">
+                          {formatCurrency(data.unattributed.totalCost)}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </motion.div>
+            )}
+
             {/* Provider Cards */}
             {Object.keys(data.providers).length > 0 ? (
               <div className={`grid grid-cols-1 ${Object.keys(data.providers).length > 1 ? 'md:grid-cols-2' : ''} gap-6`}>

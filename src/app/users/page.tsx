@@ -10,7 +10,6 @@ import { MainNav } from '@/components/MainNav';
 import { UserMenu } from '@/components/UserMenu';
 import { formatTokens, formatCurrency } from '@/lib/utils';
 import { useTimeRange } from '@/contexts/TimeRangeContext';
-import { TimeRange } from '@/lib/dateUtils';
 
 interface UserPivotData {
   email: string;
@@ -147,20 +146,18 @@ function UsersPageContent() {
               onChange={setSearchQuery}
               placeholder="Filter users..."
             />
-            <TimeRangeSelector value={range} onChange={setRange} isPending={isPending} />
-            <div className="w-px h-6 bg-white/10 mx-1" />
             <UserMenu />
           </div>
         </div>
       </header>
 
-      {/* Page Title */}
+      {/* Page Title with Time Range Selector */}
       <div className="border-b border-white/5 px-4 sm:px-8 py-3">
         <div className="flex items-center justify-between">
           <h2 className="font-mono text-[10px] uppercase tracking-[0.2em] text-white/40">
             {loading ? '\u00A0' : `${users.length} users`}
           </h2>
-          <span className="font-mono text-[10px] text-white/30">{rangeLabel}</span>
+          <TimeRangeSelector value={range} onChange={setRange} isPending={isPending} />
         </div>
       </div>
 

@@ -607,3 +607,55 @@ export async function getApiKeyMapping(apiKey: string): Promise<string | null> {
   const result = await sql`SELECT email FROM api_key_mappings WHERE api_key = ${apiKey}`;
   return result.rows[0]?.email || null;
 }
+
+export interface LifetimeStats {
+  totalTokens: number;
+  totalCost: number;
+  totalUsers: number;
+  firstRecordDate: string | null;
+}
+
+export async function getLifetimeStats(): Promise<LifetimeStats> {
+  const result = await sql`
+    SELECT
+      COALESCE(SUM(input_tokens + cache_write_tokens + output_tokens), 0)::bigint as "totalTokens",
+      COALESCE(SUM(cost), 0)::float as "totalCost",
+      COUNT(DISTINCT CASE WHEN email != 'unknown' THEN email END)::int as "totalUsers",
+      MIN(date)::text as "firstRecordDate"
+    FROM usage_records
+  `;
+  return result.rows[0] as LifetimeStats;
+}
+
+export interface UserLifetimeStats {
+  totalTokens: number;
+  totalCost: number;
+  firstRecordDate: string | null;
+  favoriteTool: string | null;
+}
+
+export async function getUserLifetimeStats(email: string): Promise<UserLifetimeStats> {
+  const [statsResult, toolResult] = await Promise.all([
+    sql`
+      SELECT
+        COALESCE(SUM(input_tokens + cache_write_tokens + output_tokens), 0)::bigint as "totalTokens",
+        COALESCE(SUM(cost), 0)::float as "totalCost",
+        MIN(date)::text as "firstRecordDate"
+      FROM usage_records
+      WHERE email = ${email}
+    `,
+    sql`
+      SELECT tool, SUM(input_tokens + cache_write_tokens + output_tokens)::bigint as tokens
+      FROM usage_records
+      WHERE email = ${email}
+      GROUP BY tool
+      ORDER BY tokens DESC
+      LIMIT 1
+    `
+  ]);
+
+  return {
+    ...statsResult.rows[0],
+    favoriteTool: toolResult.rows[0]?.tool || null
+  } as UserLifetimeStats;
+}

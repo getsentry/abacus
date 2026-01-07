@@ -16,7 +16,7 @@ export const auth = betterAuth({
       clientId: process.env.GOOGLE_CLIENT_ID!,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
       // Restrict Google account picker to specified domain
-      hd: process.env.DOMAIN,
+      hd: process.env.NEXT_PUBLIC_DOMAIN,
     },
   },
 
@@ -40,10 +40,10 @@ export const auth = betterAuth({
     user: {
       create: {
         before: async (user) => {
-          const allowedDomain = process.env.DOMAIN;
+          const allowedDomain = process.env.NEXT_PUBLIC_DOMAIN;
           if (!allowedDomain) {
-            // DOMAIN not configured - reject all signups for safety
-            console.error('DOMAIN env var not set - rejecting signup');
+            // NEXT_PUBLIC_DOMAIN not configured - reject all signups for safety
+            console.error('NEXT_PUBLIC_DOMAIN env var not set - rejecting signup');
             return false;
           }
 

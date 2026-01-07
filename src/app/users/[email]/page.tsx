@@ -3,15 +3,15 @@
 import { useState, useEffect, useCallback, Suspense, useMemo } from 'react';
 import { useParams } from 'next/navigation';
 import { useTimeRange } from '@/contexts/TimeRangeContext';
-import { AppLink } from '@/components/AppLink';
 import { motion } from 'framer-motion';
 import { StatCard } from '@/components/StatCard';
 import { StackedBarChart } from '@/components/StackedBarChart';
 import { TimeRangeSelector } from '@/components/TimeRangeSelector';
 import { MainNav } from '@/components/MainNav';
 import { UserMenu } from '@/components/UserMenu';
+import { UserProfileHeader } from '@/components/UserProfileHeader';
 import { formatTokens, formatCurrency, formatDate, formatModelName } from '@/lib/utils';
-import { TimeRange } from '@/lib/dateUtils';
+import { DOMAIN } from '@/lib/constants';
 
 // Tool color palette - extensible for future tools
 const TOOL_COLORS: Record<string, { bg: string; text: string; gradient: string }> = {
@@ -78,6 +78,12 @@ interface UserDetails {
     firstActive: string;
     daysActive: number;
   };
+  lifetime: {
+    totalTokens: number;
+    totalCost: number;
+    firstRecordDate: string | null;
+    favoriteTool: string | null;
+  };
   modelBreakdown: {
     model: string;
     tokens: number;
@@ -110,8 +116,8 @@ function UserDetailContent() {
   // Show refreshing state when pending or loading with existing data
   const isRefreshing = isPending || (loading && data !== null);
 
-  // Get full email from loaded data, fallback to username for display during load
-  const email = data?.summary?.email || username;
+  // Get full email from loaded data, fallback to username@domain for display during load
+  const email = data?.summary?.email || (username.includes('@') ? username : DOMAIN ? `${username}@${DOMAIN}` : username);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -182,32 +188,17 @@ function UserDetailContent() {
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <MainNav days={days} />
           <div className="flex items-center gap-3">
-            <TimeRangeSelector value={range} onChange={setRange} isPending={isPending} />
-            <div className="w-px h-6 bg-white/10 mx-1" />
             <UserMenu />
           </div>
         </div>
       </header>
 
-      {/* User Breadcrumb */}
-      <div className="border-b border-white/5 px-4 sm:px-8 py-3">
-        <div className="flex items-center gap-2">
-          <AppLink
-            href="/users"
-            className="font-mono text-[10px] uppercase tracking-[0.2em] text-white/40 hover:text-white/60 transition-colors"
-          >
-            Users
-          </AppLink>
-          <span className="text-white/20">/</span>
-          <motion.span
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="font-mono text-[10px] uppercase tracking-[0.2em] text-amber-400"
-          >
-            {email}
-          </motion.span>
-        </div>
-      </div>
+      {/* User Profile Header */}
+      <UserProfileHeader
+        email={email}
+        lifetime={data?.lifetime || null}
+        days={days}
+      />
 
       {/* Main Content */}
       <main className={`relative z-10 p-4 sm:p-8 transition-opacity duration-300 ${
@@ -229,6 +220,11 @@ function UserDetailContent() {
           </div>
         ) : data?.summary ? (
           <div className="space-y-4 sm:space-y-6">
+            {/* Time Range Selector */}
+            <div className="flex items-center justify-end">
+              <TimeRangeSelector value={range} onChange={setRange} isPending={isPending} />
+            </div>
+
             {/* Stats Row */}
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
               <StatCard

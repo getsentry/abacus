@@ -10,9 +10,9 @@ import { SearchInput } from '@/components/SearchInput';
 import { TimeRangeSelector } from '@/components/TimeRangeSelector';
 import { MainNav } from '@/components/MainNav';
 import { UserMenu } from '@/components/UserMenu';
+import { LifetimeStats } from '@/components/LifetimeStats';
 import { formatTokens, formatCurrency } from '@/lib/utils';
 import { useTimeRange } from '@/contexts/TimeRangeContext';
-import { TimeRange } from '@/lib/dateUtils';
 
 interface Stats {
   totalTokens: number;
@@ -24,6 +24,13 @@ interface Stats {
     totalTokens: number;
     totalCost: number;
   };
+}
+
+interface LifetimeStatsData {
+  totalTokens: number;
+  totalCost: number;
+  totalUsers: number;
+  firstRecordDate: string | null;
 }
 
 interface UserSummary {
@@ -55,6 +62,7 @@ function DashboardContent() {
   const rangeLabel = getDisplayLabel();
 
   const [stats, setStats] = useState<Stats | null>(null);
+  const [lifetimeStats, setLifetimeStats] = useState<LifetimeStatsData | null>(null);
   const [users, setUsers] = useState<UserSummary[]>([]);
   const [trends, setTrends] = useState<DailyUsage[]>([]);
   const [models, setModels] = useState<ModelData[]>([]);
@@ -63,6 +71,14 @@ function DashboardContent() {
 
   // Show refreshing state when pending or loading with existing data
   const isRefreshing = isPending || (loading && stats !== null);
+
+  // Fetch lifetime stats once on mount
+  useEffect(() => {
+    fetch('/api/stats/lifetime')
+      .then(res => res.json())
+      .then(data => setLifetimeStats(data))
+      .catch(err => console.error('Failed to fetch lifetime stats:', err));
+  }, []);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -116,12 +132,19 @@ function DashboardContent() {
           <MainNav days={days} />
           <div className="flex items-center gap-3">
             <SearchInput days={days} placeholder="Search users..." />
-            <TimeRangeSelector value={range} onChange={setRange} isPending={isPending} />
-            <div className="w-px h-6 bg-white/10 mx-1" />
             <UserMenu />
           </div>
         </div>
       </header>
+
+      {/* Lifetime Stats Strip */}
+      {lifetimeStats && (
+        <LifetimeStats
+          totalCost={lifetimeStats.totalCost}
+          totalTokens={lifetimeStats.totalTokens}
+          firstRecordDate={lifetimeStats.firstRecordDate}
+        />
+      )}
 
       {/* Main Content */}
       <main className={`relative z-10 p-4 sm:p-8 transition-opacity duration-300 ${
@@ -141,22 +164,10 @@ function DashboardContent() {
           </div>
         ) : (
           <div className="space-y-4 sm:space-y-6">
-            {/* Unattributed Usage Alert */}
-            {stats.unattributed && stats.unattributed.totalTokens > 0 && (
-              <div className="rounded-lg border border-white/10 bg-white/[0.02] px-3 sm:px-4 py-3">
-                <div className="flex items-center gap-3">
-                  <span className="text-white/40 text-lg">⚠</span>
-                  <div>
-                    <p className="font-mono text-xs sm:text-sm text-white/60">
-                      {formatTokens(stats.unattributed.totalTokens)} unattributed tokens ({formatCurrency(stats.unattributed.totalCost)})
-                    </p>
-                    <p className="font-mono text-[10px] sm:text-xs text-white/40">
-                      Usage from API keys that aren't mapped to users
-                    </p>
-                  </div>
-                </div>
-              </div>
-            )}
+            {/* Time Range Selector */}
+            <div className="flex items-center justify-end">
+              <TimeRangeSelector value={range} onChange={setRange} isPending={isPending} />
+            </div>
 
             {/* Stats Grid */}
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">

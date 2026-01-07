@@ -42,7 +42,7 @@ Set these in Vercel project settings (Settings → Environment Variables):
 | `BETTER_AUTH_SECRET` | Yes | `openssl rand -base64 32` |
 | `GOOGLE_CLIENT_ID` | Yes | Google OAuth client ID |
 | `GOOGLE_CLIENT_SECRET` | Yes | Google OAuth client secret |
-| `DOMAIN` | Yes | Email domain to restrict access (e.g., `sentry.io`) |
+| `NEXT_PUBLIC_DOMAIN` | Yes | Email domain to restrict access (e.g., `sentry.io`) |
 | `CRON_SECRET` | Yes | `openssl rand -hex 32` - required for cron jobs |
 
 ### 4. Configure Providers (Optional)
@@ -227,7 +227,7 @@ POSTGRES_URL=postgres://...
 BETTER_AUTH_SECRET=generate-with-openssl-rand-base64-32
 GOOGLE_CLIENT_ID=your-google-client-id
 GOOGLE_CLIENT_SECRET=your-google-client-secret
-DOMAIN=yourcompany.com
+NEXT_PUBLIC_DOMAIN=yourcompany.com
 CRON_SECRET=generate-with-openssl-rand-hex-32
 
 # Optional: Add providers you want to use

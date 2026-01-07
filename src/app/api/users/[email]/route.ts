@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { wrapRouteHandlerWithSentry } from '@sentry/nextjs';
-import { getUserDetails, getUserDetailsExtended, resolveUserEmail } from '@/lib/queries';
+import { getUserDetails, getUserDetailsExtended, getUserLifetimeStats, resolveUserEmail } from '@/lib/queries';
 import { getSession } from '@/lib/auth';
 
 async function handler(
@@ -25,15 +25,18 @@ async function handler(
     return NextResponse.json({ error: 'User not found' }, { status: 404 });
   }
 
-  // Use extended query if date parameters are provided
-  const details = startDate && endDate
-    ? await getUserDetailsExtended(email, startDate, endDate)
-    : await getUserDetails(email);
+  // Use extended query if date parameters are provided, and always fetch lifetime stats
+  const [details, lifetime] = await Promise.all([
+    startDate && endDate
+      ? getUserDetailsExtended(email, startDate, endDate)
+      : getUserDetails(email),
+    getUserLifetimeStats(email),
+  ]);
 
   if (!details.summary) {
     return NextResponse.json({ error: 'User not found' }, { status: 404 });
   }
-  return NextResponse.json(details);
+  return NextResponse.json({ ...details, lifetime });
 }
 
 export const GET = wrapRouteHandlerWithSentry(handler, {

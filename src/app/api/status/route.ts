@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { wrapRouteHandlerWithSentry } from '@sentry/nextjs';
 import { getAnthropicSyncState, getAnthropicBackfillState } from '@/lib/sync/anthropic';
 import { getCursorSyncState, getCursorBackfillState } from '@/lib/sync/cursor';
+import { getUnattributedStats } from '@/lib/queries';
 import { getSession } from '@/lib/auth';
 
 const BACKFILL_TARGET_DATE = '2025-01-01';
@@ -127,9 +128,13 @@ async function handler() {
     );
   }
 
+  // Get unattributed usage stats
+  const unattributed = await getUnattributedStats();
+
   return NextResponse.json({
     providers,
     crons,
+    unattributed,
     // For backwards compatibility, also include at top level
     anthropic: providers.anthropic || null,
     cursor: providers.cursor || null
