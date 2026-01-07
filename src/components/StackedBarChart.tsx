@@ -16,9 +16,9 @@ interface StackedBarChartProps {
 }
 
 export function StackedBarChart({ data, height = 160, showLabels = true }: StackedBarChartProps) {
-  const maxValue = Math.max(...data.map(d => d.claudeCode + d.cursor), 1);
-  const claudeCodeTotal = data.reduce((sum, d) => sum + d.claudeCode, 0);
-  const cursorTotal = data.reduce((sum, d) => sum + d.cursor, 0);
+  const maxValue = Math.max(...data.map(d => Number(d.claudeCode) + Number(d.cursor)), 1);
+  const claudeCodeTotal = data.reduce((sum, d) => sum + Number(d.claudeCode), 0);
+  const cursorTotal = data.reduce((sum, d) => sum + Number(d.cursor), 0);
 
   // Determine label frequency based on data length
   const labelEvery = data.length > 60 ? 14 : data.length > 30 ? 7 : 1;
@@ -27,7 +27,7 @@ export function StackedBarChart({ data, height = 160, showLabels = true }: Stack
     <div className="w-full">
       <div className="mb-4 flex items-center justify-between">
         <h3 className="font-mono text-xs uppercase tracking-wider text-white/60">
-          Daily Token Usage
+          Daily Token Usage <span className="text-white/30">({data.length} days)</span>
         </h3>
         <div className="flex gap-4">
           <span className="font-mono text-xs text-amber-400">
@@ -39,16 +39,16 @@ export function StackedBarChart({ data, height = 160, showLabels = true }: Stack
         </div>
       </div>
 
-      <div className="flex items-end gap-px" style={{ height }}>
+      <div className="flex items-end gap-1" style={{ height }}>
         {data.map((item, i) => {
-          const total = item.claudeCode + item.cursor;
+          const total = Number(item.claudeCode) + Number(item.cursor);
           const totalHeight = (total / maxValue) * 100;
-          const claudeRatio = total > 0 ? item.claudeCode / total : 0;
+          const claudeRatio = total > 0 ? Number(item.claudeCode) / total : 0;
 
           return (
             <div
               key={item.date}
-              className="group relative flex-1 flex flex-col justify-end"
+              className="group relative flex-1 flex flex-col justify-end min-w-[4px]"
               style={{ height: '100%' }}
             >
               {/* Stacked bar */}
@@ -57,6 +57,7 @@ export function StackedBarChart({ data, height = 160, showLabels = true }: Stack
                 animate={{ height: `${totalHeight}%` }}
                 transition={{ duration: 0.6, delay: i * 0.02 }}
                 className="w-full flex flex-col overflow-hidden rounded-t"
+                style={{ minHeight: total > 0 ? '2px' : '0' }}
               >
                 {/* Claude Code (amber) - top portion */}
                 <div

@@ -107,13 +107,13 @@ export default function UsersPage() {
   // Calculate totals
   const totals = users.reduce(
     (acc, u) => ({
-      totalTokens: acc.totalTokens + u.totalTokens,
-      totalCost: acc.totalCost + u.totalCost,
-      claudeCodeTokens: acc.claudeCodeTokens + u.claudeCodeTokens,
-      cursorTokens: acc.cursorTokens + u.cursorTokens,
-      inputTokens: acc.inputTokens + u.inputTokens,
-      outputTokens: acc.outputTokens + u.outputTokens,
-      requestCount: acc.requestCount + u.requestCount,
+      totalTokens: acc.totalTokens + Number(u.totalTokens),
+      totalCost: acc.totalCost + Number(u.totalCost),
+      claudeCodeTokens: acc.claudeCodeTokens + Number(u.claudeCodeTokens),
+      cursorTokens: acc.cursorTokens + Number(u.cursorTokens),
+      inputTokens: acc.inputTokens + Number(u.inputTokens),
+      outputTokens: acc.outputTokens + Number(u.outputTokens),
+      requestCount: acc.requestCount + Number(u.requestCount),
     }),
     { totalTokens: 0, totalCost: 0, claudeCodeTokens: 0, cursorTokens: 0, inputTokens: 0, outputTokens: 0, requestCount: 0 }
   );
@@ -229,7 +229,7 @@ export default function UsersPage() {
                         >
                           {col.key === 'email' ? (
                             <span className="text-white hover:text-amber-400 transition-colors">
-                              {user.email.split('@')[0]}
+                              {user.email}
                             </span>
                           ) : col.key === 'claudeCodeTokens' ? (
                             <span className="text-amber-400/80">{col.format!(user[col.key] as number)}</span>

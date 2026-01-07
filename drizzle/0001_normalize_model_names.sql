@@ -69,3 +69,30 @@ WHERE model ~ '^[A-Z]';
 UPDATE usage_records
 SET model = 'sonnet-' || model
 WHERE model ~ '^\d+(\.\d+)?$' AND tool = 'cursor';
+--> statement-breakpoint
+
+-- Step 8: Handle claude-X-family-high-thinking patterns
+-- "claude-4.5-opus-high-thinking" → "opus-4.5 (HT)"
+UPDATE usage_records
+SET model = regexp_replace(model, '^claude-(\d+(?:\.\d+)?)-([a-z]+)-high-thinking$', '\2-\1 (HT)')
+WHERE model ~ '^claude-\d+(\.\d+)?-[a-z]+-high-thinking$';
+--> statement-breakpoint
+
+-- Step 9: Handle claude-X-family-thinking patterns
+-- "claude-4-sonnet-thinking" → "sonnet-4 (T)"
+UPDATE usage_records
+SET model = regexp_replace(model, '^claude-(\d+(?:\.\d+)?)-([a-z]+)-thinking$', '\2-\1 (T)')
+WHERE model ~ '^claude-\d+(\.\d+)?-[a-z]+-thinking$';
+--> statement-breakpoint
+
+-- Step 10: Handle claude-X-family patterns (version before family)
+-- "claude-4-sonnet" → "sonnet-4"
+UPDATE usage_records
+SET model = regexp_replace(model, '^claude-(\d+(?:\.\d+)?)-([a-z]+)$', '\2-\1')
+WHERE model ~ '^claude-\d+(\.\d+)?-[a-z]+$';
+--> statement-breakpoint
+
+-- Step 11: Normalize default/auto/unknown to magic string
+UPDATE usage_records
+SET model = '(default)'
+WHERE lower(model) IN ('default', 'auto', 'unknown', '');

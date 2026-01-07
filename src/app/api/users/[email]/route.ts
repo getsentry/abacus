@@ -1,21 +1,27 @@
 import { NextResponse } from 'next/server';
-import { getUserDetails, getUserDetailsExtended } from '@/lib/queries';
+import { getUserDetails, getUserDetailsExtended, resolveUserEmail } from '@/lib/queries';
 
 export async function GET(
   request: Request,
   { params }: { params: Promise<{ email: string }> }
 ) {
-  const { email } = await params;
+  const { email: usernameOrEmail } = await params;
   const { searchParams } = new URL(request.url);
   const days = searchParams.get('days');
 
   try {
-    const decodedEmail = decodeURIComponent(email);
+    const decoded = decodeURIComponent(usernameOrEmail);
+
+    // Resolve username to full email if needed
+    const email = await resolveUserEmail(decoded);
+    if (!email) {
+      return NextResponse.json({ error: 'User not found' }, { status: 404 });
+    }
 
     // Use extended query if days parameter is provided
     const details = days
-      ? await getUserDetailsExtended(decodedEmail, parseInt(days, 10))
-      : await getUserDetails(decodedEmail);
+      ? await getUserDetailsExtended(email, parseInt(days, 10))
+      : await getUserDetails(email);
 
     if (!details.summary) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });

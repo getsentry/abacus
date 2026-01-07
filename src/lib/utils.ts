@@ -1,3 +1,6 @@
+/** Magic string for unknown/default/auto model selections */
+export const MODEL_DEFAULT = '(default)';
+
 export function formatTokens(n: number | bigint | string): string {
   // Convert string (from PostgreSQL bigint) or BigInt to Number
   const num = typeof n === 'string' ? parseFloat(n) :
@@ -9,11 +12,9 @@ export function formatTokens(n: number | bigint | string): string {
   const absN = Math.abs(num);
   const sign = num < 0 ? '-' : '';
 
-  // For extremely large values (data corruption), show compact exponential
+  // For extremely large values, cap at quintillions
   if (absN >= 1e21) {
-    const exp = Math.floor(Math.log10(absN));
-    const mantissa = absN / Math.pow(10, exp);
-    return `${sign}${mantissa.toFixed(1)}e${exp}`;
+    return `${sign}999Qi+`;
   }
 
   if (absN >= 1e18) return `${sign}${(absN / 1e18).toFixed(1)}Qi`;   // Quintillion
@@ -64,6 +65,11 @@ export function normalizeModelName(model: string): string {
 
   let normalized = model.trim().toLowerCase();
 
+  // Normalize default/auto/unknown to standard magic string
+  if (['default', 'auto', 'unknown', ''].includes(normalized)) {
+    return MODEL_DEFAULT;
+  }
+
   // Extract suffix like (T) or (Thinking) if present
   const suffixMatch = normalized.match(/\s*\(([^)]+)\)\s*$/);
   let suffix = '';
@@ -103,6 +109,32 @@ export function normalizeModelName(model: string): string {
     match = normalized.match(/^(\d+)-(\d+)-([a-z]+)-\d{8}$/);
     if (match) {
       normalized = `${match[3]}-${match[1]}.${match[2]}`;
+    }
+  }
+
+  // "claude-4-sonnet-high-thinking" → "sonnet-4" with suffix HT
+  if (!match) {
+    match = normalized.match(/^claude-(\d+(?:\.\d+)?)-([a-z]+)-high-thinking$/);
+    if (match) {
+      normalized = `${match[2]}-${match[1]}`;
+      suffix = 'HT';
+    }
+  }
+
+  // "claude-4-sonnet-thinking" → "sonnet-4" with suffix T
+  if (!match) {
+    match = normalized.match(/^claude-(\d+(?:\.\d+)?)-([a-z]+)-thinking$/);
+    if (match) {
+      normalized = `${match[2]}-${match[1]}`;
+      suffix = 'T';
+    }
+  }
+
+  // "claude-4-sonnet" or "claude-4.5-opus" → "sonnet-4" or "opus-4.5"
+  if (!match) {
+    match = normalized.match(/^claude-(\d+(?:\.\d+)?)-([a-z]+)$/);
+    if (match) {
+      normalized = `${match[2]}-${match[1]}`;
     }
   }
 

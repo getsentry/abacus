@@ -14,9 +14,9 @@ interface UsageChartProps {
 }
 
 export function UsageChart({ data }: UsageChartProps) {
-  const maxValue = Math.max(...data.map(d => d.claudeCode + d.cursor), 1);
-  const claudeCodeTotal = data.reduce((sum, d) => sum + d.claudeCode, 0);
-  const cursorTotal = data.reduce((sum, d) => sum + d.cursor, 0);
+  const maxValue = Math.max(...data.map(d => Number(d.claudeCode) + Number(d.cursor)), 1);
+  const claudeCodeTotal = data.reduce((sum, d) => sum + Number(d.claudeCode), 0);
+  const cursorTotal = data.reduce((sum, d) => sum + Number(d.cursor), 0);
 
   return (
     <motion.div
@@ -41,27 +41,31 @@ export function UsageChart({ data }: UsageChartProps) {
 
       <div className="flex h-40 items-end gap-1">
         {data.map((item, i) => {
-          const claudeHeight = (item.claudeCode / maxValue) * 100;
-          const cursorHeight = (item.cursor / maxValue) * 100;
+          const claudeHeight = (Number(item.claudeCode) / maxValue) * 100;
+          const cursorHeight = (Number(item.cursor) / maxValue) * 100;
 
           return (
             <div key={item.date} className="group relative flex flex-1 flex-col items-center gap-0.5">
               <div className="flex w-full flex-col gap-0.5" style={{ height: '140px' }}>
                 <div className="flex-1 flex flex-col justify-end gap-0.5">
-                  <motion.div
-                    initial={{ height: 0 }}
-                    animate={{ height: `${claudeHeight}%` }}
-                    transition={{ duration: 0.8, delay: i * 0.05 }}
-                    className="w-full rounded-t bg-amber-500/80 min-h-[2px]"
-                    style={{ height: claudeHeight > 0 ? `${claudeHeight}%` : '0' }}
-                  />
-                  <motion.div
-                    initial={{ height: 0 }}
-                    animate={{ height: `${cursorHeight}%` }}
-                    transition={{ duration: 0.8, delay: i * 0.05 + 0.05 }}
-                    className="w-full rounded-b bg-cyan-500/80 min-h-[2px]"
-                    style={{ height: cursorHeight > 0 ? `${cursorHeight}%` : '0' }}
-                  />
+                  {claudeHeight > 0 && (
+                    <motion.div
+                      initial={{ height: 0 }}
+                      animate={{ height: `${claudeHeight}%` }}
+                      transition={{ duration: 0.8, delay: i * 0.05 }}
+                      className="w-full rounded-t bg-amber-500/80"
+                      style={{ minHeight: '2px' }}
+                    />
+                  )}
+                  {cursorHeight > 0 && (
+                    <motion.div
+                      initial={{ height: 0 }}
+                      animate={{ height: `${cursorHeight}%` }}
+                      transition={{ duration: 0.8, delay: i * 0.05 + 0.05 }}
+                      className="w-full rounded-b bg-cyan-500/80"
+                      style={{ minHeight: '2px' }}
+                    />
+                  )}
                 </div>
               </div>
               <span className="font-mono text-[8px] text-white/30">{formatDate(item.date)}</span>

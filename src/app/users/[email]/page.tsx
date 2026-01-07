@@ -44,19 +44,22 @@ interface UserDetails {
 
 export default function UserDetailPage() {
   const params = useParams();
-  const email = decodeURIComponent(params.email as string);
-  const username = email.split('@')[0];
+  // URL uses username (e.g., /users/david), API resolves to full email
+  const username = decodeURIComponent(params.email as string);
 
   const [data, setData] = useState<UserDetails | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [days, setDays] = useState(30);
 
+  // Get full email from loaded data, fallback to username for display during load
+  const email = data?.summary?.email || username;
+
   const fetchData = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`/api/users/${encodeURIComponent(email)}?days=${days}`);
+      const res = await fetch(`/api/users/${encodeURIComponent(username)}?days=${days}`);
       if (!res.ok) {
         const errData = await res.json();
         throw new Error(errData.error || `Error: ${res.status}`);
@@ -68,15 +71,15 @@ export default function UserDetailPage() {
     } finally {
       setLoading(false);
     }
-  }, [email, days]);
+  }, [username, days]);
 
   useEffect(() => {
     fetchData();
   }, [fetchData]);
 
-  const totalTokens = data?.summary?.totalTokens || 0;
-  const inputTokens = data?.summary?.inputTokens || 0;
-  const outputTokens = data?.summary?.outputTokens || 0;
+  const totalTokens = Number(data?.summary?.totalTokens || 0);
+  const inputTokens = Number(data?.summary?.inputTokens || 0);
+  const outputTokens = Number(data?.summary?.outputTokens || 0);
   const inputRatio = totalTokens > 0 ? (inputTokens / totalTokens) * 100 : 0;
   const outputRatio = totalTokens > 0 ? (outputTokens / totalTokens) * 100 : 0;
 
@@ -106,7 +109,7 @@ export default function UserDetailPage() {
                   animate={{ opacity: 1, x: 0 }}
                   className="font-display text-2xl font-medium tracking-tight"
                 >
-                  {username}
+                  {email}
                 </motion.h1>
                 <motion.p
                   initial={{ opacity: 0, x: -20 }}

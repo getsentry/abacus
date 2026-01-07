@@ -164,6 +164,12 @@ export default function Dashboard() {
             >
               All Users
             </Link>
+            <Link
+              href="/status"
+              className="rounded-lg border border-white/10 px-4 py-2 font-mono text-xs text-white/60 hover:bg-white/5 hover:text-white transition-colors"
+            >
+              Status
+            </Link>
             {isAdmin && (
               <Link
                 href="/settings"

@@ -82,10 +82,9 @@ export function UserDetailPanel({ email, onClose }: UserDetailPanelProps) {
             ) : user ? (
               <>
                 <div className="mb-6">
-                  <h2 className="font-display text-2xl text-white">{user.email.split('@')[0]}</h2>
-                  <p className="font-mono text-xs text-white/40">{user.email}</p>
+                  <h2 className="font-display text-2xl text-white">{user.email}</h2>
                   <Link
-                    href={`/users/${encodeURIComponent(user.email)}`}
+                    href={`/users/${encodeURIComponent(user.email.split('@')[0])}`}
                     className="mt-3 inline-flex items-center gap-1.5 font-mono text-xs text-amber-400 hover:text-amber-300 transition-colors"
                   >
                     View Full Details
@@ -153,8 +152,8 @@ export function UserDetailPanel({ email, onClose }: UserDetailPanelProps) {
                       <p className="mb-3 font-mono text-[10px] uppercase tracking-wider text-white/40">Recent Activity</p>
                       <div className="flex h-16 items-end gap-1">
                         {details.dailyUsage.slice(0, 14).reverse().map((d, i) => {
-                          const total = d.claudeCode + d.cursor;
-                          const maxDaily = Math.max(...details.dailyUsage.map(dd => dd.claudeCode + dd.cursor));
+                          const total = Number(d.claudeCode) + Number(d.cursor);
+                          const maxDaily = Math.max(...details.dailyUsage.map(dd => Number(dd.claudeCode) + Number(dd.cursor)));
                           const height = maxDaily > 0 ? (total / maxDaily) * 100 : 0;
                           return (
                             <div

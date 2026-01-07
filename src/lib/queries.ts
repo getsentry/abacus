@@ -385,6 +385,26 @@ export async function deleteApiKeyMapping(apiKey: string): Promise<void> {
   await sql`DELETE FROM api_key_mappings WHERE api_key = ${apiKey}`;
 }
 
+/**
+ * Resolve a username or email to a full email address.
+ * If input contains @, returns as-is. Otherwise looks up username@%.
+ */
+export async function resolveUserEmail(usernameOrEmail: string): Promise<string | null> {
+  // If it already looks like an email, return as-is
+  if (usernameOrEmail.includes('@')) {
+    return usernameOrEmail;
+  }
+
+  // Look up by username prefix
+  const result = await sql`
+    SELECT DISTINCT email FROM usage_records
+    WHERE email LIKE ${usernameOrEmail + '@%'}
+    LIMIT 1
+  `;
+
+  return result.rows[0]?.email || null;
+}
+
 export async function getKnownEmails(): Promise<string[]> {
 
   const result = await sql`
