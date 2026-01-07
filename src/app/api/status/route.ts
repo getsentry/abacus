@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getAnthropicSyncState, getAnthropicBackfillState } from '@/lib/sync/anthropic';
 import { getCursorSyncState, getCursorBackfillState } from '@/lib/sync/cursor';
+import { getSession } from '@/lib/auth';
 
 const BACKFILL_TARGET_DATE = '2025-01-01';
 
@@ -48,6 +49,11 @@ function calculateBackfillProgress(oldestDate: string | null, newestDate: string
 }
 
 export async function GET() {
+  const session = await getSession();
+  if (!session) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
   try {
     // Fetch all sync states in parallel
     const [

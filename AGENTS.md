@@ -1,5 +1,44 @@
 # Agent Instructions
 
+## Authentication & Security
+
+This app uses better-auth with Google OAuth, restricted to the `DOMAIN` environment variable (e.g., `sentry.io`).
+
+### Route Protection (Two Layers)
+
+1. **Proxy (optimistic)**: `src/proxy.ts` checks for session cookie on all routes
+2. **API routes (authoritative)**: Each API route MUST call `getSession()` to validate the session
+
+```tsx
+import { getSession } from '@/lib/auth';
+
+export async function GET() {
+  const session = await getSession();
+  if (!session) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+  // ... rest of handler
+}
+```
+
+### Public Routes
+
+Only these routes are accessible without authentication:
+- `/sign-in` - Login page
+- `/api/auth/*` - OAuth flow endpoints
+- `/api/cron/*` - Protected by `CRON_SECRET` instead
+
+### Adding New API Routes
+
+When creating new API routes, ALWAYS add session validation at the start of each handler (GET, POST, etc.):
+
+```tsx
+const session = await getSession();
+if (!session) {
+  return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+}
+```
+
 ## Internal Navigation
 
 Use `<AppLink>` for all internal links to automatically preserve the time range (days) parameter across navigation.
@@ -27,22 +66,16 @@ function MyComponent() {
 
 ## Database Migrations
 
-Drizzle migrations are in `/drizzle/`. The migration system has issues with the remote Vercel Postgres database, so run SQL directly:
+Migrations are SQL files in `/drizzle/` named with numeric prefixes (e.g., `0000_initial.sql`, `0001_add_feature.sql`).
+
+Migrations run automatically during `npm run build` (before Next.js build), so they're applied on every Vercel deploy.
 
 ```bash
-# Run SQL via CLI script
-npx tsx -e "
-import { config } from 'dotenv';
-config({ path: '.env.local' });
-import { sql } from '@vercel/postgres';
-
-async function run() {
-  const result = await sql\`YOUR SQL HERE\`;
-  console.log('Rows affected:', result.rowCount);
-}
-run().then(() => process.exit(0));
-"
+# Run migrations manually
+npm run cli db:migrate
 ```
+
+The CLI tracks applied migrations in a `_migrations` table to avoid re-running them.
 
 ## CLI Commands
 

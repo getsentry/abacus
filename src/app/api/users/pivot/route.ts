@@ -1,8 +1,14 @@
 import { NextResponse } from 'next/server';
 import { getAllUsersPivot } from '@/lib/queries';
 import { DEFAULT_DAYS } from '@/lib/constants';
+import { getSession } from '@/lib/auth';
 
 export async function GET(request: Request) {
+  const session = await getSession();
+  if (!session) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
   const { searchParams } = new URL(request.url);
   const sortBy = searchParams.get('sortBy') || 'totalTokens';
   const sortDir = (searchParams.get('sortDir') || 'desc') as 'asc' | 'desc';

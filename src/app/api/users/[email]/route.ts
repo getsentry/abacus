@@ -1,10 +1,16 @@
 import { NextResponse } from 'next/server';
 import { getUserDetails, getUserDetailsExtended, resolveUserEmail } from '@/lib/queries';
+import { getSession } from '@/lib/auth';
 
 export async function GET(
   request: Request,
   { params }: { params: Promise<{ email: string }> }
 ) {
+  const session = await getSession();
+  if (!session) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
   const { email: usernameOrEmail } = await params;
   const { searchParams } = new URL(request.url);
   const days = searchParams.get('days');

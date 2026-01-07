@@ -1,6 +1,7 @@
 {
   "mcpServers": {
     "Sentry": {
+      "type": "http",
       "url": "https://mcp.sentry.dev/mcp/sentry/ai-usage-tracker"
     }
   }

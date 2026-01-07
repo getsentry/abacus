@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useEffect, useCallback, Suspense } from 'react';
-import { useSearchParams, useRouter } from 'next/navigation';
 import { StatCard } from '@/components/StatCard';
 import { UsageChart } from '@/components/UsageChart';
 import { ModelBreakdown } from '@/components/ModelBreakdown';
@@ -11,7 +10,6 @@ import { SearchInput } from '@/components/SearchInput';
 import { TimeRangeSelector } from '@/components/TimeRangeSelector';
 import { MainNav } from '@/components/MainNav';
 import { ImportModal } from '@/components/ImportModal';
-import { AuthModal } from '@/components/AuthModal';
 import { formatTokens, formatCurrency } from '@/lib/utils';
 import { useTimeRange } from '@/contexts/TimeRangeContext';
 
@@ -52,8 +50,6 @@ interface ModelData {
 }
 
 function DashboardContent() {
-  const searchParams = useSearchParams();
-  const router = useRouter();
   const { days, setDays } = useTimeRange();
 
   const [stats, setStats] = useState<Stats | null>(null);
@@ -62,29 +58,7 @@ function DashboardContent() {
   const [models, setModels] = useState<ModelData[]>([]);
   const [selectedUser, setSelectedUser] = useState<string | null>(null);
   const [isImportOpen, setIsImportOpen] = useState(false);
-  const [isAuthOpen, setIsAuthOpen] = useState(false);
-  const [authRedirect, setAuthRedirect] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [isAdmin, setIsAdmin] = useState(false);
-
-  // Handle auth redirect from query params
-  useEffect(() => {
-    if (searchParams.get('auth') === 'required') {
-      setAuthRedirect(searchParams.get('redirect') || '/');
-      setIsAuthOpen(true);
-      router.replace('/', { scroll: false });
-    }
-  }, [searchParams, router]);
-
-  // Check auth status on mount
-  useEffect(() => {
-    fetch('/api/auth')
-      .then(res => res.json())
-      .then(data => {
-        setIsAdmin(!data.authEnabled || data.authenticated);
-      })
-      .catch(() => setIsAdmin(false));
-  }, []);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -125,18 +99,16 @@ function DashboardContent() {
       {/* Header */}
       <header className="relative z-10 border-b border-white/5 px-4 sm:px-8 py-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <MainNav days={days} isAdmin={isAdmin} />
+          <MainNav days={days} />
           <div className="flex items-center gap-3">
             <SearchInput days={days} placeholder="Search users..." />
             <TimeRangeSelector value={days} onChange={setDays} />
-            {isAdmin && (
-              <button
-                onClick={() => setIsImportOpen(true)}
-                className="rounded-lg bg-amber-500 px-3 py-2 font-mono text-xs text-black hover:bg-amber-400 transition-colors"
-              >
-                Import
-              </button>
-            )}
+            <button
+              onClick={() => setIsImportOpen(true)}
+              className="rounded-lg bg-amber-500 px-3 py-2 font-mono text-xs text-black hover:bg-amber-400 transition-colors"
+            >
+              Import
+            </button>
           </div>
         </div>
       </header>
@@ -152,16 +124,14 @@ function DashboardContent() {
             <div className="text-6xl mb-4">📊</div>
             <h2 className="font-display text-2xl text-white mb-2 text-center">No usage data yet</h2>
             <p className="font-mono text-sm text-white/40 mb-6 text-center">
-              {isAdmin ? 'Import a CSV export from Claude Code or Cursor to get started' : 'Usage data will appear here once synced'}
+              Import a CSV export from Claude Code or Cursor to get started
             </p>
-            {isAdmin && (
-              <button
-                onClick={() => setIsImportOpen(true)}
-                className="rounded-lg bg-amber-500 px-6 py-3 font-mono text-sm text-black hover:bg-amber-400 transition-colors"
-              >
-                Import Your First CSV
-              </button>
-            )}
+            <button
+              onClick={() => setIsImportOpen(true)}
+              className="rounded-lg bg-amber-500 px-6 py-3 font-mono text-sm text-black hover:bg-amber-400 transition-colors"
+            >
+              Import Your First CSV
+            </button>
           </div>
         ) : (
           <div className="space-y-4 sm:space-y-6">
@@ -234,17 +204,6 @@ function DashboardContent() {
         isOpen={isImportOpen}
         onClose={() => setIsImportOpen(false)}
         onImportComplete={fetchData}
-      />
-
-      {/* Auth Modal */}
-      <AuthModal
-        isOpen={isAuthOpen}
-        onClose={() => {
-          setIsAuthOpen(false);
-          setAuthRedirect(null);
-        }}
-        onSuccess={() => setIsAuthOpen(false)}
-        redirectPath={authRedirect || undefined}
       />
     </div>
   );

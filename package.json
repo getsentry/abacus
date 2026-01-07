@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "tsx scripts/cli.ts db:migrate && next build",
     "start": "next start",
     "lint": "eslint",
     "backfill": "tsx scripts/backfill.ts",
@@ -17,6 +17,7 @@
   "dependencies": {
     "@sentry/nextjs": "^10.32.1",
     "@vercel/postgres": "^0.10.0",
+    "better-auth": "^1.4.10",
     "dotenv": "^17.2.3",
     "drizzle-orm": "^0.45.1",
     "framer-motion": "^12.24.7",

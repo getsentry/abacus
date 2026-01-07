@@ -1,8 +1,14 @@
 import { NextResponse } from 'next/server';
 import { runFullSync, getSyncState, syncMappings } from '@/lib/sync';
+import { getSession } from '@/lib/auth';
 
 // Get sync status
 export async function GET() {
+  const session = await getSession();
+  if (!session) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
   try {
     const state = await getSyncState('main');
     return NextResponse.json({
@@ -18,8 +24,13 @@ export async function GET() {
   }
 }
 
-// Trigger manual sync (protected by middleware)
+// Trigger manual sync
 export async function POST(request: Request) {
+  const session = await getSession();
+  if (!session) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
   try {
     const body = await request.json().catch(() => ({}));
     const { startDate, endDate, includeMappings, mappingsOnly } = body;

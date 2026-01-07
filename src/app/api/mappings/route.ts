@@ -1,7 +1,13 @@
 import { NextResponse } from 'next/server';
-import { getApiKeyMappings, setApiKeyMapping, deleteApiKeyMapping, getUnmappedApiKeys, getKnownEmails, suggestEmailFromApiKey } from '@/lib/queries';
+import { getApiKeyMappings, setApiKeyMapping, deleteApiKeyMapping, getUnmappedApiKeys, getKnownEmails } from '@/lib/queries';
+import { getSession } from '@/lib/auth';
 
 export async function GET() {
+  const session = await getSession();
+  if (!session) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
   try {
     const [mappings, unmapped, knownEmails] = await Promise.all([
       getApiKeyMappings(),
@@ -9,15 +15,9 @@ export async function GET() {
       getKnownEmails()
     ]);
 
-    // Add suggestions to unmapped keys
-    const unmappedWithSuggestions = unmapped.map(item => ({
-      ...item,
-      suggested_email: suggestEmailFromApiKey(item.api_key)
-    }));
-
     return NextResponse.json({
       mappings,
-      unmapped: unmappedWithSuggestions,
+      unmapped,
       knownEmails
     });
   } catch (error) {
@@ -29,6 +29,11 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
+  const session = await getSession();
+  if (!session) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
   try {
     const { apiKey, email } = await request.json();
 
@@ -50,6 +55,11 @@ export async function POST(request: Request) {
 }
 
 export async function DELETE(request: Request) {
+  const session = await getSession();
+  if (!session) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
   try {
     const { apiKey } = await request.json();
 

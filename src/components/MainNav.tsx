@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { motion } from 'framer-motion';
+import { authClient } from '@/lib/auth-client';
 
 interface NavItem {
   label: string;
@@ -12,7 +13,6 @@ interface NavItem {
 
 interface MainNavProps {
   days: number;
-  isAdmin?: boolean;
 }
 
 const navItems: NavItem[] = [
@@ -21,7 +21,7 @@ const navItems: NavItem[] = [
   { label: 'Status', href: '/status', matchPaths: ['/status'] },
 ];
 
-export function MainNav({ days, isAdmin = false }: MainNavProps) {
+export function MainNav({ days }: MainNavProps) {
   const pathname = usePathname();
 
   const isActive = (item: NavItem) => {
@@ -39,7 +39,10 @@ export function MainNav({ days, isAdmin = false }: MainNavProps) {
     return item.href;
   };
 
-  const visibleItems = navItems;
+  const handleLogout = async () => {
+    await authClient.signOut();
+    window.location.href = '/sign-in';
+  };
 
   return (
     <nav className="flex items-center gap-8">
@@ -58,7 +61,7 @@ export function MainNav({ days, isAdmin = false }: MainNavProps) {
 
       {/* Nav Items */}
       <div className="flex items-center">
-        {visibleItems.map((item) => {
+        {navItems.map((item) => {
           const active = isActive(item);
           return (
             <Link
@@ -97,6 +100,17 @@ export function MainNav({ days, isAdmin = false }: MainNavProps) {
             </Link>
           );
         })}
+
+        {/* Logout button */}
+        <button
+          onClick={handleLogout}
+          className="relative px-4 py-2 group"
+        >
+          <span className="font-mono text-[11px] uppercase tracking-[0.15em] text-white/40 group-hover:text-white/70 transition-colors duration-200">
+            Sign Out
+          </span>
+          <div className="absolute bottom-0 left-4 right-4 h-px bg-white/0 group-hover:bg-white/10 transition-colors duration-200" />
+        </button>
       </div>
     </nav>
   );

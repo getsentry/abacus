@@ -1,60 +1,80 @@
-import { cookies } from 'next/headers';
+import { betterAuth } from 'better-auth';
+import { Pool } from '@neondatabase/serverless';
+import { headers } from 'next/headers';
 
-const AUTH_COOKIE = 'ai_tracker_auth';
-const COOKIE_MAX_AGE = 60 * 60 * 24 * 7; // 7 days
+// Create database pool for better-auth
+const pool = new Pool({
+  connectionString: process.env.POSTGRES_URL,
+});
 
-export function getAdminPassword(): string | undefined {
-  return process.env.ADMIN_PASSWORD;
+export const auth = betterAuth({
+  database: pool,
+  basePath: '/api/auth',
+
+  socialProviders: {
+    google: {
+      clientId: process.env.GOOGLE_CLIENT_ID!,
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
+      // Restrict Google account picker to specified domain
+      hd: process.env.DOMAIN,
+    },
+  },
+
+  session: {
+    expiresIn: 60 * 60 * 24 * 7, // 7 days
+    updateAge: 60 * 60 * 24, // Refresh if older than 1 day
+    cookieCache: {
+      enabled: true,
+      maxAge: 60 * 5, // 5 minute cache
+    },
+  },
+
+  advanced: {
+    cookiePrefix: 'ai_tracker',
+    useSecureCookies: process.env.NODE_ENV === 'production',
+  },
+
+  // Validate domain on user creation (server-side enforcement)
+  // The hd parameter only filters Google's UI - this enforces it
+  databaseHooks: {
+    user: {
+      create: {
+        before: async (user) => {
+          const allowedDomain = process.env.DOMAIN;
+          if (!allowedDomain) {
+            // DOMAIN not configured - reject all signups for safety
+            console.error('DOMAIN env var not set - rejecting signup');
+            return false;
+          }
+
+          const email = user.email;
+          if (!email) {
+            return false; // Reject users without email
+          }
+
+          const emailDomain = email.split('@')[1];
+          if (emailDomain !== allowedDomain) {
+            // Reject non-domain users
+            return false;
+          }
+        },
+      },
+    },
+  },
+});
+
+// Helper to get session in server components
+export async function getSession() {
+  return auth.api.getSession({
+    headers: await headers(),
+  });
 }
 
-export function isAuthEnabled(): boolean {
-  return !!getAdminPassword();
-}
-
-export async function isAuthenticated(): Promise<boolean> {
-  if (!isAuthEnabled()) {
-    return true; // No password set, allow all
+// Helper to require session (throws if not authenticated)
+export async function requireSession() {
+  const session = await getSession();
+  if (!session) {
+    throw new Error('Unauthorized');
   }
-
-  const cookieStore = await cookies();
-  const authCookie = cookieStore.get(AUTH_COOKIE);
-
-  if (!authCookie?.value) {
-    return false;
-  }
-
-  // Simple token validation - in production you'd want something more secure
-  return authCookie.value === generateAuthToken();
-}
-
-export function generateAuthToken(): string {
-  const password = getAdminPassword();
-  if (!password) return '';
-
-  // Simple hash - in production use crypto
-  return Buffer.from(password).toString('base64');
-}
-
-export function getAuthCookieConfig() {
-  return {
-    name: AUTH_COOKIE,
-    value: generateAuthToken(),
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'lax' as const,
-    maxAge: COOKIE_MAX_AGE,
-    path: '/',
-  };
-}
-
-export function getClearAuthCookieConfig() {
-  return {
-    name: AUTH_COOKIE,
-    value: '',
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'lax' as const,
-    maxAge: 0,
-    path: '/',
-  };
+  return session;
 }

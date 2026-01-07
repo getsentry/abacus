@@ -66,18 +66,6 @@ async function updateAnthropicSyncState(lastSyncedDate: string): Promise<void> {
   `;
 }
 
-function extractEmailFromApiKeyId(apiKeyId: string): string | null {
-  // Pattern: claude_code_key_{firstname.lastname}_{suffix}
-  // Only used as fallback when API key mapping doesn't exist
-  const emailDomain = process.env.DEFAULT_EMAIL_DOMAIN;
-  if (!emailDomain) return null;
-
-  const match = apiKeyId.match(/^claude_code_key_([a-z]+(?:\.[a-z]+)?)_[a-z]+$/i);
-  if (match) {
-    return `${match[1]}@${emailDomain}`;
-  }
-  return null;
-}
 
 // Get backfill state - derives oldest date from actual usage data
 export async function getAnthropicBackfillState(): Promise<{ oldestDate: string | null; isComplete: boolean }> {
@@ -196,12 +184,12 @@ export async function syncAnthropicUsage(
         for (const item of bucket.results) {
           if (!item.model) continue;
 
-          // Resolve email from API key
+          // Resolve email from API key mapping
           let email = 'unknown';
           const apiKeyId = item.api_key_id;
 
           if (apiKeyId) {
-            email = mappings.get(apiKeyId) || extractEmailFromApiKeyId(apiKeyId) || 'unknown';
+            email = mappings.get(apiKeyId) || 'unknown';
           }
 
           const inputTokens = item.uncached_input_tokens || 0;
