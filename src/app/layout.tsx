@@ -4,7 +4,7 @@ import { Providers } from "./providers";
 import { Footer } from "@/components/Footer";
 
 export const metadata: Metadata = {
-  title: "Excalibur",
+  title: "Abacus",
   description: "AI usage analytics for your team",
 };
 

@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { authClient } from '@/lib/auth-client';
-import { ExcaliburLogo } from '@/components/ExcaliburLogo';
+import { AbacusLogo } from '@/components/AbacusLogo';
 
 interface NavItem {
   label: string;
@@ -49,9 +49,9 @@ export function MainNav({ days }: MainNavProps) {
     <nav className="flex items-center gap-8">
       {/* App Title */}
       <Link href={`/?days=${days}`} className="flex items-center gap-2.5 group">
-        <ExcaliburLogo className="w-6 h-6 transition-transform duration-200 group-hover:scale-110" />
+        <AbacusLogo className="w-6 h-6 text-white/80 transition-all duration-200 group-hover:text-white group-hover:scale-105" />
         <span className="font-display text-lg font-medium tracking-tight text-white group-hover:text-white/90 transition-colors">
-          Excalibur
+          Abacus
         </span>
       </Link>
 

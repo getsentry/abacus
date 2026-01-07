@@ -3,7 +3,7 @@
 import { useSearchParams } from 'next/navigation';
 import { Suspense, useState } from 'react';
 import { authClient } from '@/lib/auth-client';
-import { ExcaliburLogo } from '@/components/ExcaliburLogo';
+import { AbacusLogo } from '@/components/AbacusLogo';
 
 function SignInContent() {
   const searchParams = useSearchParams();
@@ -25,30 +25,13 @@ function SignInContent() {
 
   return (
     <div className="min-h-screen bg-[#0a0a0f] text-white grid-bg flex items-center justify-center p-4 overflow-hidden">
-      {/* Ambient glow effects */}
-      <div className="fixed inset-0 pointer-events-none">
-        {/* Cyan sword glow */}
-        <div
-          className="absolute top-1/3 left-1/2 -translate-x-1/2 w-[500px] h-[700px] opacity-[0.06]"
-          style={{
-            background: 'radial-gradient(ellipse 40% 60%, #06b6d4 0%, transparent 70%)',
-          }}
-        />
-        {/* Purple accent glow */}
-        <div
-          className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[300px] h-[300px] opacity-[0.04]"
-          style={{
-            background: 'radial-gradient(circle, #8b5cf6 0%, transparent 70%)',
-          }}
-        />
-        {/* Gold pommel glow */}
-        <div
-          className="absolute bottom-1/4 left-1/2 -translate-x-1/2 w-[200px] h-[200px] opacity-[0.03]"
-          style={{
-            background: 'radial-gradient(circle, #f59e0b 0%, transparent 70%)',
-          }}
-        />
-      </div>
+      {/* Subtle ambient glow */}
+      <div
+        className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] pointer-events-none opacity-[0.03]"
+        style={{
+          background: 'radial-gradient(circle, #ffffff 0%, transparent 70%)',
+        }}
+      />
 
       <div className="relative z-10 w-full max-w-sm">
         {/* Branding */}
@@ -56,11 +39,11 @@ function SignInContent() {
           className="text-center mb-8 opacity-0"
           style={{ animation: 'slideUp 0.6s ease-out forwards' }}
         >
-          <div className="inline-flex items-center justify-center w-16 h-16 mb-4">
-            <ExcaliburLogo className="w-14 h-14 drop-shadow-lg" />
+          <div className="inline-flex items-center justify-center w-12 h-12 mb-2">
+            <AbacusLogo className="w-10 h-10 text-white" />
           </div>
           <h1 className="font-display text-2xl font-semibold text-white tracking-tight">
-            Excalibur
+            Abacus
           </h1>
           <p className="font-mono text-xs text-white/40 mt-1">
             AI usage analytics for your team
@@ -93,7 +76,7 @@ function SignInContent() {
           <button
             onClick={handleGoogleSignIn}
             disabled={loading}
-            className="group w-full flex items-center justify-center gap-3 rounded-lg bg-white px-4 py-3 font-mono text-sm text-gray-800 transition-all duration-200 hover:bg-gray-50 hover:shadow-lg hover:shadow-white/5 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="group w-full flex items-center justify-center gap-3 rounded-lg bg-white px-4 py-3 font-mono text-sm text-gray-800 cursor-pointer transition-all duration-200 hover:bg-gray-50 hover:shadow-lg hover:shadow-white/5 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {/* Colored Google logo */}
             <svg className="w-5 h-5 transition-transform duration-200 group-hover:scale-110" viewBox="0 0 24 24">

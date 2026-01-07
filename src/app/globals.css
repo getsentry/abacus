@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600&family=Inter:wght@300;400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600&family=Outfit:wght@300;400;500;600;700&display=swap');
 @import "tailwindcss";
 
 :root {
@@ -14,7 +14,7 @@
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --font-mono: 'JetBrains Mono', monospace;
-  --font-display: 'Inter', sans-serif;
+  --font-display: 'Outfit', sans-serif;
 }
 
 body {
@@ -44,7 +44,7 @@ body {
 
 /* Utility classes */
 .font-display {
-  font-family: 'Inter', sans-serif;
+  font-family: 'Outfit', sans-serif;
 }
 
 .font-mono {

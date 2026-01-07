@@ -150,7 +150,7 @@ async function main() {
   const options = parseArgs();
 
   console.log('='.repeat(60));
-  console.log('AI Usage Tracker - Full Historical Backfill');
+  console.log('Abacus - Full Historical Backfill');
   console.log('='.repeat(60));
   console.log(`Services: ${options.services.join(', ')}`);
   console.log(`Start month: ${options.startMonth || getCurrentMonth()} (current)`);

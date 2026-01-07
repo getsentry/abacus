@@ -1,6 +1,6 @@
 #!/usr/bin/env npx tsx
 /**
- * AI Usage Tracker CLI
+ * Abacus CLI
  *
  * Usage:
  *   npx tsx scripts/cli.ts <command> [options]
@@ -124,7 +124,7 @@ async function cmdDbMigrate() {
 
 function printHelp() {
   console.log(`
-AI Usage Tracker CLI
+Abacus CLI
 
 Usage:
   npx tsx scripts/cli.ts <command> [options]

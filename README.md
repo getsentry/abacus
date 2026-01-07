@@ -1,6 +1,6 @@
-# AI Usage Tracker
+# Abacus
 
-Track and analyze AI coding tool usage (Claude Code and Cursor) across your company.
+Track and analyze AI coding tool usage (Claude Code and Cursor) across your team.
 
 ## Features
 
