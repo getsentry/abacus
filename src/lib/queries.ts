@@ -41,56 +41,56 @@ export async function getOverallStats(startDate?: string, endDate?: string): Pro
   if (startDate && endDate) {
     result = await sql`
       SELECT
-        COALESCE(SUM(input_tokens + cache_write_tokens + output_tokens), 0)::int as "totalTokens",
+        COALESCE(SUM(input_tokens + cache_write_tokens + output_tokens), 0)::bigint as "totalTokens",
         COALESCE(SUM(cost), 0)::float as "totalCost",
-        COALESCE(SUM(input_tokens), 0)::int as "totalInputTokens",
-        COALESCE(SUM(output_tokens), 0)::int as "totalOutputTokens",
-        COALESCE(SUM(cache_read_tokens), 0)::int as "totalCacheReadTokens",
+        COALESCE(SUM(input_tokens), 0)::bigint as "totalInputTokens",
+        COALESCE(SUM(output_tokens), 0)::bigint as "totalOutputTokens",
+        COALESCE(SUM(cache_read_tokens), 0)::bigint as "totalCacheReadTokens",
         COUNT(DISTINCT email)::int as "activeUsers",
-        COALESCE(SUM(CASE WHEN tool = 'claude_code' THEN input_tokens + cache_write_tokens + output_tokens ELSE 0 END), 0)::int as "claudeCodeTokens",
-        COALESCE(SUM(CASE WHEN tool = 'cursor' THEN input_tokens + cache_write_tokens + output_tokens ELSE 0 END), 0)::int as "cursorTokens"
+        COALESCE(SUM(CASE WHEN tool = 'claude_code' THEN input_tokens + cache_write_tokens + output_tokens ELSE 0 END), 0)::bigint as "claudeCodeTokens",
+        COALESCE(SUM(CASE WHEN tool = 'cursor' THEN input_tokens + cache_write_tokens + output_tokens ELSE 0 END), 0)::bigint as "cursorTokens"
       FROM usage_records
       WHERE date >= ${startDate} AND date <= ${endDate}
     `;
   } else if (startDate) {
     result = await sql`
       SELECT
-        COALESCE(SUM(input_tokens + cache_write_tokens + output_tokens), 0)::int as "totalTokens",
+        COALESCE(SUM(input_tokens + cache_write_tokens + output_tokens), 0)::bigint as "totalTokens",
         COALESCE(SUM(cost), 0)::float as "totalCost",
-        COALESCE(SUM(input_tokens), 0)::int as "totalInputTokens",
-        COALESCE(SUM(output_tokens), 0)::int as "totalOutputTokens",
-        COALESCE(SUM(cache_read_tokens), 0)::int as "totalCacheReadTokens",
+        COALESCE(SUM(input_tokens), 0)::bigint as "totalInputTokens",
+        COALESCE(SUM(output_tokens), 0)::bigint as "totalOutputTokens",
+        COALESCE(SUM(cache_read_tokens), 0)::bigint as "totalCacheReadTokens",
         COUNT(DISTINCT email)::int as "activeUsers",
-        COALESCE(SUM(CASE WHEN tool = 'claude_code' THEN input_tokens + cache_write_tokens + output_tokens ELSE 0 END), 0)::int as "claudeCodeTokens",
-        COALESCE(SUM(CASE WHEN tool = 'cursor' THEN input_tokens + cache_write_tokens + output_tokens ELSE 0 END), 0)::int as "cursorTokens"
+        COALESCE(SUM(CASE WHEN tool = 'claude_code' THEN input_tokens + cache_write_tokens + output_tokens ELSE 0 END), 0)::bigint as "claudeCodeTokens",
+        COALESCE(SUM(CASE WHEN tool = 'cursor' THEN input_tokens + cache_write_tokens + output_tokens ELSE 0 END), 0)::bigint as "cursorTokens"
       FROM usage_records
       WHERE date >= ${startDate}
     `;
   } else if (endDate) {
     result = await sql`
       SELECT
-        COALESCE(SUM(input_tokens + cache_write_tokens + output_tokens), 0)::int as "totalTokens",
+        COALESCE(SUM(input_tokens + cache_write_tokens + output_tokens), 0)::bigint as "totalTokens",
         COALESCE(SUM(cost), 0)::float as "totalCost",
-        COALESCE(SUM(input_tokens), 0)::int as "totalInputTokens",
-        COALESCE(SUM(output_tokens), 0)::int as "totalOutputTokens",
-        COALESCE(SUM(cache_read_tokens), 0)::int as "totalCacheReadTokens",
+        COALESCE(SUM(input_tokens), 0)::bigint as "totalInputTokens",
+        COALESCE(SUM(output_tokens), 0)::bigint as "totalOutputTokens",
+        COALESCE(SUM(cache_read_tokens), 0)::bigint as "totalCacheReadTokens",
         COUNT(DISTINCT email)::int as "activeUsers",
-        COALESCE(SUM(CASE WHEN tool = 'claude_code' THEN input_tokens + cache_write_tokens + output_tokens ELSE 0 END), 0)::int as "claudeCodeTokens",
-        COALESCE(SUM(CASE WHEN tool = 'cursor' THEN input_tokens + cache_write_tokens + output_tokens ELSE 0 END), 0)::int as "cursorTokens"
+        COALESCE(SUM(CASE WHEN tool = 'claude_code' THEN input_tokens + cache_write_tokens + output_tokens ELSE 0 END), 0)::bigint as "claudeCodeTokens",
+        COALESCE(SUM(CASE WHEN tool = 'cursor' THEN input_tokens + cache_write_tokens + output_tokens ELSE 0 END), 0)::bigint as "cursorTokens"
       FROM usage_records
       WHERE date <= ${endDate}
     `;
   } else {
     result = await sql`
       SELECT
-        COALESCE(SUM(input_tokens + cache_write_tokens + output_tokens), 0)::int as "totalTokens",
+        COALESCE(SUM(input_tokens + cache_write_tokens + output_tokens), 0)::bigint as "totalTokens",
         COALESCE(SUM(cost), 0)::float as "totalCost",
-        COALESCE(SUM(input_tokens), 0)::int as "totalInputTokens",
-        COALESCE(SUM(output_tokens), 0)::int as "totalOutputTokens",
-        COALESCE(SUM(cache_read_tokens), 0)::int as "totalCacheReadTokens",
+        COALESCE(SUM(input_tokens), 0)::bigint as "totalInputTokens",
+        COALESCE(SUM(output_tokens), 0)::bigint as "totalOutputTokens",
+        COALESCE(SUM(cache_read_tokens), 0)::bigint as "totalCacheReadTokens",
         COUNT(DISTINCT email)::int as "activeUsers",
-        COALESCE(SUM(CASE WHEN tool = 'claude_code' THEN input_tokens + cache_write_tokens + output_tokens ELSE 0 END), 0)::int as "claudeCodeTokens",
-        COALESCE(SUM(CASE WHEN tool = 'cursor' THEN input_tokens + cache_write_tokens + output_tokens ELSE 0 END), 0)::int as "cursorTokens"
+        COALESCE(SUM(CASE WHEN tool = 'claude_code' THEN input_tokens + cache_write_tokens + output_tokens ELSE 0 END), 0)::bigint as "claudeCodeTokens",
+        COALESCE(SUM(CASE WHEN tool = 'cursor' THEN input_tokens + cache_write_tokens + output_tokens ELSE 0 END), 0)::bigint as "cursorTokens"
       FROM usage_records
     `;
   }
@@ -106,7 +106,7 @@ export interface UnattributedStats {
 export async function getUnattributedStats(): Promise<UnattributedStats> {
   const result = await sql`
     SELECT
-      COALESCE(SUM(input_tokens + cache_write_tokens + output_tokens), 0)::int as "totalTokens",
+      COALESCE(SUM(input_tokens + cache_write_tokens + output_tokens), 0)::bigint as "totalTokens",
       COALESCE(SUM(cost), 0)::float as "totalCost"
     FROM usage_records
     WHERE email = 'unknown'
@@ -122,10 +122,10 @@ export async function getUserSummaries(limit = 50, offset = 0, search?: string):
     ? await sql`
         SELECT
           email,
-          SUM(input_tokens + cache_write_tokens + output_tokens)::int as "totalTokens",
+          SUM(input_tokens + cache_write_tokens + output_tokens)::bigint as "totalTokens",
           SUM(cost)::float as "totalCost",
-          SUM(CASE WHEN tool = 'claude_code' THEN input_tokens + cache_write_tokens + output_tokens ELSE 0 END)::int as "claudeCodeTokens",
-          SUM(CASE WHEN tool = 'cursor' THEN input_tokens + cache_write_tokens + output_tokens ELSE 0 END)::int as "cursorTokens",
+          SUM(CASE WHEN tool = 'claude_code' THEN input_tokens + cache_write_tokens + output_tokens ELSE 0 END)::bigint as "claudeCodeTokens",
+          SUM(CASE WHEN tool = 'cursor' THEN input_tokens + cache_write_tokens + output_tokens ELSE 0 END)::bigint as "cursorTokens",
           MAX(date)::text as "lastActive"
         FROM usage_records
         WHERE email LIKE ${searchPattern} AND email != 'unknown'
@@ -136,10 +136,10 @@ export async function getUserSummaries(limit = 50, offset = 0, search?: string):
     : await sql`
         SELECT
           email,
-          SUM(input_tokens + cache_write_tokens + output_tokens)::int as "totalTokens",
+          SUM(input_tokens + cache_write_tokens + output_tokens)::bigint as "totalTokens",
           SUM(cost)::float as "totalCost",
-          SUM(CASE WHEN tool = 'claude_code' THEN input_tokens + cache_write_tokens + output_tokens ELSE 0 END)::int as "claudeCodeTokens",
-          SUM(CASE WHEN tool = 'cursor' THEN input_tokens + cache_write_tokens + output_tokens ELSE 0 END)::int as "cursorTokens",
+          SUM(CASE WHEN tool = 'claude_code' THEN input_tokens + cache_write_tokens + output_tokens ELSE 0 END)::bigint as "claudeCodeTokens",
+          SUM(CASE WHEN tool = 'cursor' THEN input_tokens + cache_write_tokens + output_tokens ELSE 0 END)::bigint as "cursorTokens",
           MAX(date)::text as "lastActive"
         FROM usage_records
         WHERE email != 'unknown'
@@ -154,7 +154,7 @@ export async function getUserSummaries(limit = 50, offset = 0, search?: string):
   const results: UserSummary[] = [];
   for (const user of users) {
     const modelResult = await sql`
-      SELECT model, SUM(input_tokens + cache_write_tokens + output_tokens)::int as tokens
+      SELECT model, SUM(input_tokens + cache_write_tokens + output_tokens)::bigint as tokens
       FROM usage_records
       WHERE email = ${user.email}
       GROUP BY model
@@ -176,10 +176,10 @@ export async function getUserDetails(email: string) {
   const summaryResult = await sql`
     SELECT
       email,
-      SUM(input_tokens + cache_write_tokens + output_tokens)::int as "totalTokens",
+      SUM(input_tokens + cache_write_tokens + output_tokens)::bigint as "totalTokens",
       SUM(cost)::float as "totalCost",
-      SUM(CASE WHEN tool = 'claude_code' THEN input_tokens + cache_write_tokens + output_tokens ELSE 0 END)::int as "claudeCodeTokens",
-      SUM(CASE WHEN tool = 'cursor' THEN input_tokens + cache_write_tokens + output_tokens ELSE 0 END)::int as "cursorTokens",
+      SUM(CASE WHEN tool = 'claude_code' THEN input_tokens + cache_write_tokens + output_tokens ELSE 0 END)::bigint as "claudeCodeTokens",
+      SUM(CASE WHEN tool = 'cursor' THEN input_tokens + cache_write_tokens + output_tokens ELSE 0 END)::bigint as "cursorTokens",
       MAX(date)::text as "lastActive",
       MIN(date)::text as "firstActive"
     FROM usage_records
@@ -190,7 +190,7 @@ export async function getUserDetails(email: string) {
   const modelResult = await sql`
     SELECT
       model,
-      SUM(input_tokens + cache_write_tokens + output_tokens)::int as tokens,
+      SUM(input_tokens + cache_write_tokens + output_tokens)::bigint as tokens,
       tool
     FROM usage_records
     WHERE email = ${email}
@@ -201,8 +201,8 @@ export async function getUserDetails(email: string) {
   const dailyResult = await sql`
     SELECT
       date::text,
-      SUM(CASE WHEN tool = 'claude_code' THEN input_tokens + cache_write_tokens + output_tokens ELSE 0 END)::int as "claudeCode",
-      SUM(CASE WHEN tool = 'cursor' THEN input_tokens + cache_write_tokens + output_tokens ELSE 0 END)::int as cursor
+      SUM(CASE WHEN tool = 'claude_code' THEN input_tokens + cache_write_tokens + output_tokens ELSE 0 END)::bigint as "claudeCode",
+      SUM(CASE WHEN tool = 'cursor' THEN input_tokens + cache_write_tokens + output_tokens ELSE 0 END)::bigint as cursor
     FROM usage_records
     WHERE email = ${email}
     GROUP BY date
@@ -222,7 +222,7 @@ export async function getModelBreakdown(): Promise<ModelBreakdown[]> {
   const result = await sql`
     SELECT
       model,
-      SUM(input_tokens + cache_write_tokens + output_tokens)::int as tokens,
+      SUM(input_tokens + cache_write_tokens + output_tokens)::bigint as tokens,
       tool
     FROM usage_records
     GROUP BY model, tool
@@ -244,8 +244,8 @@ export async function getDailyUsage(days = 14): Promise<DailyUsage[]> {
   const result = await sql`
     SELECT
       date::text,
-      SUM(CASE WHEN tool = 'claude_code' THEN input_tokens + cache_write_tokens + output_tokens ELSE 0 END)::int as "claudeCode",
-      SUM(CASE WHEN tool = 'cursor' THEN input_tokens + cache_write_tokens + output_tokens ELSE 0 END)::int as cursor
+      SUM(CASE WHEN tool = 'claude_code' THEN input_tokens + cache_write_tokens + output_tokens ELSE 0 END)::bigint as "claudeCode",
+      SUM(CASE WHEN tool = 'cursor' THEN input_tokens + cache_write_tokens + output_tokens ELSE 0 END)::bigint as cursor
     FROM usage_records
     WHERE date >= CURRENT_DATE - ${days}::int
     GROUP BY date
@@ -358,13 +358,13 @@ export async function getAllUsersPivot(
     ? await sql`
         SELECT
           email,
-          SUM(input_tokens + cache_write_tokens + output_tokens)::int as "totalTokens",
+          SUM(input_tokens + cache_write_tokens + output_tokens)::bigint as "totalTokens",
           SUM(cost)::float as "totalCost",
-          SUM(CASE WHEN tool = 'claude_code' THEN input_tokens + cache_write_tokens + output_tokens ELSE 0 END)::int as "claudeCodeTokens",
-          SUM(CASE WHEN tool = 'cursor' THEN input_tokens + cache_write_tokens + output_tokens ELSE 0 END)::int as "cursorTokens",
-          SUM(input_tokens)::int as "inputTokens",
-          SUM(output_tokens)::int as "outputTokens",
-          SUM(cache_read_tokens)::int as "cacheReadTokens",
+          SUM(CASE WHEN tool = 'claude_code' THEN input_tokens + cache_write_tokens + output_tokens ELSE 0 END)::bigint as "claudeCodeTokens",
+          SUM(CASE WHEN tool = 'cursor' THEN input_tokens + cache_write_tokens + output_tokens ELSE 0 END)::bigint as "cursorTokens",
+          SUM(input_tokens)::bigint as "inputTokens",
+          SUM(output_tokens)::bigint as "outputTokens",
+          SUM(cache_read_tokens)::bigint as "cacheReadTokens",
           COUNT(*)::int as "requestCount",
           MIN(date)::text as "firstActive",
           MAX(date)::text as "lastActive",
@@ -377,13 +377,13 @@ export async function getAllUsersPivot(
     : await sql`
         SELECT
           email,
-          SUM(input_tokens + cache_write_tokens + output_tokens)::int as "totalTokens",
+          SUM(input_tokens + cache_write_tokens + output_tokens)::bigint as "totalTokens",
           SUM(cost)::float as "totalCost",
-          SUM(CASE WHEN tool = 'claude_code' THEN input_tokens + cache_write_tokens + output_tokens ELSE 0 END)::int as "claudeCodeTokens",
-          SUM(CASE WHEN tool = 'cursor' THEN input_tokens + cache_write_tokens + output_tokens ELSE 0 END)::int as "cursorTokens",
-          SUM(input_tokens)::int as "inputTokens",
-          SUM(output_tokens)::int as "outputTokens",
-          SUM(cache_read_tokens)::int as "cacheReadTokens",
+          SUM(CASE WHEN tool = 'claude_code' THEN input_tokens + cache_write_tokens + output_tokens ELSE 0 END)::bigint as "claudeCodeTokens",
+          SUM(CASE WHEN tool = 'cursor' THEN input_tokens + cache_write_tokens + output_tokens ELSE 0 END)::bigint as "cursorTokens",
+          SUM(input_tokens)::bigint as "inputTokens",
+          SUM(output_tokens)::bigint as "outputTokens",
+          SUM(cache_read_tokens)::bigint as "cacheReadTokens",
           COUNT(*)::int as "requestCount",
           MIN(date)::text as "firstActive",
           MAX(date)::text as "lastActive",
