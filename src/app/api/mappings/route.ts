@@ -1,17 +1,20 @@
 import { NextResponse } from 'next/server';
 import { wrapRouteHandlerWithSentry } from '@sentry/nextjs';
-import { getApiKeyMappings, setApiKeyMapping, deleteApiKeyMapping, getUnmappedApiKeys, getKnownEmails } from '@/lib/queries';
+import { getToolIdentityMappings, setToolIdentityMapping, deleteToolIdentityMapping, getUnmappedToolRecords, getKnownEmails } from '@/lib/queries';
 import { getSession } from '@/lib/auth';
 
-async function getHandler() {
+async function getHandler(request: Request) {
   const session = await getSession();
   if (!session) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
+  const { searchParams } = new URL(request.url);
+  const tool = searchParams.get('tool') || undefined;
+
   const [mappings, unmapped, knownEmails] = await Promise.all([
-    getApiKeyMappings(),
-    getUnmappedApiKeys(),
+    getToolIdentityMappings(tool),
+    tool ? getUnmappedToolRecords(tool) : getUnmappedToolRecords('claude_code'),
     getKnownEmails()
   ]);
 
@@ -28,16 +31,16 @@ async function postHandler(request: Request) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const { apiKey, email } = await request.json();
+  const { tool, externalId, email } = await request.json();
 
-  if (!apiKey || !email) {
+  if (!tool || !externalId || !email) {
     return NextResponse.json(
-      { error: 'apiKey and email are required' },
+      { error: 'tool, externalId, and email are required' },
       { status: 400 }
     );
   }
 
-  await setApiKeyMapping(apiKey, email);
+  await setToolIdentityMapping(tool, externalId, email);
   return NextResponse.json({ success: true });
 }
 
@@ -47,13 +50,13 @@ async function deleteHandler(request: Request) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const { apiKey } = await request.json();
+  const { tool, externalId } = await request.json();
 
-  if (!apiKey) {
-    return NextResponse.json({ error: 'apiKey is required' }, { status: 400 });
+  if (!tool || !externalId) {
+    return NextResponse.json({ error: 'tool and externalId are required' }, { status: 400 });
   }
 
-  await deleteApiKeyMapping(apiKey);
+  await deleteToolIdentityMapping(tool, externalId);
   return NextResponse.json({ success: true });
 }
 

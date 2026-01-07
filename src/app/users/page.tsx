@@ -48,6 +48,7 @@ function UsersPageContent() {
   const initialSearch = searchParams.get('search') || '';
 
   const [users, setUsers] = useState<UserPivotData[]>([]);
+  const [totalCount, setTotalCount] = useState(0);
   const [loading, setLoading] = useState(true);
 
   // Show refreshing state when pending or loading with existing data
@@ -78,7 +79,14 @@ function UsersPageContent() {
       if (!res.ok) {
         throw new Error(data.error || `API error: ${res.status}`);
       }
-      setUsers(Array.isArray(data) ? data : []);
+      // Handle both old (array) and new ({ users, totalCount }) response formats
+      if (Array.isArray(data)) {
+        setUsers(data);
+        setTotalCount(data.length);
+      } else {
+        setUsers(data.users || []);
+        setTotalCount(data.totalCount || 0);
+      }
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to fetch users';
       console.error('Failed to fetch users:', err);
@@ -155,7 +163,9 @@ function UsersPageContent() {
       <div className="border-b border-white/5 px-4 sm:px-8 py-3">
         <div className="flex items-center justify-between">
           <h2 className="font-mono text-[10px] uppercase tracking-[0.2em] text-white/40">
-            {loading ? '\u00A0' : `${users.length} users`}
+            {loading ? '\u00A0' : totalCount > users.length
+              ? `${users.length} of ${totalCount} users (showing first ${users.length})`
+              : `${users.length} users`}
           </h2>
           <TimeRangeSelector value={range} onChange={setRange} isPending={isPending} />
         </div>

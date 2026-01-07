@@ -5,10 +5,12 @@
  * - GET /v1/organizations/users - Get all org users with emails
  * - GET /v1/organizations/api_keys - Get all API keys with creator IDs
  *
- * Cross-references to create api_key_id → email mappings
+ * Cross-references to create external_id → email mappings for the claude_code tool
  */
 
-import { setApiKeyMapping, getApiKeyMappings, getUnmappedApiKeys } from '../queries';
+import { setToolIdentityMapping, getToolIdentityMappings, getUnmappedToolRecords } from '../queries';
+
+const TOOL = 'claude_code';
 
 interface AnthropicUser {
   id: string;
@@ -158,8 +160,8 @@ export async function syncAnthropicApiKeyMappings(
     const apiKeys = [...activeKeys, ...archivedKeys];
 
     // Get existing mappings to avoid duplicates
-    const existingMappings = await getApiKeyMappings();
-    const existingSet = new Set(existingMappings.map(m => m.api_key));
+    const existingMappings = await getToolIdentityMappings(TOOL);
+    const existingSet = new Set(existingMappings.map(m => m.external_id));
 
     // Create mappings for each API key (already filtered to active keys)
     for (const apiKey of apiKeys) {
@@ -178,7 +180,7 @@ export async function syncAnthropicApiKeyMappings(
       }
 
       try {
-        await setApiKeyMapping(apiKey.id, creatorEmail);
+        await setToolIdentityMapping(TOOL, apiKey.id, creatorEmail);
         result.mappingsCreated++;
       } catch (err) {
         result.errors.push(`Failed to save mapping for ${apiKey.id}: ${err}`);
@@ -246,10 +248,10 @@ export async function syncApiKeyMappingsSmart(
 ): Promise<MappingResult> {
   const threshold = options.incrementalThreshold ?? 20;
 
-  // Check how many unmapped keys we have
-  const unmappedKeys = await getUnmappedApiKeys();
+  // Check how many unmapped records we have for claude_code
+  const unmappedRecords = await getUnmappedToolRecords(TOOL);
 
-  if (unmappedKeys.length === 0) {
+  if (unmappedRecords.length === 0) {
     return {
       success: true,
       mappingsCreated: 0,
@@ -260,8 +262,8 @@ export async function syncApiKeyMappingsSmart(
 
   // If we have few unmapped keys, do individual lookups (2 API calls per key)
   // If we have many, do full sync (2 paginated API calls total)
-  if (unmappedKeys.length <= threshold) {
-    return syncApiKeyMappingsIncremental(unmappedKeys.map(k => k.api_key));
+  if (unmappedRecords.length <= threshold) {
+    return syncApiKeyMappingsIncremental(unmappedRecords.map(k => k.tool_record_id));
   }
 
   return syncAnthropicApiKeyMappings();
@@ -348,7 +350,7 @@ async function syncApiKeyMappingsIncremental(apiKeyIds: string[]): Promise<Mappi
       }
 
       // Save the mapping (also updates usage_records)
-      await setApiKeyMapping(apiKeyId, email);
+      await setToolIdentityMapping(TOOL, apiKeyId, email);
       result.mappingsCreated++;
 
     } catch (err) {

@@ -86,7 +86,7 @@ export async function getCursorBackfillState(): Promise<{ oldestDate: string | n
   const stateResult = await sql`
     SELECT backfill_complete FROM sync_state WHERE id = ${SYNC_STATE_ID}
   `;
-  const isComplete = stateResult.rows[0]?.backfill_complete === 'true';
+  const isComplete = stateResult.rows[0]?.backfill_complete === true;
 
   return { oldestDate, isComplete };
 }
@@ -95,17 +95,17 @@ export async function getCursorBackfillState(): Promise<{ oldestDate: string | n
 async function markCursorBackfillComplete(): Promise<void> {
   await sql`
     INSERT INTO sync_state (id, last_sync_at, backfill_complete)
-    VALUES (${SYNC_STATE_ID}, NOW(), 'true')
+    VALUES (${SYNC_STATE_ID}, NOW(), true)
     ON CONFLICT (id) DO UPDATE SET
       last_sync_at = NOW(),
-      backfill_complete = 'true'
+      backfill_complete = true
   `;
 }
 
 // Reset backfill complete flag (allows backfill to retry)
 export async function resetCursorBackfillComplete(): Promise<void> {
   await sql`
-    UPDATE sync_state SET backfill_complete = NULL WHERE id = ${SYNC_STATE_ID}
+    UPDATE sync_state SET backfill_complete = false WHERE id = ${SYNC_STATE_ID}
   `;
 }
 

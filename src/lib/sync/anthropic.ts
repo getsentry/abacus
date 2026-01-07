@@ -1,4 +1,4 @@
-import { insertUsageRecord, getApiKeyMappings } from '../queries';
+import { insertUsageRecord, getToolIdentityMappings } from '../queries';
 import { calculateCost } from '../db';
 import { normalizeModelName } from '../utils';
 import { sql } from '@vercel/postgres';
@@ -79,7 +79,7 @@ export async function getAnthropicBackfillState(): Promise<{ oldestDate: string 
   const stateResult = await sql`
     SELECT backfill_complete FROM sync_state WHERE id = ${SYNC_STATE_ID}
   `;
-  const isComplete = stateResult.rows[0]?.backfill_complete === 'true';
+  const isComplete = stateResult.rows[0]?.backfill_complete === true;
 
   return { oldestDate, isComplete };
 }
@@ -88,17 +88,17 @@ export async function getAnthropicBackfillState(): Promise<{ oldestDate: string 
 async function markAnthropicBackfillComplete(): Promise<void> {
   await sql`
     INSERT INTO sync_state (id, last_sync_at, backfill_complete)
-    VALUES (${SYNC_STATE_ID}, NOW(), 'true')
+    VALUES (${SYNC_STATE_ID}, NOW(), true)
     ON CONFLICT (id) DO UPDATE SET
       last_sync_at = NOW(),
-      backfill_complete = 'true'
+      backfill_complete = true
   `;
 }
 
 // Reset backfill complete flag (allows backfill to retry)
 export async function resetAnthropicBackfillComplete(): Promise<void> {
   await sql`
-    UPDATE sync_state SET backfill_complete = NULL WHERE id = ${SYNC_STATE_ID}
+    UPDATE sync_state SET backfill_complete = false WHERE id = ${SYNC_STATE_ID}
   `;
 }
 
@@ -130,10 +130,10 @@ export async function syncAnthropicUsage(
     syncedRange: { startDate, endDate }
   };
 
-  // Get existing mappings
-  const mappingsArray = await getApiKeyMappings();
+  // Get existing mappings for claude_code
+  const mappingsArray = await getToolIdentityMappings('claude_code');
   const mappings = new Map<string, string>(
-    mappingsArray.map(m => [m.api_key, m.email])
+    mappingsArray.map(m => [m.external_id, m.email])
   );
 
   const bucketWidth = options.bucketWidth || '1d';
@@ -211,7 +211,7 @@ export async function syncAnthropicUsage(
               cacheReadTokens,
               outputTokens,
               cost,
-              rawApiKey: apiKeyId || undefined
+              toolRecordId: apiKeyId || undefined
             });
             result.recordsImported++;
           } catch (err) {

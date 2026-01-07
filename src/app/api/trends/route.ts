@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { wrapRouteHandlerWithSentry } from '@sentry/nextjs';
 import { getDailyUsage } from '@/lib/queries';
 import { getSession } from '@/lib/auth';
+import { isValidDateString } from '@/lib/utils';
 
 async function handler(request: Request) {
   const session = await getSession();
@@ -15,6 +16,14 @@ async function handler(request: Request) {
 
   if (!startDate || !endDate) {
     return NextResponse.json({ error: 'startDate and endDate are required' }, { status: 400 });
+  }
+
+  // Validate date parameters
+  if (!isValidDateString(startDate)) {
+    return NextResponse.json({ error: 'Invalid startDate format. Use YYYY-MM-DD.' }, { status: 400 });
+  }
+  if (!isValidDateString(endDate)) {
+    return NextResponse.json({ error: 'Invalid endDate format. Use YYYY-MM-DD.' }, { status: 400 });
   }
 
   const trends = await getDailyUsage(startDate, endDate);

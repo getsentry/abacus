@@ -53,6 +53,7 @@ Add credentials for the providers you want to use:
 |----------|----------|-------------|
 | `ANTHROPIC_ADMIN_KEY` | Claude Code | Anthropic Admin API key |
 | `CURSOR_ADMIN_KEY` | Cursor | Cursor Admin API key |
+| `NEXT_PUBLIC_SENTRY_DSN` | Sentry | Sentry DSN for error tracking (optional) |
 
 See [Provider Setup](#provider-setup) for detailed instructions.
 
@@ -233,6 +234,9 @@ CRON_SECRET=generate-with-openssl-rand-hex-32
 # Optional: Add providers you want to use
 ANTHROPIC_ADMIN_KEY=sk-admin-...
 CURSOR_ADMIN_KEY=...
+
+# Optional: Error tracking
+# NEXT_PUBLIC_SENTRY_DSN=https://...@....ingest.sentry.io/...
 EOF
 
 # Run migrations

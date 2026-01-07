@@ -1,6 +1,29 @@
 /** Magic string for unknown/default/auto model selections */
 export const MODEL_DEFAULT = '(default)';
 
+/**
+ * Escape special characters in a string for use in SQL LIKE patterns.
+ * Prevents users from injecting wildcards like % or _ to match unintended data.
+ */
+export function escapeLikePattern(input: string): string {
+  return input
+    .replace(/\\/g, '\\\\')  // Escape backslashes first
+    .replace(/%/g, '\\%')    // Escape percent signs
+    .replace(/_/g, '\\_');   // Escape underscores
+}
+
+/**
+ * Validate that a string is a valid ISO date (YYYY-MM-DD format).
+ * Returns true if valid, false otherwise.
+ */
+export function isValidDateString(dateStr: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+    return false;
+  }
+  const date = new Date(dateStr);
+  return !isNaN(date.getTime());
+}
+
 export function formatTokens(n: number | bigint | string): string {
   // Convert string (from PostgreSQL bigint) or BigInt to Number
   const num = typeof n === 'string' ? parseFloat(n) :

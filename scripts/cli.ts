@@ -23,7 +23,7 @@ config({ path: '.env.local' });
 import * as Sentry from '@sentry/nextjs';
 
 Sentry.init({
-  dsn: "https://1180c3a5b9edc0e8cf46287bc96615bb@o1.ingest.us.sentry.io/4510665763848192",
+  dsn: process.env.NEXT_PUBLIC_SENTRY_DSN,
   tracesSampleRate: 0,
   enableLogs: true,
 });
@@ -35,7 +35,7 @@ import { sql } from '@vercel/postgres';
 import { syncAnthropicUsage, getAnthropicSyncState, backfillAnthropicUsage } from '../src/lib/sync/anthropic';
 import { syncCursorUsage, backfillCursorUsage, getCursorSyncState, getPreviousCompleteHourEnd } from '../src/lib/sync/cursor';
 import { syncApiKeyMappingsSmart, syncAnthropicApiKeyMappings } from '../src/lib/sync/anthropic-mappings';
-import { getApiKeyMappings, setApiKeyMapping, getUnmappedApiKeys, getKnownEmails, insertUsageRecord } from '../src/lib/queries';
+import { getToolIdentityMappings, setToolIdentityMapping, getUnmappedToolRecords, getKnownEmails, insertUsageRecord } from '../src/lib/queries';
 import { normalizeModelName } from '../src/lib/utils';
 
 const rl = readline.createInterface({
@@ -97,11 +97,16 @@ async function cmdDbMigrate() {
     const filePath = path.join(migrationsDir, file);
     const content = fs.readFileSync(filePath, 'utf-8');
 
-    // Split by semicolons, filter empty statements
+    // Split by semicolons, strip comment lines, filter empty statements
     const statements = content
       .split(';')
-      .map(s => s.trim())
-      .filter(s => s.length > 0 && !s.startsWith('--'));
+      .map(s => s
+        .split('\n')
+        .filter(line => !line.trim().startsWith('--'))
+        .join('\n')
+        .trim()
+      )
+      .filter(s => s.length > 0);
 
     for (const stmt of statements) {
       try {
@@ -180,8 +185,8 @@ async function cmdStats() {
     console.log(`\nDate range: ${dateRange.rows[0].min_date} to ${dateRange.rows[0].max_date}`);
   }
 
-  const mappingsCount = await sql`SELECT COUNT(*) as count FROM api_key_mappings`;
-  console.log(`\nAPI key mappings: ${mappingsCount.rows[0].count}`);
+  const mappingsCount = await sql`SELECT COUNT(*) as count FROM tool_identity_mappings`;
+  console.log(`\nTool identity mappings: ${mappingsCount.rows[0].count}`);
 }
 
 async function cmdAnthropicStatus() {
@@ -237,14 +242,14 @@ async function cmdCursorStatus() {
 }
 
 async function cmdMappings() {
-  console.log('🔑 API Key Mappings\n');
-  const mappings = await getApiKeyMappings();
+  console.log('🔑 Tool Identity Mappings\n');
+  const mappings = await getToolIdentityMappings();
   if (mappings.length === 0) {
     console.log('No mappings found. Run `mappings:sync` to sync from Anthropic.');
     return;
   }
   for (const m of mappings) {
-    console.log(`  ${m.api_key} → ${m.email}`);
+    console.log(`  [${m.tool}] ${m.external_id} → ${m.email}`);
   }
 }
 
@@ -261,20 +266,22 @@ async function cmdMappingsSync(full: boolean = false) {
 }
 
 async function cmdMappingsFix() {
-  console.log('🔧 Fix Unmapped API Keys\n');
+  console.log('🔧 Fix Unmapped Tool Records\n');
 
-  const unmapped = await getUnmappedApiKeys();
+  // Currently only claude_code uses tool_record_id for identity mapping
+  const tool = 'claude_code';
+  const unmapped = await getUnmappedToolRecords(tool);
   if (unmapped.length === 0) {
-    console.log('No unmapped API keys found!');
+    console.log('No unmapped tool records found!');
     return;
   }
 
   const knownEmails = await getKnownEmails();
-  console.log(`Found ${unmapped.length} unmapped API keys.\n`);
+  console.log(`Found ${unmapped.length} unmapped ${tool} records.\n`);
   console.log('Known emails:', knownEmails.join(', '), '\n');
 
   for (const item of unmapped) {
-    console.log(`\nAPI Key: ${item.api_key}`);
+    console.log(`\nTool Record ID: ${item.tool_record_id}`);
     console.log(`Used in: ${item.usage_count} records`);
 
     const email = await prompt('Enter email (or skip/quit): ');
@@ -288,8 +295,8 @@ async function cmdMappingsFix() {
       continue;
     }
 
-    await setApiKeyMapping(item.api_key, email);
-    console.log(`✓ Mapped ${item.api_key} → ${email}`);
+    await setToolIdentityMapping(tool, item.tool_record_id, email);
+    console.log(`✓ Mapped [${tool}] ${item.tool_record_id} → ${email}`);
   }
 
   console.log('\nDone!');
@@ -550,6 +557,7 @@ async function cmdImportCursorCsv(filePath: string) {
       } else {
         errors++;
         process.stdout.write('E');
+        console.error(`\nError inserting ${key}:`, err);
       }
     }
   }

@@ -456,7 +456,7 @@ export async function getKnownEmails(): Promise<string[]> {
     SELECT DISTINCT email FROM (
       SELECT email FROM usage_records WHERE tool = 'cursor' AND email != 'unknown'
       UNION
-      SELECT email FROM api_key_mappings
+      SELECT email FROM tool_identity_mappings
       UNION
       SELECT email FROM usage_records WHERE email LIKE '%@%' AND email != 'unknown'
     ) AS combined

@@ -2,6 +2,15 @@ import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { getSessionCookie } from 'better-auth/cookies';
 
+/**
+ * Next.js 16 Proxy (formerly Middleware)
+ *
+ * In Next.js 16, middleware.ts was renamed to proxy.ts to clarify its role
+ * as a network boundary layer. This file must be named proxy.ts and export
+ * a function named `proxy`.
+ *
+ * @see https://nextjs.org/docs/app/api-reference/file-conventions/proxy
+ */
 export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
