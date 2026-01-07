@@ -2,6 +2,7 @@
 
 import { motion } from 'framer-motion';
 import { AppLink } from '@/components/AppLink';
+import { PageContainer } from '@/components/PageContainer';
 import { formatTokens, formatCurrency } from '@/lib/utils';
 
 interface UserProfileHeaderProps {
@@ -49,7 +50,7 @@ function formatSinceDate(dateStr: string | null): string {
 export function UserProfileHeader({ email, lifetime, days }: UserProfileHeaderProps) {
   return (
     <div className="border-b border-white/5 bg-gradient-to-b from-white/[0.02] to-transparent">
-      <div className="px-4 sm:px-8 py-6 sm:py-8">
+      <PageContainer className="py-6 sm:py-8">
         {/* Back Link */}
         <motion.div
           initial={{ opacity: 0, x: -10 }}
@@ -159,7 +160,7 @@ export function UserProfileHeader({ email, lifetime, days }: UserProfileHeaderPr
             )}
           </motion.div>
         )}
-      </div>
+      </PageContainer>
     </div>
   );
 }

@@ -45,7 +45,7 @@ export function UserTable({ users, days = DEFAULT_DAYS }: UserTableProps) {
     >
       <div className="mb-4 flex items-center justify-between">
         <h3 className="font-mono text-xs uppercase tracking-wider text-white/60">
-          Top Users
+          Top Users <span className="text-white/30">({days}d)</span>
         </h3>
         <Link
           href={`/users?days=${days}`}

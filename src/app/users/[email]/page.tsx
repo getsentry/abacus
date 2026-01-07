@@ -12,6 +12,7 @@ import { UserMenu } from '@/components/UserMenu';
 import { UserProfileHeader } from '@/components/UserProfileHeader';
 import { AdoptionBadge } from '@/components/AdoptionBadge';
 import { TipBar } from '@/components/TipBar';
+import { PageContainer } from '@/components/PageContainer';
 import { formatTokens, formatCurrency, formatDate, formatModelName } from '@/lib/utils';
 import { DOMAIN } from '@/lib/constants';
 import {
@@ -236,13 +237,15 @@ function UserDetailContent() {
       )}
 
       {/* Header */}
-      <header className="relative z-20 border-b border-white/5 px-4 sm:px-8 py-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <MainNav days={days} />
-          <div className="flex items-center gap-3">
-            <UserMenu />
+      <header className="relative z-20 border-b border-white/5">
+        <PageContainer className="py-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <MainNav days={days} />
+            <div className="flex items-center gap-3">
+              <UserMenu />
+            </div>
           </div>
-        </div>
+        </PageContainer>
       </header>
 
       <TipBar />
@@ -255,9 +258,10 @@ function UserDetailContent() {
       />
 
       {/* Main Content */}
-      <main className={`relative z-10 p-4 sm:p-8 transition-opacity duration-300 ${
+      <main className={`relative z-10 py-4 sm:py-8 transition-opacity duration-300 ${
         isRefreshing ? 'opacity-60' : 'opacity-100'
       }`}>
+        <PageContainer>
         {loading && !data ? (
           <div className="flex h-64 items-center justify-center">
             <div className="flex flex-col items-center gap-3">
@@ -631,6 +635,7 @@ function UserDetailContent() {
             <div className="font-mono text-sm text-white/40">No data found for this user</div>
           </div>
         )}
+        </PageContainer>
       </main>
     </div>
   );

@@ -8,6 +8,7 @@ import { AppLink } from '@/components/AppLink';
 import { MainNav } from '@/components/MainNav';
 import { UserMenu } from '@/components/UserMenu';
 import { TipBar } from '@/components/TipBar';
+import { PageContainer } from '@/components/PageContainer';
 import { useTimeRange } from '@/contexts/TimeRangeContext';
 import { getGuide } from '@/lib/tips';
 import ReactMarkdown from 'react-markdown';
@@ -41,11 +42,13 @@ function GuideContent() {
     return (
       <div className="min-h-screen bg-[#0a0a0f] text-white">
         {/* Header */}
-        <header className="relative z-20 border-b border-white/5 px-4 sm:px-8 py-4">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <MainNav days={days} />
-            <UserMenu />
-          </div>
+        <header className="relative z-20 border-b border-white/5">
+          <PageContainer className="py-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <MainNav days={days} />
+              <UserMenu />
+            </div>
+          </PageContainer>
         </header>
 
         <TipBar />
@@ -73,17 +76,20 @@ function GuideContent() {
       <div className="fixed inset-0 bg-gradient-to-b from-amber-500/[0.02] via-transparent to-transparent pointer-events-none" />
 
       {/* Header */}
-      <header className="relative z-20 border-b border-white/5 px-4 sm:px-8 py-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <MainNav days={days} />
-          <UserMenu />
-        </div>
+      <header className="relative z-20 border-b border-white/5">
+        <PageContainer className="py-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <MainNav days={days} />
+            <UserMenu />
+          </div>
+        </PageContainer>
       </header>
 
       <TipBar />
 
       {/* Content */}
-      <main className="relative px-4 sm:px-8 py-8 sm:py-12">
+      <main className="relative py-8 sm:py-12">
+        <PageContainer>
         <div className="max-w-2xl mx-auto">
         {/* Back Link */}
         <motion.div
@@ -235,6 +241,7 @@ function GuideContent() {
           </article>
         </motion.div>
         </div>
+        </PageContainer>
       </main>
     </div>
   );

@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Lightbulb, ArrowRight } from 'lucide-react';
 import { AppLink } from './AppLink';
+import { PageContainer } from './PageContainer';
 import { getRandomTip, type Tip } from '@/lib/tips';
 
 export function TipBar() {
@@ -20,7 +21,7 @@ export function TipBar() {
   const hasGuide = !!tip.guide;
   const hasExternalUrl = !!tip.externalUrl && !tip.guide;
 
-  // Wrapper for clickable tips
+  // Shared tip content
   const TipContent = () => (
     <>
       {/* Indicator */}
@@ -43,23 +44,28 @@ export function TipBar() {
     </>
   );
 
+  const wrapperClasses = "border-b border-white/5 bg-gradient-to-r from-amber-500/[0.03] via-transparent to-transparent";
+  const contentClasses = "py-2 flex items-center gap-3";
+
   if (hasGuide) {
     return (
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ duration: 0.3 }}
-        className="border-b border-white/5 bg-gradient-to-r from-amber-500/[0.03] via-transparent to-transparent"
+        className={wrapperClasses}
       >
         <AppLink
           href={`/tips/${tip.guide}`}
           skipDays
-          className="px-4 sm:px-8 py-2 flex items-center gap-3 group cursor-pointer
+          className="block group cursor-pointer
             [&_.tip-text]:text-white/40 [&_.tip-text]:group-hover:text-white/60
             [&_.tip-action]:text-amber-500/40 [&_.tip-action]:group-hover:text-amber-400
             transition-colors"
         >
-          <TipContent />
+          <PageContainer className={contentClasses}>
+            <TipContent />
+          </PageContainer>
         </AppLink>
       </motion.div>
     );
@@ -71,18 +77,20 @@ export function TipBar() {
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ duration: 0.3 }}
-        className="border-b border-white/5 bg-gradient-to-r from-amber-500/[0.03] via-transparent to-transparent"
+        className={wrapperClasses}
       >
         <a
           href={tip.externalUrl}
           target="_blank"
           rel="noopener noreferrer"
-          className="px-4 sm:px-8 py-2 flex items-center gap-3 group cursor-pointer
+          className="block group cursor-pointer
             [&_.tip-text]:text-white/40 [&_.tip-text]:group-hover:text-white/60
             [&_.tip-action]:text-amber-500/40 [&_.tip-action]:group-hover:text-amber-400
             transition-colors"
         >
-          <TipContent />
+          <PageContainer className={contentClasses}>
+            <TipContent />
+          </PageContainer>
         </a>
       </motion.div>
     );
@@ -94,11 +102,11 @@ export function TipBar() {
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       transition={{ duration: 0.3 }}
-      className="border-b border-white/5 bg-gradient-to-r from-amber-500/[0.03] via-transparent to-transparent"
+      className={wrapperClasses}
     >
-      <div className="px-4 sm:px-8 py-2 flex items-center gap-3 [&_.tip-text]:text-white/40">
+      <PageContainer className={`${contentClasses} [&_.tip-text]:text-white/40`}>
         <TipContent />
-      </div>
+      </PageContainer>
     </motion.div>
   );
 }

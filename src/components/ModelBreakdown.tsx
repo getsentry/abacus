@@ -12,6 +12,7 @@ interface ModelData {
 
 interface ModelBreakdownProps {
   data: ModelData[];
+  days?: number;
 }
 
 function getModelColor(model: string, tool: string): string {
@@ -39,7 +40,7 @@ function formatModelName(model: string): string {
     .replace('-thinking', ' (T)');
 }
 
-export function ModelBreakdown({ data }: ModelBreakdownProps) {
+export function ModelBreakdown({ data, days }: ModelBreakdownProps) {
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -48,7 +49,7 @@ export function ModelBreakdown({ data }: ModelBreakdownProps) {
       className="rounded-lg border border-white/5 bg-white/[0.02] p-6 h-full"
     >
       <h3 className="mb-4 font-mono text-xs uppercase tracking-wider text-white/60">
-        Model Distribution
+        Model Distribution {days && <span className="text-white/30">({days}d)</span>}
       </h3>
       <div className="space-y-3">
         {data.slice(0, 6).map((m, i) => (

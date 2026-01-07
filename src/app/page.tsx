@@ -12,6 +12,7 @@ import { MainNav } from '@/components/MainNav';
 import { UserMenu } from '@/components/UserMenu';
 import { LifetimeStats } from '@/components/LifetimeStats';
 import { AdoptionDistribution } from '@/components/AdoptionDistribution';
+import { PageContainer } from '@/components/PageContainer';
 import { formatTokens, formatCurrency } from '@/lib/utils';
 import { useTimeRange } from '@/contexts/TimeRangeContext';
 import { type AdoptionStage } from '@/lib/adoption';
@@ -140,14 +141,16 @@ function DashboardContent() {
       )}
 
       {/* Header */}
-      <header className="relative z-20 border-b border-white/5 px-4 sm:px-8 py-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <MainNav days={days} />
-          <div className="flex items-center gap-3">
-            <SearchInput days={days} placeholder="Search users..." />
-            <UserMenu />
+      <header className="relative z-20 border-b border-white/5">
+        <PageContainer className="py-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <MainNav days={days} />
+            <div className="flex items-center gap-3">
+              <SearchInput days={days} placeholder="Search users..." />
+              <UserMenu />
+            </div>
           </div>
-        </div>
+        </PageContainer>
       </header>
 
       <TipBar />
@@ -162,9 +165,10 @@ function DashboardContent() {
       )}
 
       {/* Main Content */}
-      <main className={`relative z-10 p-4 sm:p-8 transition-opacity duration-300 ${
+      <main className={`relative z-10 py-4 sm:py-8 transition-opacity duration-300 ${
         isRefreshing ? 'opacity-60' : 'opacity-100'
       }`}>
+        <PageContainer>
         {loading && !stats ? (
           <div className="flex h-64 items-center justify-center">
             <div className="font-mono text-sm text-white/40">Loading...</div>
@@ -220,21 +224,23 @@ function DashboardContent() {
               <AdoptionDistribution
                 stages={adoptionData.stages}
                 totalUsers={adoptionData.totalUsers}
+                days={days}
               />
             )}
 
             {/* Charts Row */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
               <div className="lg:col-span-2">
-                <UsageChart data={trends} />
+                <UsageChart data={trends} days={days} />
               </div>
-              <ModelBreakdown data={models} />
+              <ModelBreakdown data={models} days={days} />
             </div>
 
             {/* Users Table */}
             <UserTable users={users} days={days} />
           </div>
         )}
+        </PageContainer>
       </main>
     </div>
   );

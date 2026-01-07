@@ -15,6 +15,7 @@ interface AdoptionDistributionProps {
   stages: Record<AdoptionStage, StageData>;
   totalUsers: number;
   className?: string;
+  days?: number;
 }
 
 const STAGE_ICONS = {
@@ -35,6 +36,7 @@ export function AdoptionDistribution({
   stages,
   totalUsers,
   className = '',
+  days,
 }: AdoptionDistributionProps) {
   const [hoveredStage, setHoveredStage] = useState<AdoptionStage | null>(null);
 
@@ -63,7 +65,7 @@ export function AdoptionDistribution({
     >
       <div className="flex items-center justify-between mb-3">
         <p className="font-mono text-[10px] uppercase tracking-wider text-white/40">
-          Adoption Distribution
+          Adoption Distribution {days && <span className="text-white/20">({days}d)</span>}
         </p>
         <AppLink
           href="/adoption"

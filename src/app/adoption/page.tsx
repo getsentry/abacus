@@ -3,7 +3,8 @@
 import { useState, useEffect, useCallback, useMemo, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { motion } from 'framer-motion';
-import { Compass, Flame, Zap, Star, Users, TrendingUp, Pause } from 'lucide-react';
+import { Compass, Flame, Zap, Star, Users, TrendingUp, Target } from 'lucide-react';
+import { StatCard } from '@/components/StatCard';
 import { MainNav } from '@/components/MainNav';
 import { UserMenu } from '@/components/UserMenu';
 import { TimeRangeSelector } from '@/components/TimeRangeSelector';
@@ -11,9 +12,10 @@ import { AdoptionFunnel } from '@/components/AdoptionFunnel';
 import { AdoptionBadge } from '@/components/AdoptionBadge';
 import { UserLink } from '@/components/UserLink';
 import { TipBar } from '@/components/TipBar';
+import { PageContainer } from '@/components/PageContainer';
 import { useTimeRange } from '@/contexts/TimeRangeContext';
 import { formatTokens } from '@/lib/utils';
-import { type AdoptionStage, STAGE_CONFIG, STAGE_ORDER, isInactive, INACTIVE_CONFIG } from '@/lib/adoption';
+import { type AdoptionStage, STAGE_CONFIG, STAGE_ORDER, isInactive } from '@/lib/adoption';
 
 interface AdoptionSummary {
   stages: Record<AdoptionStage, { count: number; percentage: number; users: string[] }>;
@@ -137,32 +139,37 @@ function AdoptionPageContent() {
       )}
 
       {/* Header */}
-      <header className="relative z-20 border-b border-white/5 px-4 sm:px-8 py-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <MainNav days={days} />
-          <UserMenu />
-        </div>
+      <header className="relative z-20 border-b border-white/5">
+        <PageContainer className="py-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <MainNav days={days} />
+            <UserMenu />
+          </div>
+        </PageContainer>
       </header>
 
       <TipBar />
 
       {/* Page Title with Time Range Selector */}
-      <div className="border-b border-white/5 px-4 sm:px-8 py-4">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="font-display text-2xl text-white">Adoption Overview</h1>
-            <p className="font-mono text-xs text-white/40 mt-1">
-              Track team progress across AI tool adoption stages
-            </p>
+      <div className="border-b border-white/5">
+        <PageContainer className="py-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="font-display text-2xl text-white">Adoption Overview</h1>
+              <p className="font-mono text-xs text-white/40 mt-1">
+                Track team progress across AI tool adoption stages
+              </p>
+            </div>
+            <TimeRangeSelector value={range} onChange={setRange} isPending={isPending} />
           </div>
-          <TimeRangeSelector value={range} onChange={setRange} isPending={isPending} />
-        </div>
+        </PageContainer>
       </div>
 
       {/* Main Content */}
-      <main className={`relative z-10 p-4 sm:p-8 transition-opacity duration-300 ${
+      <main className={`relative z-10 py-4 sm:py-8 transition-opacity duration-300 ${
         isRefreshing ? 'opacity-60' : 'opacity-100'
       }`}>
+        <PageContainer>
         {loading && !summary ? (
           <div className="flex h-64 items-center justify-center">
             <div className="font-mono text-sm text-white/40">Loading adoption data...</div>
@@ -177,87 +184,74 @@ function AdoptionPageContent() {
         ) : summary && (
           <div className="space-y-6">
             {/* Stats Cards */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="grid gap-4 md:grid-cols-3"
-            >
+            <div className="grid gap-4 md:grid-cols-3">
               {/* Average Score Card */}
-              <div className="relative overflow-hidden rounded-lg border border-white/5 bg-white/[0.02] p-5">
-                <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-bl from-emerald-500/5 to-transparent" />
-                <div className="relative">
-                  <div className="flex items-center gap-2 mb-3">
-                    <TrendingUp className="w-4 h-4 text-emerald-400" />
-                    <p className="font-mono text-[10px] uppercase tracking-wider text-white/40">
-                      Avg Adoption Score
-                    </p>
-                  </div>
-                  <div className="flex items-baseline gap-2">
-                    <span className="font-display text-4xl text-white">{summary.avgScore}</span>
-                    <span className="font-mono text-sm text-white/30">/100</span>
-                  </div>
-                  {/* Score bar */}
-                  <div className="mt-3 h-1.5 rounded-full bg-white/5 overflow-hidden">
-                    <motion.div
-                      initial={{ width: 0 }}
-                      animate={{ width: `${summary.avgScore}%` }}
-                      transition={{ duration: 0.8, ease: 'easeOut' }}
-                      className="h-full rounded-full bg-gradient-to-r from-slate-500 via-amber-500 via-cyan-500 to-emerald-500"
-                    />
-                  </div>
+              <StatCard
+                label="Avg Adoption Score"
+                days={days}
+                value={summary.avgScore.toString()}
+                suffix="/100"
+                icon={TrendingUp}
+                accentColor="#10b981"
+                delay={0}
+              >
+                <div className="h-1.5 rounded-full bg-white/5 overflow-hidden">
+                  <motion.div
+                    initial={{ width: 0 }}
+                    animate={{ width: `${summary.avgScore}%` }}
+                    transition={{ duration: 0.8, ease: 'easeOut' }}
+                    className="h-full rounded-full bg-gradient-to-r from-slate-500 via-amber-500 via-cyan-500 to-emerald-500"
+                  />
                 </div>
-              </div>
+              </StatCard>
 
-              {/* Users by Stage Card */}
-              <div className="relative overflow-hidden rounded-lg border border-white/5 bg-white/[0.02] p-5">
-                <div className="relative">
-                  <div className="flex items-center gap-2 mb-3">
-                    <Users className="w-4 h-4 text-cyan-400" />
-                    <p className="font-mono text-[10px] uppercase tracking-wider text-white/40">
-                      Users by Stage
-                    </p>
-                  </div>
-                  <div className="flex items-baseline gap-2 mb-3">
-                    <span className="font-display text-4xl text-white">{summary.totalUsers}</span>
-                    <span className="font-mono text-sm text-white/30">total</span>
-                  </div>
-                  {/* Mini stage breakdown */}
-                  <div className="flex gap-3">
-                    {STAGE_ORDER.map(stage => {
-                      const Icon = STAGE_ICONS[stage];
-                      const count = summary.stages[stage]?.count || 0;
-                      const config = STAGE_CONFIG[stage];
-                      return (
-                        <div key={stage} className="flex items-center gap-1">
-                          <Icon className={`w-3 h-3 ${config.textColor}`} />
-                          <span className={`font-mono text-xs ${config.textColor}`}>{count}</span>
-                        </div>
-                      );
-                    })}
-                  </div>
+              {/* Active Users Card */}
+              <StatCard
+                label="Active Users"
+                days={days}
+                value={summary.activeUsers.toString()}
+                suffix="users"
+                icon={Users}
+                accentColor="#06b6d4"
+                delay={0.1}
+              >
+                <div className="flex gap-3">
+                  {STAGE_ORDER.map(stage => {
+                    const Icon = STAGE_ICONS[stage];
+                    const count = summary.stages[stage]?.count || 0;
+                    const config = STAGE_CONFIG[stage];
+                    return (
+                      <div key={stage} className="flex items-center gap-1">
+                        <Icon className={`w-3 h-3 ${config.textColor}`} />
+                        <span className={`font-mono text-xs ${config.textColor}`}>{count}</span>
+                      </div>
+                    );
+                  })}
                 </div>
-              </div>
+              </StatCard>
 
-              {/* Inactive Users Card */}
-              <div className="relative overflow-hidden rounded-lg border border-white/5 bg-white/[0.02] p-5">
-                <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-bl from-zinc-500/5 to-transparent" />
-                <div className="relative">
-                  <div className="flex items-center gap-2 mb-3">
-                    <Pause className="w-4 h-4 text-zinc-400" />
-                    <p className="font-mono text-[10px] uppercase tracking-wider text-white/40">
-                      Inactive
-                    </p>
-                  </div>
-                  <div className="flex items-baseline gap-2">
-                    <span className="font-display text-4xl text-white">{summary.inactive.count}</span>
-                    <span className="font-mono text-sm text-white/30">users</span>
-                  </div>
-                  <p className="font-mono text-[10px] text-white/30 mt-2">
-                    {INACTIVE_CONFIG.thresholdDays}+ days with no activity
-                  </p>
-                </div>
-              </div>
-            </motion.div>
+              {/* Productive Users Card */}
+              {(() => {
+                const inFlowCount = summary.stages.in_flow?.count || 0;
+                const powerUserCount = summary.stages.power_user?.count || 0;
+                const productiveCount = inFlowCount + powerUserCount;
+                const productivePercent = summary.activeUsers > 0
+                  ? Math.round((productiveCount / summary.activeUsers) * 100)
+                  : 0;
+                return (
+                  <StatCard
+                    label="Productive"
+                    days={days}
+                    value={`${productivePercent}%`}
+                    suffix="of active users"
+                    subValue={`${productiveCount} users in flow or power user stage`}
+                    icon={Target}
+                    accentColor="#06b6d4"
+                    delay={0.2}
+                  />
+                );
+              })()}
+            </div>
 
             {/* Funnel Visualization */}
             <motion.div
@@ -354,6 +348,7 @@ function AdoptionPageContent() {
             </div>
           </div>
         )}
+        </PageContainer>
       </main>
     </div>
   );

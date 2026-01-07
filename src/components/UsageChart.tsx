@@ -12,9 +12,10 @@ interface DailyUsage {
 
 interface UsageChartProps {
   data: DailyUsage[];
+  days?: number;
 }
 
-export function UsageChart({ data }: UsageChartProps) {
+export function UsageChart({ data, days }: UsageChartProps) {
   const maxValue = Math.max(...data.map(d => Number(d.claudeCode) + Number(d.cursor)), 1);
   const claudeCodeTotal = data.reduce((sum, d) => sum + Number(d.claudeCode), 0);
   const cursorTotal = data.reduce((sum, d) => sum + Number(d.cursor), 0);
@@ -32,7 +33,7 @@ export function UsageChart({ data }: UsageChartProps) {
     >
       <div className="mb-4 flex items-center justify-between">
         <h3 className="font-mono text-xs uppercase tracking-wider text-white/60">
-          Daily Usage
+          Daily Usage {days && <span className="text-white/30">({days}d)</span>}
         </h3>
         <div className="flex gap-4">
           <span className="font-mono text-xs text-amber-400">

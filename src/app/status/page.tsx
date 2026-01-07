@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { MainNav } from '@/components/MainNav';
 import { UserMenu } from '@/components/UserMenu';
+import { PageContainer } from '@/components/PageContainer';
 import { DEFAULT_DAYS } from '@/lib/constants';
 import { formatTokens, formatCurrency } from '@/lib/utils';
 
@@ -165,28 +166,33 @@ export default function StatusPage() {
   return (
     <div className="min-h-screen bg-[#0a0a0f] text-white grid-bg">
       {/* Header */}
-      <header className="relative z-20 border-b border-white/5 px-4 sm:px-8 py-4">
-        <div className="flex items-center justify-between">
-          <MainNav days={DEFAULT_DAYS} />
-          <UserMenu />
-        </div>
+      <header className="relative z-20 border-b border-white/5">
+        <PageContainer className="py-4">
+          <div className="flex items-center justify-between">
+            <MainNav days={DEFAULT_DAYS} />
+            <UserMenu />
+          </div>
+        </PageContainer>
       </header>
 
       {/* Page Title */}
-      <div className="border-b border-white/5 px-4 sm:px-8 py-3">
-        <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-white/40">
-          Provider sync status
-        </p>
+      <div className="border-b border-white/5">
+        <PageContainer className="py-3">
+          <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-white/40">
+            Provider sync status
+          </p>
+        </PageContainer>
       </div>
 
       {/* Content */}
-      <main className="p-8">
+      <main className="py-8">
+        <PageContainer>
         {loading ? (
           <div className="text-white/40 text-center py-12 font-mono">Loading...</div>
         ) : error ? (
           <div className="text-red-400 text-center py-12 font-mono">{error}</div>
         ) : data ? (
-          <div className="max-w-4xl mx-auto space-y-8">
+          <div className="space-y-8">
             {/* Unattributed Usage Alert */}
             {data.unattributed && data.unattributed.totalTokens > 0 && (
               <motion.div
@@ -298,6 +304,7 @@ export default function StatusPage() {
             )}
           </div>
         ) : null}
+        </PageContainer>
       </main>
     </div>
   );

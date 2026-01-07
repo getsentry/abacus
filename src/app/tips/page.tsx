@@ -7,6 +7,7 @@ import { AppLink } from '@/components/AppLink';
 import { MainNav } from '@/components/MainNav';
 import { UserMenu } from '@/components/UserMenu';
 import { TipBar } from '@/components/TipBar';
+import { PageContainer } from '@/components/PageContainer';
 import { useTimeRange } from '@/contexts/TimeRangeContext';
 import { GUIDES } from '@/lib/tips';
 
@@ -69,18 +70,20 @@ function TipsIndexContent() {
       <div className="fixed inset-0 bg-gradient-to-br from-amber-500/[0.02] via-transparent to-cyan-500/[0.02] pointer-events-none" />
 
       {/* Header */}
-      <header className="relative z-20 border-b border-white/5 px-4 sm:px-8 py-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <MainNav days={days} />
-          <UserMenu />
-        </div>
+      <header className="relative z-20 border-b border-white/5">
+        <PageContainer className="py-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <MainNav days={days} />
+            <UserMenu />
+          </div>
+        </PageContainer>
       </header>
 
       <TipBar />
 
       {/* Main Content */}
-      <main className="relative z-10 p-4 sm:p-8">
-        <div className="max-w-5xl mx-auto">
+      <main className="relative z-10 py-4 sm:py-8">
+        <PageContainer>
           {/* Page Header */}
           <motion.div
             initial={{ opacity: 0, y: 10 }}
@@ -175,7 +178,7 @@ function TipsIndexContent() {
             </motion.section>
           ))}
           </div>
-        </div>
+        </PageContainer>
       </main>
     </div>
   );

@@ -10,6 +10,7 @@ import { UserMenu } from '@/components/UserMenu';
 import { AdoptionBadge } from '@/components/AdoptionBadge';
 import { UserLink } from '@/components/UserLink';
 import { TipBar } from '@/components/TipBar';
+import { PageContainer } from '@/components/PageContainer';
 import { formatTokens, formatCurrency } from '@/lib/utils';
 import { useTimeRange } from '@/contexts/TimeRangeContext';
 import { type AdoptionStage, isInactive } from '@/lib/adoption';
@@ -149,59 +150,66 @@ function UsersPageContent() {
       )}
 
       {/* Header */}
-      <header className="relative z-20 border-b border-white/5 px-4 sm:px-8 py-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <MainNav days={days} />
-          <div className="flex items-center gap-3">
-            <InlineSearchInput
-              value={searchQuery}
-              onChange={setSearchQuery}
-              placeholder="Filter users..."
-            />
-            <UserMenu />
+      <header className="relative z-20 border-b border-white/5">
+        <PageContainer className="py-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <MainNav days={days} />
+            <div className="flex items-center gap-3">
+              <InlineSearchInput
+                value={searchQuery}
+                onChange={setSearchQuery}
+                placeholder="Filter users..."
+              />
+              <UserMenu />
+            </div>
           </div>
-        </div>
+        </PageContainer>
       </header>
 
       <TipBar />
 
       {/* Page Title with Time Range Selector */}
-      <div className="border-b border-white/5 px-4 sm:px-8 py-3">
-        <div className="flex items-center justify-between">
-          <h2 className="font-mono text-[10px] uppercase tracking-[0.2em] text-white/40">
-            {loading ? '\u00A0' : totalCount > users.length
-              ? `${users.length} of ${totalCount} users (showing first ${users.length})`
-              : `${users.length} users`}
-          </h2>
-          <TimeRangeSelector value={range} onChange={setRange} isPending={isPending} />
-        </div>
+      <div className="border-b border-white/5">
+        <PageContainer className="py-3">
+          <div className="flex items-center justify-between">
+            <h2 className="font-mono text-[10px] uppercase tracking-[0.2em] text-white/40">
+              {loading ? '\u00A0' : totalCount > users.length
+                ? `${users.length} of ${totalCount} users (showing first ${users.length})`
+                : `${users.length} users`}
+            </h2>
+            <TimeRangeSelector value={range} onChange={setRange} isPending={isPending} />
+          </div>
+        </PageContainer>
       </div>
 
       {/* Column Selector */}
-      <div className="border-b border-white/5 px-4 sm:px-8 py-3 overflow-x-auto">
-        <div className="flex items-center gap-2 flex-nowrap sm:flex-wrap min-w-max sm:min-w-0">
-          <span className="font-mono text-[10px] uppercase tracking-wider text-white/40 mr-2">Columns:</span>
-          {columns.map(col => (
-            <button
-              key={col.key}
-              onClick={() => toggleColumn(col.key)}
-              disabled={col.key === 'email'}
-              className={`px-2 py-1 rounded font-mono text-[10px] transition-colors whitespace-nowrap ${
-                visibleColumns.has(col.key)
-                  ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
-                  : 'bg-white/5 text-white/40 border border-white/10 hover:bg-white/10'
-              } ${col.key === 'email' ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
-            >
-              {col.label}
-            </button>
-          ))}
-        </div>
+      <div className="border-b border-white/5 overflow-x-auto">
+        <PageContainer className="py-3">
+          <div className="flex items-center gap-2 flex-nowrap sm:flex-wrap min-w-max sm:min-w-0">
+            <span className="font-mono text-[10px] uppercase tracking-wider text-white/40 mr-2">Columns:</span>
+            {columns.map(col => (
+              <button
+                key={col.key}
+                onClick={() => toggleColumn(col.key)}
+                disabled={col.key === 'email'}
+                className={`px-2 py-1 rounded font-mono text-[10px] transition-colors whitespace-nowrap ${
+                  visibleColumns.has(col.key)
+                    ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
+                    : 'bg-white/5 text-white/40 border border-white/10 hover:bg-white/10'
+                } ${col.key === 'email' ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+              >
+                {col.label}
+              </button>
+            ))}
+          </div>
+        </PageContainer>
       </div>
 
       {/* Main Content */}
-      <main className={`relative z-10 p-4 sm:p-8 transition-opacity duration-300 ${
+      <main className={`relative z-10 py-4 sm:py-8 transition-opacity duration-300 ${
         isRefreshing ? 'opacity-60' : 'opacity-100'
       }`}>
+        <PageContainer>
         {loading && users.length === 0 ? (
           <div className="flex h-64 items-center justify-center">
             <div className="font-mono text-sm text-white/40">Loading...</div>
@@ -304,6 +312,7 @@ function UsersPageContent() {
             </div>
           </motion.div>
         )}
+        </PageContainer>
       </main>
     </div>
   );
