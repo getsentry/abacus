@@ -45,64 +45,23 @@ export interface DailyUsage {
 }
 
 export async function getOverallStats(startDate?: string, endDate?: string): Promise<UsageStats> {
+  // Use extreme dates as defaults to avoid branching - query planner handles this efficiently
+  const effectiveStartDate = startDate || '1970-01-01';
+  const effectiveEndDate = endDate || '9999-12-31';
 
-  let result;
-  if (startDate && endDate) {
-    result = await sql`
-      SELECT
-        COALESCE(SUM(input_tokens + cache_write_tokens + output_tokens), 0)::bigint as "totalTokens",
-        COALESCE(SUM(cost), 0)::float as "totalCost",
-        COALESCE(SUM(input_tokens), 0)::bigint as "totalInputTokens",
-        COALESCE(SUM(output_tokens), 0)::bigint as "totalOutputTokens",
-        COALESCE(SUM(cache_read_tokens), 0)::bigint as "totalCacheReadTokens",
-        COUNT(DISTINCT CASE WHEN email != 'unknown' THEN email END)::int as "activeUsers",
-        COALESCE(SUM(CASE WHEN tool = 'claude_code' THEN input_tokens + cache_write_tokens + output_tokens ELSE 0 END), 0)::bigint as "claudeCodeTokens",
-        COALESCE(SUM(CASE WHEN tool = 'cursor' THEN input_tokens + cache_write_tokens + output_tokens ELSE 0 END), 0)::bigint as "cursorTokens"
-      FROM usage_records
-      WHERE date >= ${startDate} AND date <= ${endDate}
-    `;
-  } else if (startDate) {
-    result = await sql`
-      SELECT
-        COALESCE(SUM(input_tokens + cache_write_tokens + output_tokens), 0)::bigint as "totalTokens",
-        COALESCE(SUM(cost), 0)::float as "totalCost",
-        COALESCE(SUM(input_tokens), 0)::bigint as "totalInputTokens",
-        COALESCE(SUM(output_tokens), 0)::bigint as "totalOutputTokens",
-        COALESCE(SUM(cache_read_tokens), 0)::bigint as "totalCacheReadTokens",
-        COUNT(DISTINCT CASE WHEN email != 'unknown' THEN email END)::int as "activeUsers",
-        COALESCE(SUM(CASE WHEN tool = 'claude_code' THEN input_tokens + cache_write_tokens + output_tokens ELSE 0 END), 0)::bigint as "claudeCodeTokens",
-        COALESCE(SUM(CASE WHEN tool = 'cursor' THEN input_tokens + cache_write_tokens + output_tokens ELSE 0 END), 0)::bigint as "cursorTokens"
-      FROM usage_records
-      WHERE date >= ${startDate}
-    `;
-  } else if (endDate) {
-    result = await sql`
-      SELECT
-        COALESCE(SUM(input_tokens + cache_write_tokens + output_tokens), 0)::bigint as "totalTokens",
-        COALESCE(SUM(cost), 0)::float as "totalCost",
-        COALESCE(SUM(input_tokens), 0)::bigint as "totalInputTokens",
-        COALESCE(SUM(output_tokens), 0)::bigint as "totalOutputTokens",
-        COALESCE(SUM(cache_read_tokens), 0)::bigint as "totalCacheReadTokens",
-        COUNT(DISTINCT CASE WHEN email != 'unknown' THEN email END)::int as "activeUsers",
-        COALESCE(SUM(CASE WHEN tool = 'claude_code' THEN input_tokens + cache_write_tokens + output_tokens ELSE 0 END), 0)::bigint as "claudeCodeTokens",
-        COALESCE(SUM(CASE WHEN tool = 'cursor' THEN input_tokens + cache_write_tokens + output_tokens ELSE 0 END), 0)::bigint as "cursorTokens"
-      FROM usage_records
-      WHERE date <= ${endDate}
-    `;
-  } else {
-    result = await sql`
-      SELECT
-        COALESCE(SUM(input_tokens + cache_write_tokens + output_tokens), 0)::bigint as "totalTokens",
-        COALESCE(SUM(cost), 0)::float as "totalCost",
-        COALESCE(SUM(input_tokens), 0)::bigint as "totalInputTokens",
-        COALESCE(SUM(output_tokens), 0)::bigint as "totalOutputTokens",
-        COALESCE(SUM(cache_read_tokens), 0)::bigint as "totalCacheReadTokens",
-        COUNT(DISTINCT CASE WHEN email != 'unknown' THEN email END)::int as "activeUsers",
-        COALESCE(SUM(CASE WHEN tool = 'claude_code' THEN input_tokens + cache_write_tokens + output_tokens ELSE 0 END), 0)::bigint as "claudeCodeTokens",
-        COALESCE(SUM(CASE WHEN tool = 'cursor' THEN input_tokens + cache_write_tokens + output_tokens ELSE 0 END), 0)::bigint as "cursorTokens"
-      FROM usage_records
-    `;
-  }
+  const result = await sql`
+    SELECT
+      COALESCE(SUM(input_tokens + cache_write_tokens + output_tokens), 0)::bigint as "totalTokens",
+      COALESCE(SUM(cost), 0)::float as "totalCost",
+      COALESCE(SUM(input_tokens), 0)::bigint as "totalInputTokens",
+      COALESCE(SUM(output_tokens), 0)::bigint as "totalOutputTokens",
+      COALESCE(SUM(cache_read_tokens), 0)::bigint as "totalCacheReadTokens",
+      COUNT(DISTINCT email)::int as "activeUsers",
+      COALESCE(SUM(CASE WHEN tool = 'claude_code' THEN input_tokens + cache_write_tokens + output_tokens ELSE 0 END), 0)::bigint as "claudeCodeTokens",
+      COALESCE(SUM(CASE WHEN tool = 'cursor' THEN input_tokens + cache_write_tokens + output_tokens ELSE 0 END), 0)::bigint as "cursorTokens"
+    FROM usage_records
+    WHERE date >= ${effectiveStartDate} AND date <= ${effectiveEndDate}
+  `;
 
   return result.rows[0] as UsageStats;
 }
@@ -154,11 +113,11 @@ export async function getOverallStatsWithComparison(
   `;
 
   // Active users need separate subqueries since COUNT DISTINCT with CASE doesn't work as expected
-  // Exclude 'unknown' to match adoption page query
+  // COUNT(DISTINCT email) automatically excludes NULLs
   const activeUsersResult = await sql`
     SELECT
-      (SELECT COUNT(DISTINCT email) FROM usage_records WHERE date >= ${startDate} AND date <= ${endDate} AND email != 'unknown')::int as "activeUsers",
-      (SELECT COUNT(DISTINCT email) FROM usage_records WHERE date >= ${prevStartDate} AND date <= ${prevEndDate} AND email != 'unknown')::int as "prevActiveUsers"
+      (SELECT COUNT(DISTINCT email) FROM usage_records WHERE date >= ${startDate} AND date <= ${endDate})::int as "activeUsers",
+      (SELECT COUNT(DISTINCT email) FROM usage_records WHERE date >= ${prevStartDate} AND date <= ${prevEndDate})::int as "prevActiveUsers"
   `;
 
   const row = result.rows[0];
@@ -194,7 +153,7 @@ export async function getUnattributedStats(): Promise<UnattributedStats> {
       COALESCE(SUM(input_tokens + cache_write_tokens + output_tokens), 0)::bigint as "totalTokens",
       COALESCE(SUM(cost), 0)::float as "totalCost"
     FROM usage_records
-    WHERE email = 'unknown'
+    WHERE email IS NULL
   `;
   return result.rows[0] as UnattributedStats;
 }
@@ -206,63 +165,88 @@ export async function getUserSummaries(
   startDate?: string,
   endDate?: string
 ): Promise<UserSummary[]> {
-
   const searchPattern = search ? `%${escapeLikePattern(search)}%` : null;
 
-  const usersResult = searchPattern
+  // Single query with CTEs to avoid N+1 problem for favoriteModel
+  const result = searchPattern
     ? await sql`
+        WITH user_stats AS (
+          SELECT
+            email,
+            SUM(input_tokens + cache_write_tokens + output_tokens)::bigint as "totalTokens",
+            SUM(cost)::float as "totalCost",
+            SUM(CASE WHEN tool = 'claude_code' THEN input_tokens + cache_write_tokens + output_tokens ELSE 0 END)::bigint as "claudeCodeTokens",
+            SUM(CASE WHEN tool = 'cursor' THEN input_tokens + cache_write_tokens + output_tokens ELSE 0 END)::bigint as "cursorTokens",
+            MAX(date)::text as "lastActive"
+          FROM usage_records
+          WHERE email LIKE ${searchPattern} AND email IS NOT NULL
+            AND date >= ${startDate} AND date <= ${endDate}
+          GROUP BY email
+        ),
+        user_models AS (
+          SELECT DISTINCT ON (email)
+            email,
+            model as "favoriteModel"
+          FROM (
+            SELECT
+              email,
+              model,
+              SUM(input_tokens + cache_write_tokens + output_tokens) as model_tokens
+            FROM usage_records
+            WHERE email LIKE ${searchPattern} AND email IS NOT NULL
+              AND date >= ${startDate} AND date <= ${endDate}
+            GROUP BY email, model
+          ) m
+          ORDER BY email, model_tokens DESC
+        )
         SELECT
-          email,
-          SUM(input_tokens + cache_write_tokens + output_tokens)::bigint as "totalTokens",
-          SUM(cost)::float as "totalCost",
-          SUM(CASE WHEN tool = 'claude_code' THEN input_tokens + cache_write_tokens + output_tokens ELSE 0 END)::bigint as "claudeCodeTokens",
-          SUM(CASE WHEN tool = 'cursor' THEN input_tokens + cache_write_tokens + output_tokens ELSE 0 END)::bigint as "cursorTokens",
-          MAX(date)::text as "lastActive"
-        FROM usage_records
-        WHERE email LIKE ${searchPattern} AND email != 'unknown'
-          AND date >= ${startDate} AND date <= ${endDate}
-        GROUP BY email
-        ORDER BY "totalTokens" DESC
+          us.*,
+          COALESCE(um."favoriteModel", 'unknown') as "favoriteModel"
+        FROM user_stats us
+        LEFT JOIN user_models um ON us.email = um.email
+        ORDER BY us."totalTokens" DESC
         LIMIT ${limit} OFFSET ${offset}
       `
     : await sql`
+        WITH user_stats AS (
+          SELECT
+            email,
+            SUM(input_tokens + cache_write_tokens + output_tokens)::bigint as "totalTokens",
+            SUM(cost)::float as "totalCost",
+            SUM(CASE WHEN tool = 'claude_code' THEN input_tokens + cache_write_tokens + output_tokens ELSE 0 END)::bigint as "claudeCodeTokens",
+            SUM(CASE WHEN tool = 'cursor' THEN input_tokens + cache_write_tokens + output_tokens ELSE 0 END)::bigint as "cursorTokens",
+            MAX(date)::text as "lastActive"
+          FROM usage_records
+          WHERE email IS NOT NULL
+            AND date >= ${startDate} AND date <= ${endDate}
+          GROUP BY email
+        ),
+        user_models AS (
+          SELECT DISTINCT ON (email)
+            email,
+            model as "favoriteModel"
+          FROM (
+            SELECT
+              email,
+              model,
+              SUM(input_tokens + cache_write_tokens + output_tokens) as model_tokens
+            FROM usage_records
+            WHERE email IS NOT NULL
+              AND date >= ${startDate} AND date <= ${endDate}
+            GROUP BY email, model
+          ) m
+          ORDER BY email, model_tokens DESC
+        )
         SELECT
-          email,
-          SUM(input_tokens + cache_write_tokens + output_tokens)::bigint as "totalTokens",
-          SUM(cost)::float as "totalCost",
-          SUM(CASE WHEN tool = 'claude_code' THEN input_tokens + cache_write_tokens + output_tokens ELSE 0 END)::bigint as "claudeCodeTokens",
-          SUM(CASE WHEN tool = 'cursor' THEN input_tokens + cache_write_tokens + output_tokens ELSE 0 END)::bigint as "cursorTokens",
-          MAX(date)::text as "lastActive"
-        FROM usage_records
-        WHERE email != 'unknown'
-          AND date >= ${startDate} AND date <= ${endDate}
-        GROUP BY email
-        ORDER BY "totalTokens" DESC
+          us.*,
+          COALESCE(um."favoriteModel", 'unknown') as "favoriteModel"
+        FROM user_stats us
+        LEFT JOIN user_models um ON us.email = um.email
+        ORDER BY us."totalTokens" DESC
         LIMIT ${limit} OFFSET ${offset}
       `;
 
-  const users = usersResult.rows;
-
-  // Get favorite model for each user (within same time range)
-  const results: UserSummary[] = [];
-  for (const user of users) {
-    const modelResult = await sql`
-      SELECT model, SUM(input_tokens + cache_write_tokens + output_tokens)::bigint as tokens
-      FROM usage_records
-      WHERE email = ${user.email}
-        AND date >= ${startDate} AND date <= ${endDate}
-      GROUP BY model
-      ORDER BY tokens DESC
-      LIMIT 1
-    `;
-
-    results.push({
-      ...user,
-      favoriteModel: modelResult.rows[0]?.model || 'unknown'
-    } as UserSummary);
-  }
-
-  return results;
+  return result.rows as UserSummary[];
 }
 
 export async function getUserDetails(email: string) {
@@ -411,29 +395,22 @@ export async function getUserDetailsExtended(
 }
 
 export async function getModelBreakdown(startDate?: string, endDate?: string): Promise<ModelBreakdown[]> {
+  // Note: We include all users (including unknown) in model breakdown
+  // since we want to see total model usage across all API activity
+  const effectiveStartDate = startDate || '1970-01-01';
+  const effectiveEndDate = endDate || '9999-12-31';
 
-  const result = startDate && endDate
-    ? await sql`
-        SELECT
-          model,
-          SUM(input_tokens + cache_write_tokens + output_tokens)::bigint as tokens,
-          tool
-        FROM usage_records
-        WHERE date >= ${startDate} AND date <= ${endDate}
-        GROUP BY model, tool
-        ORDER BY tokens DESC
-        LIMIT 20
-      `
-    : await sql`
-        SELECT
-          model,
-          SUM(input_tokens + cache_write_tokens + output_tokens)::bigint as tokens,
-          tool
-        FROM usage_records
-        GROUP BY model, tool
-        ORDER BY tokens DESC
-        LIMIT 20
-      `;
+  const result = await sql`
+    SELECT
+      model,
+      SUM(input_tokens + cache_write_tokens + output_tokens)::bigint as tokens,
+      tool
+    FROM usage_records
+    WHERE date >= ${effectiveStartDate} AND date <= ${effectiveEndDate}
+    GROUP BY model, tool
+    ORDER BY tokens DESC
+    LIMIT 20
+  `;
 
   const models = result.rows as { model: string; tokens: number; tool: string }[];
   const total = models.reduce((sum, m) => sum + Number(m.tokens), 0);
@@ -477,7 +454,7 @@ export async function getUnmappedToolRecords(tool: string = 'claude_code'): Prom
       COUNT(*)::int as usage_count
     FROM usage_records
     WHERE tool = ${tool}
-      AND email = 'unknown'
+      AND email IS NULL
       AND tool_record_id IS NOT NULL
     GROUP BY tool_record_id
     ORDER BY usage_count DESC
@@ -536,11 +513,11 @@ export async function getKnownEmails(): Promise<string[]> {
 
   const result = await sql`
     SELECT DISTINCT email FROM (
-      SELECT email FROM usage_records WHERE tool = 'cursor' AND email != 'unknown'
+      SELECT email FROM usage_records WHERE tool = 'cursor' AND email IS NOT NULL
       UNION
       SELECT email FROM tool_identity_mappings
       UNION
-      SELECT email FROM usage_records WHERE email LIKE '%@%' AND email != 'unknown'
+      SELECT email FROM usage_records WHERE email LIKE '%@%' AND email IS NOT NULL
     ) AS combined
     ORDER BY email ASC
   `;
@@ -614,10 +591,10 @@ export async function getAllUsersPivot(
         JOIN (
           SELECT email, MAX(date)::text as "lastActive"
           FROM usage_records
-          WHERE email != 'unknown'
+          WHERE email IS NOT NULL
           GROUP BY email
         ) la ON r.email = la.email
-        WHERE r.email != 'unknown'
+        WHERE r.email IS NOT NULL
           AND r.email LIKE ${searchPattern}
           AND r.date >= ${startDate} AND r.date <= ${endDate}
         GROUP BY r.email, la."lastActive"
@@ -642,10 +619,10 @@ export async function getAllUsersPivot(
         JOIN (
           SELECT email, MAX(date)::text as "lastActive"
           FROM usage_records
-          WHERE email != 'unknown'
+          WHERE email IS NOT NULL
           GROUP BY email
         ) la ON r.email = la.email
-        WHERE r.email != 'unknown'
+        WHERE r.email IS NOT NULL
           AND r.date >= ${startDate} AND r.date <= ${endDate}
         GROUP BY r.email, la."lastActive"
         ORDER BY "totalTokens" DESC
@@ -710,7 +687,7 @@ export async function getAllUsersPivot(
 // Insert usage record
 export async function insertUsageRecord(record: {
   date: string;
-  email: string;
+  email: string | null;
   tool: string;
   model: string;
   inputTokens: number;
@@ -720,11 +697,10 @@ export async function insertUsageRecord(record: {
   cost: number;
   toolRecordId?: string;
 }): Promise<void> {
-
   await sql`
     INSERT INTO usage_records (date, email, tool, model, input_tokens, cache_write_tokens, cache_read_tokens, output_tokens, cost, tool_record_id)
     VALUES (${record.date}, ${record.email}, ${record.tool}, ${record.model}, ${record.inputTokens}, ${record.cacheWriteTokens}, ${record.cacheReadTokens}, ${record.outputTokens}, ${record.cost}, ${record.toolRecordId || null})
-    ON CONFLICT (date, email, tool, model, COALESCE(tool_record_id, ''))
+    ON CONFLICT (date, COALESCE(email, ''), tool, model, COALESCE(tool_record_id, ''))
     DO UPDATE SET
       input_tokens = EXCLUDED.input_tokens,
       cache_write_tokens = EXCLUDED.cache_write_tokens,
@@ -752,7 +728,7 @@ export async function getLifetimeStats(): Promise<LifetimeStats> {
     SELECT
       COALESCE(SUM(input_tokens + cache_write_tokens + output_tokens), 0)::bigint as "totalTokens",
       COALESCE(SUM(cost), 0)::float as "totalCost",
-      COUNT(DISTINCT CASE WHEN email != 'unknown' THEN email END)::int as "totalUsers",
+      COUNT(DISTINCT email)::int as "totalUsers",
       MIN(date)::text as "firstRecordDate"
     FROM usage_records
   `;
@@ -845,8 +821,10 @@ export async function getAdoptionSummary(
   }
 
   // Calculate percentages
+  // Note: totalUsers = all users with activity in the date range (they ARE active for that period)
+  // The "inactive" concept (30+ days since last global activity) is for filtering the user list,
+  // not for reducing the aggregate active count
   const totalUsers = users.length;
-  const activeUsers = totalUsers - inactive.count;
   for (const stage of Object.keys(stages) as AdoptionStage[]) {
     stages[stage].percentage = totalUsers > 0
       ? Math.round((stages[stage].count / totalUsers) * 100)
@@ -858,7 +836,7 @@ export async function getAdoptionSummary(
     avgScore: totalUsers > 0 ? Math.round(totalScore / totalUsers) : 0,
     inactive,
     totalUsers,
-    activeUsers,
+    activeUsers: totalUsers, // All users with activity in the date range are "active" for that period
   };
 }
 
@@ -881,7 +859,7 @@ export async function getUserPercentile(
         ELSE 0
       END as avg_tokens_per_day
     FROM usage_records
-    WHERE email != 'unknown'
+    WHERE email IS NOT NULL
       AND date >= ${startDate} AND date <= ${endDate}
     GROUP BY email
     HAVING COUNT(DISTINCT date) >= 2

@@ -184,13 +184,9 @@ export async function syncAnthropicUsage(
         for (const item of bucket.results) {
           if (!item.model) continue;
 
-          // Resolve email from API key mapping
-          let email = 'unknown';
+          // Resolve email from API key mapping (null = unattributed usage)
           const apiKeyId = item.api_key_id;
-
-          if (apiKeyId) {
-            email = mappings.get(apiKeyId) || 'unknown';
-          }
+          const email = apiKeyId ? mappings.get(apiKeyId) ?? null : null;
 
           const inputTokens = item.uncached_input_tokens || 0;
           const cacheWriteTokens = (item.cache_creation?.ephemeral_5m_input_tokens || 0) +
