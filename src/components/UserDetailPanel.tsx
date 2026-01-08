@@ -180,6 +180,7 @@ export function UserDetailPanel({ email, onClose }: UserDetailPanelProps) {
               <h2 className="font-display text-2xl text-white">{user?.email || displayEmail}</h2>
               <AppLink
                 href={`/users/${encodeURIComponent(username || '')}`}
+                onClick={onClose}
                 className="mt-3 inline-flex items-center gap-1.5 font-mono text-xs text-amber-400 hover:text-amber-300 transition-colors"
               >
                 View Full Details
