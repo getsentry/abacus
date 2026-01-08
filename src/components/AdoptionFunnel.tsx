@@ -1,8 +1,8 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import { Compass, Flame, Zap, Star, Users } from 'lucide-react';
-import { type AdoptionStage, STAGE_CONFIG, STAGE_ORDER } from '@/lib/adoption';
+import { Users } from 'lucide-react';
+import { type AdoptionStage, STAGE_CONFIG, STAGE_ORDER, STAGE_ICONS } from '@/lib/adoption';
 
 interface StageData {
   stage: AdoptionStage;
@@ -15,13 +15,6 @@ interface AdoptionFunnelProps {
   onStageClick?: (stage: AdoptionStage | 'all') => void;
   selectedStage?: AdoptionStage | null;
 }
-
-const ICONS = {
-  exploring: Compass,
-  building_momentum: Flame,
-  in_flow: Zap,
-  power_user: Star,
-} as const;
 
 const STAGE_COLORS = {
   exploring: {
@@ -167,7 +160,7 @@ export function AdoptionFunnel({
 
         {/* Stage pills */}
         {sortedData.map((item) => {
-          const Icon = ICONS[item.stage];
+          const Icon = STAGE_ICONS[item.stage];
           const colors = STAGE_COLORS[item.stage];
           const isSelected = selectedStage === item.stage;
 

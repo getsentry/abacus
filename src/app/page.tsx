@@ -14,18 +14,13 @@ import { AdoptionDistribution } from '@/components/AdoptionDistribution';
 import { ToolDistribution } from '@/components/ToolDistribution';
 import { CommitStats } from '@/components/CommitStats';
 import { PageContainer } from '@/components/PageContainer';
+import { LoadingBar } from '@/components/LoadingBar';
+import { LoadingState, EmptyState } from '@/components/PageState';
 import { formatTokens, formatCurrency } from '@/lib/utils';
 import { useTimeRange } from '@/contexts/TimeRangeContext';
-import { type AdoptionStage, STAGE_CONFIG, STAGE_ORDER } from '@/lib/adoption';
+import { type AdoptionStage, STAGE_CONFIG, STAGE_ORDER, STAGE_ICONS } from '@/lib/adoption';
 import { calculateDelta } from '@/lib/comparison';
-import { Compass, Flame, Zap, Star, Users, Target } from 'lucide-react';
-
-const STAGE_ICONS = {
-  exploring: Compass,
-  building_momentum: Flame,
-  in_flow: Zap,
-  power_user: Star,
-} as const;
+import { Users, Target, BarChart3 } from 'lucide-react';
 
 interface Stats {
   totalTokens: number;
@@ -133,7 +128,7 @@ function DashboardContent() {
     fetch('/api/stats/lifetime')
       .then(res => res.json())
       .then(data => setLifetimeStats(data))
-      .catch(err => console.error('Failed to fetch lifetime stats:', err));
+      .catch(() => { /* Lifetime stats are optional, fail silently */ });
   }, []);
 
   const fetchData = useCallback(async () => {
@@ -166,8 +161,8 @@ function DashboardContent() {
       setModels(modelsData);
       setAdoptionData(adoptionDataRes);
       setCommitStats(commitsData.totalCommits > 0 ? commitsData : null);
-    } catch (error) {
-      console.error('Failed to fetch data:', error);
+    } catch {
+      // Errors are tracked by Sentry, no need for console logging
     } finally {
       setLoading(false);
     }
@@ -181,12 +176,7 @@ function DashboardContent() {
 
   return (
     <div className="min-h-screen bg-[#0a0a0f] text-white grid-bg">
-      {/* Loading Progress Bar */}
-      {isRefreshing && (
-        <div className="fixed top-0 left-0 right-0 z-50 h-0.5 bg-amber-500/20 overflow-hidden">
-          <div className="h-full bg-amber-500 animate-progress" />
-        </div>
-      )}
+      <LoadingBar isLoading={isRefreshing} />
 
       <AppHeader search={<SearchInput days={days} placeholder="Search users..." />} />
 
@@ -207,17 +197,13 @@ function DashboardContent() {
       }`}>
         <PageContainer>
         {loading && !stats ? (
-          <div className="flex h-64 items-center justify-center">
-            <div className="font-mono text-sm text-white/40">Loading...</div>
-          </div>
+          <LoadingState />
         ) : !hasData ? (
-          <div className="flex flex-col items-center justify-center py-20 px-4">
-            <div className="text-6xl mb-4">📊</div>
-            <h2 className="font-display text-2xl text-white mb-2 text-center">No usage data yet</h2>
-            <p className="font-mono text-sm text-white/40 text-center">
-              Usage data will appear here once synced from Anthropic and Cursor APIs
-            </p>
-          </div>
+          <EmptyState
+            icon={BarChart3}
+            title="No usage data yet"
+            description="Usage data will appear here once synced from Anthropic and Cursor APIs"
+          />
         ) : (
           <div className="space-y-4 sm:space-y-6">
             {/* Time Range Selector */}

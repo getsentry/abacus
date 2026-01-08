@@ -2,9 +2,8 @@
 
 import { useState, useMemo } from 'react';
 import { motion } from 'framer-motion';
-import { Compass, Flame, Zap, Star } from 'lucide-react';
 import { AppLink } from './AppLink';
-import { type AdoptionStage, STAGE_CONFIG, STAGE_ORDER } from '@/lib/adoption';
+import { type AdoptionStage, STAGE_CONFIG, STAGE_ORDER, STAGE_ICONS } from '@/lib/adoption';
 
 interface StageData {
   count: number;
@@ -17,13 +16,6 @@ interface AdoptionDistributionProps {
   className?: string;
   days?: number;
 }
-
-const STAGE_ICONS = {
-  exploring: Compass,
-  building_momentum: Flame,
-  in_flow: Zap,
-  power_user: Star,
-} as const;
 
 const STAGE_COLORS = {
   exploring: { bar: 'bg-slate-500', barHover: 'bg-slate-400', text: 'text-slate-400' },
