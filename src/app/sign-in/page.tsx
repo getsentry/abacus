@@ -13,19 +13,25 @@ function SignInContent() {
 
   // Reset loading state when page becomes visible again (user returned from OAuth flow)
   useEffect(() => {
+    if (!loading) return;
+
+    let timeoutId: ReturnType<typeof setTimeout> | null = null;
+
     const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible' && loading) {
+      if (document.visibilityState === 'visible') {
+        // Clear any existing timeout before setting a new one
+        if (timeoutId) clearTimeout(timeoutId);
         // Small delay to allow redirect to complete if successful
-        const timeout = setTimeout(() => {
+        timeoutId = setTimeout(() => {
           setLoading(false);
         }, 1000);
-        return () => clearTimeout(timeout);
       }
     };
 
     document.addEventListener('visibilitychange', handleVisibilityChange);
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
+      if (timeoutId) clearTimeout(timeoutId);
     };
   }, [loading]);
 
