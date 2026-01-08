@@ -4,8 +4,8 @@
  * Syncs GitHub organization members and maps their user IDs to emails.
  * Uses the same identity_mappings table as other providers.
  *
- * Note: GitHub API does not expose member emails directly.
- * Mappings must be created manually by an admin who knows the user's work email.
+ * Uses GitHub's GraphQL API with `organizationVerifiedDomainEmails` to
+ * automatically sync verified domain emails for org members.
  */
 
 import { sql } from '@vercel/postgres';
@@ -13,6 +13,7 @@ import { getIdentityMappings, setIdentityMapping } from '../queries';
 import { getGitHubToken } from './github';
 
 const SOURCE = 'github';
+const GITHUB_ORG = process.env.GITHUB_ORG || 'getsentry';
 
 interface GitHubOrgMember {
   id: number;
@@ -33,9 +34,166 @@ export interface GitHubMappingResult {
   errors: string[];
 }
 
+interface GraphQLMember {
+  login: string;
+  databaseId: number;
+  organizationVerifiedDomainEmails: string[];
+}
+
+interface GraphQLResponse {
+  data?: {
+    organization?: {
+      membersWithRole: {
+        nodes: GraphQLMember[];
+        pageInfo: {
+          hasNextPage: boolean;
+          endCursor: string | null;
+        };
+      };
+    };
+  };
+  errors?: Array<{ message: string }>;
+}
 
 /**
- * Fetch all members of a GitHub organization.
+ * Fetch org members with verified domain emails using GraphQL.
+ * Requires GitHub App with `Members: Read-only` permission.
+ */
+async function fetchOrgMembersWithEmails(org: string): Promise<GraphQLMember[]> {
+  const token = await getGitHubToken();
+  const members: GraphQLMember[] = [];
+  let cursor: string | null = null;
+
+  while (true) {
+    const query = `
+      query($org: String!, $cursor: String) {
+        organization(login: $org) {
+          membersWithRole(first: 100, after: $cursor) {
+            nodes {
+              login
+              databaseId
+              organizationVerifiedDomainEmails(login: $org)
+            }
+            pageInfo {
+              hasNextPage
+              endCursor
+            }
+          }
+        }
+      }
+    `;
+
+    const response = await fetch('https://api.github.com/graphql', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        query,
+        variables: { org, cursor },
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`GraphQL request failed: ${response.status}`);
+    }
+
+    const result: GraphQLResponse = await response.json();
+
+    if (result.errors?.length) {
+      throw new Error(`GraphQL errors: ${result.errors.map(e => e.message).join(', ')}`);
+    }
+
+    const membersData = result.data?.organization?.membersWithRole;
+    if (!membersData) {
+      throw new Error('No organization data returned');
+    }
+
+    members.push(...membersData.nodes);
+
+    if (!membersData.pageInfo.hasNextPage) {
+      break;
+    }
+    cursor = membersData.pageInfo.endCursor;
+
+    // Small delay to be nice to the API
+    await new Promise(resolve => setTimeout(resolve, 100));
+  }
+
+  return members;
+}
+
+/**
+ * Sync GitHub org member emails using GraphQL API.
+ * Creates identity mappings for members with verified domain emails.
+ */
+export async function syncGitHubMemberEmails(
+  options: { onProgress?: (msg: string) => void; org?: string } = {}
+): Promise<GitHubMappingResult> {
+  const log = options.onProgress || (() => {});
+  const org = options.org || GITHUB_ORG;
+
+  const result: GitHubMappingResult = {
+    success: true,
+    usersFound: 0,
+    mappingsCreated: 0,
+    errors: [],
+  };
+
+  try {
+    log(`Fetching members of ${org} with verified emails...`);
+    const members = await fetchOrgMembersWithEmails(org);
+    result.usersFound = members.length;
+    log(`Found ${members.length} members`);
+
+    // Create mappings for members with verified emails
+    for (const member of members) {
+      if (member.organizationVerifiedDomainEmails.length > 0) {
+        // Use the first verified email
+        const email = member.organizationVerifiedDomainEmails[0];
+        const userId = member.databaseId.toString();
+
+        try {
+          await setIdentityMapping(SOURCE, userId, email);
+          result.mappingsCreated++;
+          log(`Mapped ${member.login} (${userId}) → ${email}`);
+        } catch (err) {
+          result.errors.push(`Failed to map ${member.login}: ${err instanceof Error ? err.message : 'Unknown error'}`);
+        }
+      }
+    }
+
+    log(`Created ${result.mappingsCreated} mappings`);
+  } catch (err) {
+    result.success = false;
+    result.errors.push(err instanceof Error ? err.message : 'Unknown error');
+  }
+
+  return result;
+}
+
+/**
+ * Check if there are unattributed commits that need mapping.
+ */
+export async function hasUnattributedCommits(): Promise<boolean> {
+  const result = await sql`
+    SELECT EXISTS (
+      SELECT 1
+      FROM commits c
+      JOIN repositories r ON c.repo_id = r.id
+      LEFT JOIN identity_mappings m ON m.source = r.source AND m.external_id = c.author_id
+      WHERE r.source = 'github'
+        AND c.author_id IS NOT NULL
+        AND m.external_id IS NULL
+      LIMIT 1
+    ) as has_unattributed
+  `;
+  return result.rows[0]?.has_unattributed === true;
+}
+
+/**
+ * Fetch all members of a GitHub organization (REST API).
  */
 async function fetchOrgMembers(org: string): Promise<GitHubOrgMember[]> {
   const token = await getGitHubToken();

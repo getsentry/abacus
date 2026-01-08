@@ -20,6 +20,8 @@ import {
   getUnmappedGitHubUsers,
   mapGitHubUser,
   syncGitHubOrgMembers,
+  syncGitHubMemberEmails,
+  hasUnattributedCommits,
   getGitHubUser,
   GitHubMappingResult,
 } from './github-mappings';
@@ -153,6 +155,8 @@ export {
   getUnmappedGitHubUsers,
   mapGitHubUser,
   syncGitHubOrgMembers,
+  syncGitHubMemberEmails,
+  hasUnattributedCommits,
   getGitHubUser,
 };
 

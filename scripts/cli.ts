@@ -36,7 +36,7 @@ import { syncAnthropicUsage, getAnthropicSyncState, backfillAnthropicUsage, rese
 import { syncCursorUsage, backfillCursorUsage, getCursorSyncState, getPreviousCompleteHourEnd, resetCursorBackfillComplete } from '../src/lib/sync/cursor';
 import { syncGitHubRepo, backfillGitHubUsage, getGitHubSyncState, getGitHubBackfillState, resetGitHubBackfillComplete, detectAiAttribution } from '../src/lib/sync/github';
 import { syncApiKeyMappingsSmart, syncAnthropicApiKeyMappings } from '../src/lib/sync/anthropic-mappings';
-import { getGitHubUsersWithMappingStatus, mapGitHubUser, getGitHubUser } from '../src/lib/sync/github-mappings';
+import { getGitHubUsersWithMappingStatus, mapGitHubUser, getGitHubUser, syncGitHubMemberEmails } from '../src/lib/sync/github-mappings';
 import { getIdentityMappings, setIdentityMapping, getUnmappedToolRecords, getKnownEmails, insertUsageRecord } from '../src/lib/queries';
 import { normalizeModelName } from '../src/lib/utils';
 
@@ -158,6 +158,7 @@ Commands:
   github:commits <repo> [--limit N]
                         Dump commits from database for debugging
   github:users          List GitHub users with commits and their mapping status
+  github:users:sync     Sync GitHub org member emails via GraphQL API
   github:users:map <github_id> <email>
                         Map a GitHub user ID to a work email
   import:cursor-csv <file>
@@ -630,6 +631,30 @@ async function cmdGitHubUsersMap(githubId: string, email: string) {
   console.log('  Existing commits from this user have been updated.');
 }
 
+async function cmdGitHubUsersSync() {
+  console.log('🔄 Syncing GitHub org member emails via GraphQL API\n');
+
+  const hasGitHubApp = process.env.GITHUB_APP_ID && process.env.GITHUB_APP_PRIVATE_KEY && process.env.GITHUB_APP_INSTALLATION_ID;
+  const hasGitHubToken = process.env.GITHUB_TOKEN;
+  if (!hasGitHubApp && !hasGitHubToken) {
+    console.error('❌ GitHub not configured');
+    console.error('\nSet GITHUB_APP_ID + GITHUB_APP_PRIVATE_KEY + GITHUB_APP_INSTALLATION_ID');
+    console.error('or GITHUB_TOKEN (with org:read scope)');
+    return;
+  }
+
+  const result = await syncGitHubMemberEmails({
+    onProgress: (msg) => console.log(`  ${msg}`)
+  });
+
+  console.log(`\n✓ Sync complete`);
+  console.log(`  Users found: ${result.usersFound}`);
+  console.log(`  Mappings created: ${result.mappingsCreated}`);
+  if (result.errors.length > 0) {
+    console.log(`  Errors: ${result.errors.slice(0, 5).join(', ')}`);
+  }
+}
+
 async function cmdSync(days: number = 7, tools: ('anthropic' | 'cursor')[] = ['anthropic', 'cursor'], skipMappings: boolean = false) {
   const endDate = new Date().toISOString().split('T')[0];
   const startDate = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
@@ -934,6 +959,9 @@ async function main() {
       }
       case 'github:users':
         await cmdGitHubUsers();
+        break;
+      case 'github:users:sync':
+        await cmdGitHubUsersSync();
         break;
       case 'github:users:map': {
         const githubId = args[1];

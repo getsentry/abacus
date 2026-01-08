@@ -9,6 +9,10 @@
       "schedule": "0 * * * *"
     },
     {
+      "path": "/api/cron/sync-github-mappings",
+      "schedule": "0 * * * *"
+    },
+    {
       "path": "/api/cron/backfill-anthropic",
       "schedule": "0 */6 * * *"
     },
