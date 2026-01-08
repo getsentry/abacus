@@ -32,6 +32,12 @@ export const TOOL_CONFIGS: Record<string, ToolConfig> = {
     text: 'text-violet-400',
     gradient: 'from-violet-500/80 to-violet-400/60',
   },
+  openai: {
+    name: 'OpenAI',
+    bg: 'bg-green-500',
+    text: 'text-green-400',
+    gradient: 'from-green-500/80 to-green-400/60',
+  },
 };
 
 const DEFAULT_CONFIG: ToolConfig = {

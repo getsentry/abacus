@@ -34,7 +34,9 @@ import * as path from 'path';
 import { sql } from '@vercel/postgres';
 import { syncAnthropicUsage, getAnthropicSyncState, backfillAnthropicUsage, resetAnthropicBackfillComplete } from '../src/lib/sync/anthropic';
 import { syncCursorUsage, backfillCursorUsage, getCursorSyncState, getPreviousCompleteHourEnd, resetCursorBackfillComplete } from '../src/lib/sync/cursor';
+import { syncOpenAIUsage, getOpenAISyncState, backfillOpenAIUsage, resetOpenAIBackfillComplete } from '../src/lib/sync/openai';
 import { syncApiKeyMappingsSmart, syncAnthropicApiKeyMappings } from '../src/lib/sync/anthropic-mappings';
+import { syncOpenAIUserMappingsSmart } from '../src/lib/sync/openai-mappings';
 import { getToolIdentityMappings, setToolIdentityMapping, getUnmappedToolRecords, getKnownEmails, insertUsageRecord } from '../src/lib/queries';
 import { normalizeModelName } from '../src/lib/utils';
 
@@ -137,18 +139,19 @@ Usage:
 Commands:
   db:migrate            Run pending database migrations
   sync [tool] [--days N] [--skip-mappings]
-                        Sync recent usage data (tool: anthropic|cursor, default: both)
+                        Sync recent usage data (tool: anthropic|cursor|openai, default: all)
   backfill <tool> --from YYYY-MM-DD --to YYYY-MM-DD
                         Backfill historical data for a specific tool
   backfill:complete <tool>
-                        Mark backfill as complete for a tool (anthropic|cursor)
+                        Mark backfill as complete for a tool (anthropic|cursor|openai)
   backfill:reset <tool> Reset backfill status for a tool (allows re-backfilling)
-  gaps [tool]           Check for gaps in usage data (tool: anthropic|cursor, default: both)
+  gaps [tool]           Check for gaps in usage data (tool: anthropic|cursor|openai, default: all)
   mappings              List API key mappings
   mappings:sync [--full] Sync API key mappings from Anthropic (--full for all keys)
   mappings:fix          Interactive fix for unmapped API keys
   anthropic:status      Show Anthropic sync state
   cursor:status         Show Cursor sync state
+  openai:status         Show OpenAI sync state
   import:cursor-csv <file>
                         Import Cursor usage from CSV export
   stats                 Show database statistics
@@ -157,9 +160,11 @@ Commands:
 Examples:
   npm run cli sync --days 30
   npm run cli sync cursor --days 7
+  npm run cli sync openai --days 7
   npm run cli backfill cursor --from 2024-01-01 --to 2025-01-01
+  npm run cli backfill openai --from 2024-01-01 --to 2025-01-01
   npm run cli mappings:fix
-  npm run cli cursor:status
+  npm run cli openai:status
 `);
 }
 
@@ -245,6 +250,34 @@ async function cmdCursorStatus() {
   }
 }
 
+async function cmdOpenAIStatus() {
+  console.log('🔄 OpenAI Sync Status\n');
+
+  const { lastSyncedDate } = await getOpenAISyncState();
+
+  // Yesterday is the most recent complete day we should have
+  const yesterday = new Date();
+  yesterday.setDate(yesterday.getDate() - 1);
+  const yesterdayStr = yesterday.toISOString().split('T')[0];
+
+  if (lastSyncedDate) {
+    console.log(`Last synced date: ${lastSyncedDate}`);
+    console.log(`Current complete day: ${yesterdayStr}`);
+
+    if (lastSyncedDate >= yesterdayStr) {
+      console.log('\n✓ Up to date');
+    } else {
+      const lastDate = new Date(lastSyncedDate);
+      const daysBehind = Math.floor((yesterday.getTime() - lastDate.getTime()) / (24 * 60 * 60 * 1000));
+      console.log(`\n⚠️  ${daysBehind} day(s) behind`);
+    }
+  } else {
+    console.log('Never synced');
+    console.log(`Current complete day: ${yesterdayStr}`);
+    console.log('\nRun backfill to initialize: npm run cli backfill openai --from YYYY-MM-DD --to YYYY-MM-DD');
+  }
+}
+
 async function cmdMappings() {
   console.log('🔑 Tool Identity Mappings\n');
   const mappings = await getToolIdentityMappings();
@@ -306,7 +339,7 @@ async function cmdMappingsFix() {
   console.log('\nDone!');
 }
 
-async function cmdSync(days: number = 7, tools: ('anthropic' | 'cursor')[] = ['anthropic', 'cursor'], skipMappings: boolean = false) {
+async function cmdSync(days: number = 7, tools: ('anthropic' | 'cursor' | 'openai')[] = ['anthropic', 'cursor', 'openai'], skipMappings: boolean = false) {
   const endDate = new Date().toISOString().split('T')[0];
   const startDate = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
 
@@ -320,20 +353,34 @@ async function cmdSync(days: number = 7, tools: ('anthropic' | 'cursor')[] = ['a
       console.log('⚠️  Skipping Cursor: CURSOR_ADMIN_KEY not configured');
       return false;
     }
+    if (tool === 'openai' && !process.env.OPENAI_ADMIN_KEY) {
+      console.log('⚠️  Skipping OpenAI: OPENAI_ADMIN_KEY not configured');
+      return false;
+    }
     return true;
   });
 
   if (configuredTools.length === 0) {
-    console.log('\n❌ No providers configured. Set ANTHROPIC_ADMIN_KEY and/or CURSOR_ADMIN_KEY.');
+    console.log('\n❌ No providers configured. Set ANTHROPIC_ADMIN_KEY, CURSOR_ADMIN_KEY, and/or OPENAI_ADMIN_KEY.');
     return;
   }
 
   console.log(`\n🔄 Syncing usage data from ${startDate} to ${endDate}\n`);
 
-  // Sync API key mappings FIRST so usage sync has them available
+  // Sync API key/user mappings FIRST so usage sync has them available
   if (configuredTools.includes('anthropic') && !skipMappings) {
-    console.log('Syncing API key mappings...');
+    console.log('Syncing Anthropic API key mappings...');
     const mappingsResult = await syncApiKeyMappingsSmart();
+    console.log(`  Created: ${mappingsResult.mappingsCreated}, Skipped: ${mappingsResult.mappingsSkipped}`);
+    if (mappingsResult.errors.length > 0) {
+      console.log(`  Errors: ${mappingsResult.errors.slice(0, 3).join(', ')}`);
+    }
+    console.log('');
+  }
+
+  if (configuredTools.includes('openai') && !skipMappings) {
+    console.log('Syncing OpenAI user mappings...');
+    const mappingsResult = await syncOpenAIUserMappingsSmart();
     console.log(`  Created: ${mappingsResult.mappingsCreated}, Skipped: ${mappingsResult.mappingsSkipped}`);
     if (mappingsResult.errors.length > 0) {
       console.log(`  Errors: ${mappingsResult.errors.slice(0, 3).join(', ')}`);
@@ -360,10 +407,20 @@ async function cmdSync(days: number = 7, tools: ('anthropic' | 'cursor')[] = ['a
     }
   }
 
+  if (configuredTools.includes('openai')) {
+    if (configuredTools.includes('anthropic') || configuredTools.includes('cursor')) console.log('');
+    console.log('Syncing OpenAI usage...');
+    const openaiResult = await syncOpenAIUsage(startDate, endDate);
+    console.log(`  Imported: ${openaiResult.recordsImported}, Skipped: ${openaiResult.recordsSkipped}`);
+    if (openaiResult.errors.length > 0) {
+      console.log(`  Errors: ${openaiResult.errors.slice(0, 3).join(', ')}`);
+    }
+  }
+
   console.log('\n✓ Sync complete!');
 }
 
-async function cmdBackfill(tool: 'anthropic' | 'cursor', fromDate: string, toDate: string) {
+async function cmdBackfill(tool: 'anthropic' | 'cursor' | 'openai', fromDate: string, toDate: string) {
   // Check if provider is configured
   if (tool === 'anthropic' && !process.env.ANTHROPIC_ADMIN_KEY) {
     console.error('❌ ANTHROPIC_ADMIN_KEY not configured');
@@ -371,6 +428,10 @@ async function cmdBackfill(tool: 'anthropic' | 'cursor', fromDate: string, toDat
   }
   if (tool === 'cursor' && !process.env.CURSOR_ADMIN_KEY) {
     console.error('❌ CURSOR_ADMIN_KEY not configured');
+    return;
+  }
+  if (tool === 'openai' && !process.env.OPENAI_ADMIN_KEY) {
+    console.error('❌ OPENAI_ADMIN_KEY not configured');
     return;
   }
 
@@ -396,6 +457,21 @@ async function cmdBackfill(tool: 'anthropic' | 'cursor', fromDate: string, toDat
     // For Cursor, use the proper backfill function with progress
     // Note: backfill works backwards from existing data toward targetDate (fromDate)
     const result = await backfillCursorUsage(fromDate, {
+      onProgress: (msg: string) => console.log(msg)
+    });
+    console.log(`\n✓ Backfill complete`);
+    console.log(`  Imported: ${result.recordsImported}, Skipped: ${result.recordsSkipped}`);
+    if (result.errors.length > 0) {
+      console.log(`  Errors: ${result.errors.slice(0, 5).join(', ')}`);
+    }
+  } else if (tool === 'openai') {
+    // Sync user mappings first
+    console.log('Syncing OpenAI user mappings first...');
+    const mappingsResult = await syncOpenAIUserMappingsSmart();
+    console.log(`  Created: ${mappingsResult.mappingsCreated}, Skipped: ${mappingsResult.mappingsSkipped}\n`);
+
+    // Use backfillOpenAIUsage which updates sync state
+    const result = await backfillOpenAIUsage(fromDate, {
       onProgress: (msg: string) => console.log(msg)
     });
     console.log(`\n✓ Backfill complete`);
@@ -590,6 +666,9 @@ async function main() {
       case 'cursor:status':
         await cmdCursorStatus();
         break;
+      case 'openai:status':
+        await cmdOpenAIStatus();
+        break;
       case 'mappings':
         await cmdMappings();
         break;
@@ -603,21 +682,23 @@ async function main() {
         const daysIdx = args.indexOf('--days');
         const days = daysIdx >= 0 ? parseInt(args[daysIdx + 1]) : 7;
         const skipMappings = args.includes('--skip-mappings');
-        // Parse tool filter: sync [anthropic|cursor] --days N
+        // Parse tool filter: sync [anthropic|cursor|openai] --days N
         const toolArg = args[1];
-        let tools: ('anthropic' | 'cursor')[] = ['anthropic', 'cursor'];
+        let tools: ('anthropic' | 'cursor' | 'openai')[] = ['anthropic', 'cursor', 'openai'];
         if (toolArg === 'anthropic') {
           tools = ['anthropic'];
         } else if (toolArg === 'cursor') {
           tools = ['cursor'];
+        } else if (toolArg === 'openai') {
+          tools = ['openai'];
         }
         await cmdSync(days, tools, skipMappings);
         break;
       }
       case 'backfill': {
-        const tool = args[1] as 'anthropic' | 'cursor';
-        if (!tool || !['anthropic', 'cursor'].includes(tool)) {
-          console.error('Error: Please specify tool (anthropic or cursor)');
+        const tool = args[1] as 'anthropic' | 'cursor' | 'openai';
+        if (!tool || !['anthropic', 'cursor', 'openai'].includes(tool)) {
+          console.error('Error: Please specify tool (anthropic, cursor, or openai)');
           console.error('Usage: npm run cli backfill <tool> --from YYYY-MM-DD --to YYYY-MM-DD');
           break;
         }
@@ -643,9 +724,9 @@ async function main() {
         break;
       }
       case 'backfill:complete': {
-        const tool = args[1] as 'anthropic' | 'cursor';
-        if (!tool || !['anthropic', 'cursor'].includes(tool)) {
-          console.error('Error: Please specify tool (anthropic or cursor)');
+        const tool = args[1] as 'anthropic' | 'cursor' | 'openai';
+        if (!tool || !['anthropic', 'cursor', 'openai'].includes(tool)) {
+          console.error('Error: Please specify tool (anthropic, cursor, or openai)');
           console.error('Usage: npm run cli backfill:complete <tool>');
           break;
         }
@@ -661,29 +742,31 @@ async function main() {
         break;
       }
       case 'backfill:reset': {
-        const tool = args[1] as 'anthropic' | 'cursor';
-        if (!tool || !['anthropic', 'cursor'].includes(tool)) {
-          console.error('Error: Please specify tool (anthropic or cursor)');
+        const tool = args[1] as 'anthropic' | 'cursor' | 'openai';
+        if (!tool || !['anthropic', 'cursor', 'openai'].includes(tool)) {
+          console.error('Error: Please specify tool (anthropic, cursor, or openai)');
           console.error('Usage: npm run cli backfill:reset <tool>');
           break;
         }
         console.log(`Resetting ${tool} backfill status...`);
         if (tool === 'anthropic') {
           await resetAnthropicBackfillComplete();
-        } else {
+        } else if (tool === 'cursor') {
           await resetCursorBackfillComplete();
+        } else {
+          await resetOpenAIBackfillComplete();
         }
         console.log(`✓ ${tool} backfill status reset (can now re-backfill)`);
         break;
       }
       case 'gaps': {
         const toolArg = args[1];
-        const toolsToCheck: string[] = toolArg && ['anthropic', 'cursor', 'claude_code'].includes(toolArg)
+        const toolsToCheck: string[] = toolArg && ['anthropic', 'cursor', 'claude_code', 'openai'].includes(toolArg)
           ? [toolArg === 'anthropic' ? 'claude_code' : toolArg]
-          : ['claude_code', 'cursor'];
+          : ['claude_code', 'cursor', 'openai'];
 
         for (const tool of toolsToCheck) {
-          const displayName = tool === 'claude_code' ? 'Claude Code (anthropic)' : 'Cursor';
+          const displayName = tool === 'claude_code' ? 'Claude Code (anthropic)' : tool === 'openai' ? 'OpenAI' : 'Cursor';
           console.log(`\n📊 ${displayName} Data Gap Analysis\n`);
 
           const result = await sql`
