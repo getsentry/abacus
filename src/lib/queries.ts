@@ -869,6 +869,83 @@ export async function getAdoptionSummary(
   };
 }
 
+// ============================================================================
+// GitHub Commit Stats
+// ============================================================================
+
+export interface GitHubStats {
+  totalCommits: number;
+  aiAssistedCommits: number;
+  aiAssistanceRate: number;
+  totalAdditions: number;
+  totalDeletions: number;
+  aiAdditions: number;
+  aiDeletions: number;
+  toolBreakdown: {
+    tool: string;
+    commits: number;
+    additions: number;
+    deletions: number;
+  }[];
+  firstCommitDate: string | null;
+  lastCommitDate: string | null;
+  repositoryCount: number;
+}
+
+export async function getGitHubStats(): Promise<GitHubStats> {
+  const [overallResult, toolBreakdownResult, repoCountResult] = await Promise.all([
+    sql`
+      SELECT
+        COUNT(*)::int as "totalCommits",
+        COUNT(*) FILTER (WHERE ai_tool IS NOT NULL)::int as "aiAssistedCommits",
+        COALESCE(SUM(additions), 0)::int as "totalAdditions",
+        COALESCE(SUM(deletions), 0)::int as "totalDeletions",
+        COALESCE(SUM(additions) FILTER (WHERE ai_tool IS NOT NULL), 0)::int as "aiAdditions",
+        COALESCE(SUM(deletions) FILTER (WHERE ai_tool IS NOT NULL), 0)::int as "aiDeletions",
+        MIN(committed_at)::text as "firstCommitDate",
+        MAX(committed_at)::text as "lastCommitDate"
+      FROM commits
+    `,
+    sql`
+      SELECT
+        ai_tool as tool,
+        COUNT(*)::int as commits,
+        COALESCE(SUM(additions), 0)::int as additions,
+        COALESCE(SUM(deletions), 0)::int as deletions
+      FROM commits
+      WHERE ai_tool IS NOT NULL
+      GROUP BY ai_tool
+      ORDER BY commits DESC
+    `,
+    sql`
+      SELECT COUNT(DISTINCT repo_id)::int as count FROM commits
+    `
+  ]);
+
+  const overall = overallResult.rows[0];
+  const totalCommits = Number(overall.totalCommits);
+  const aiAssistedCommits = Number(overall.aiAssistedCommits);
+
+  return {
+    totalCommits,
+    aiAssistedCommits,
+    aiAssistanceRate: totalCommits > 0 ? Math.round((aiAssistedCommits / totalCommits) * 100) : 0,
+    totalAdditions: Number(overall.totalAdditions),
+    totalDeletions: Number(overall.totalDeletions),
+    aiAdditions: Number(overall.aiAdditions),
+    aiDeletions: Number(overall.aiDeletions),
+    toolBreakdown: toolBreakdownResult.rows.map(row => ({
+      tool: row.tool,
+      commits: Number(row.commits),
+      additions: Number(row.additions),
+      deletions: Number(row.deletions),
+    })),
+    firstCommitDate: overall.firstCommitDate,
+    lastCommitDate: overall.lastCommitDate,
+    repositoryCount: Number(repoCountResult.rows[0].count),
+  };
+}
+
 /**
  * Get a user's percentile rank based on avgTokensPerDay compared to all users
  * Returns a number 0-100 where higher = better (e.g., 85 means top 15%)
