@@ -12,7 +12,7 @@ import { PageContainer } from '@/components/PageContainer';
 import { AppLink } from '@/components/AppLink';
 import { LoadingState, ErrorState, EmptyState } from '@/components/PageState';
 import { getToolConfig, formatToolName } from '@/lib/tools';
-import { GitCommit, Users, Calendar, ArrowLeft, ExternalLink, Filter } from 'lucide-react';
+import { GitCommit, Users, Calendar, ArrowLeft, ExternalLink, Filter, ChevronRight, ChevronDown } from 'lucide-react';
 
 function formatNumber(n: number): string {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
@@ -96,6 +96,8 @@ function ToolBadge({ tool, model }: { tool: string; model?: string | null }) {
 }
 
 function CommitRow({ commit, source, repoFullName }: { commit: RepositoryCommit; source: string; repoFullName: string }) {
+  const [expanded, setExpanded] = useState(false);
+
   const date = new Date(commit.committedAt);
   const dateStr = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   const timeStr = date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
@@ -114,69 +116,106 @@ function CommitRow({ commit, source, repoFullName }: { commit: RepositoryCommit;
   const hasAttribution = attributions.length > 0;
   const primaryTool = attributions[0]?.aiTool;
 
+  // Parse commit message: first line is title, rest is body
+  const messageLines = (commit.message || '').split('\n');
+  const title = messageLines[0] || 'No commit message';
+  const body = messageLines.slice(1).join('\n').trim();
+  const hasBody = body.length > 0;
+
   return (
     <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
-      className="group flex items-start gap-4 py-3 px-4 border-b border-white/5 hover:bg-white/[0.02] transition-colors"
+      className="border-b border-white/5"
     >
-      {/* Commit indicator */}
-      <div className="flex-shrink-0 mt-1">
-        {hasAttribution ? (
-          <div className="flex -space-x-1">
-            {attributions.length === 1 ? (
-              <div className={`w-2 h-2 rounded-full ${getToolConfig(primaryTool).bg}`} />
+      {/* Main row - clickable to expand */}
+      <div
+        className={`group flex items-start gap-3 py-3 px-4 hover:bg-white/[0.02] transition-colors ${hasBody ? 'cursor-pointer' : ''}`}
+        onClick={() => hasBody && setExpanded(!expanded)}
+      >
+        {/* Expand/collapse indicator or commit indicator */}
+        <div className="flex-shrink-0 mt-0.5 w-4">
+          {hasBody ? (
+            expanded ? (
+              <ChevronDown className="w-4 h-4 text-white/40" />
             ) : (
-              attributions.map((attr, i) => (
-                <div
-                  key={attr.aiTool}
-                  className={`w-2 h-2 rounded-full ${getToolConfig(attr.aiTool).bg} ring-1 ring-[#050507]`}
-                  style={{ zIndex: attributions.length - i }}
-                />
-              ))
-            )}
-          </div>
-        ) : (
-          <div className="w-2 h-2 rounded-full bg-white/20" />
-        )}
-      </div>
+              <ChevronRight className="w-4 h-4 text-white/40" />
+            )
+          ) : (
+            <div className="w-4 h-4 flex items-center justify-center">
+              {hasAttribution ? (
+                <div className="flex -space-x-1">
+                  {attributions.length === 1 ? (
+                    <div className={`w-2 h-2 rounded-full ${getToolConfig(primaryTool).bg}`} />
+                  ) : (
+                    attributions.slice(0, 2).map((attr, i) => (
+                      <div
+                        key={attr.aiTool}
+                        className={`w-2 h-2 rounded-full ${getToolConfig(attr.aiTool).bg} ring-1 ring-[#050507]`}
+                        style={{ zIndex: 2 - i }}
+                      />
+                    ))
+                  )}
+                </div>
+              ) : (
+                <div className="w-2 h-2 rounded-full bg-white/20" />
+              )}
+            </div>
+          )}
+        </div>
 
-      {/* Main content */}
-      <div className="flex-1 min-w-0">
-        <div className="flex items-start justify-between gap-4">
-          <div className="min-w-0 flex-1">
-            {/* Commit info */}
-            <div className="flex items-center gap-3 text-sm font-mono">
-              <span className="text-white/80">{commit.authorEmail?.split('@')[0] || 'unknown'}</span>
-              <span className="text-white/40">{dateStr} {timeStr}</span>
-              {(commit.additions > 0 || commit.deletions > 0) && (
-                <span className="text-xs">
-                  <span className="text-emerald-400">+{commit.additions}</span>
-                  {' / '}
-                  <span className="text-red-400">-{commit.deletions}</span>
-                </span>
+        {/* Main content */}
+        <div className="flex-1 min-w-0">
+          {/* First line: commit title and SHA */}
+          <div className="flex items-start justify-between gap-4">
+            <div className="min-w-0 flex-1">
+              <p className="text-sm text-white/90 truncate">{title}</p>
+            </div>
+            <div className="flex items-center gap-2 flex-shrink-0">
+              {commitUrl && (
+                <a
+                  href={commitUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={(e) => e.stopPropagation()}
+                  className="text-white/30 hover:text-white/60 transition-colors"
+                >
+                  <code className="text-xs font-mono">{commit.commitId.slice(0, 7)}</code>
+                </a>
               )}
             </div>
           </div>
 
-          {/* Right side: AI badges and link */}
-          <div className="flex items-center gap-2 flex-shrink-0">
-            {attributions.map((attr) => (
-              <ToolBadge key={attr.aiTool} tool={attr.aiTool} model={attr.aiModel} />
-            ))}
-            {commitUrl && (
-              <a
-                href={commitUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-white/20 hover:text-white/60 transition-colors"
-              >
-                <code className="text-[10px]">{commit.commitId.slice(0, 7)}</code>
-              </a>
-            )}
+          {/* Second line: author, date, stats, AI badges */}
+          <div className="flex items-center justify-between gap-4 mt-1">
+            <div className="flex items-center gap-3 text-xs font-mono text-white/50">
+              <span>{commit.authorEmail?.split('@')[0] || 'unknown'}</span>
+              <span>{dateStr} {timeStr}</span>
+              {(commit.additions > 0 || commit.deletions > 0) && (
+                <span>
+                  <span className="text-emerald-400/70">+{commit.additions}</span>
+                  {' / '}
+                  <span className="text-red-400/70">-{commit.deletions}</span>
+                </span>
+              )}
+            </div>
+            <div className="flex items-center gap-2 flex-shrink-0">
+              {attributions.map((attr) => (
+                <ToolBadge key={attr.aiTool} tool={attr.aiTool} model={attr.aiModel} />
+              ))}
+            </div>
           </div>
         </div>
       </div>
+
+      {/* Expanded body */}
+      {expanded && hasBody && (
+        <div className="px-4 pb-4 pl-11">
+          <pre className="text-xs font-mono text-white/50 whitespace-pre-wrap bg-white/[0.02] rounded p-3 border border-white/5 overflow-x-auto">
+            {body}
+          </pre>
+        </div>
+      )}
     </motion.div>
   );
 }
