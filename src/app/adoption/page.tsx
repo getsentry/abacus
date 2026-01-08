@@ -5,9 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { Compass, Flame, Zap, Star, Users, TrendingUp, Target } from 'lucide-react';
 import { StatCard } from '@/components/StatCard';
-import { MainNav } from '@/components/MainNav';
-import { UserMenu } from '@/components/UserMenu';
-import { MobileNav } from '@/components/MobileNav';
+import { AppHeader } from '@/components/AppHeader';
 import { TimeRangeSelector } from '@/components/TimeRangeSelector';
 import { AdoptionFunnel } from '@/components/AdoptionFunnel';
 import { AdoptionBadge } from '@/components/AdoptionBadge';
@@ -146,18 +144,7 @@ function AdoptionPageContent() {
         </div>
       )}
 
-      {/* Header */}
-      <header className="relative z-20 border-b border-white/5">
-        <PageContainer className="py-4">
-          <div className="flex items-center justify-between gap-4">
-            <MainNav days={days} />
-            <div className="flex items-center gap-3">
-              <UserMenu />
-              <MobileNav days={days} />
-            </div>
-          </div>
-        </PageContainer>
-      </header>
+      <AppHeader />
 
       <TipBar />
 

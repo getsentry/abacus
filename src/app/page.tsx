@@ -8,9 +8,7 @@ import { UserTable } from '@/components/UserTable';
 import { SearchInput } from '@/components/SearchInput';
 import { TipBar } from '@/components/TipBar';
 import { TimeRangeSelector } from '@/components/TimeRangeSelector';
-import { MainNav } from '@/components/MainNav';
-import { MobileNav } from '@/components/MobileNav';
-import { UserMenu } from '@/components/UserMenu';
+import { AppHeader } from '@/components/AppHeader';
 import { LifetimeStats } from '@/components/LifetimeStats';
 import { AdoptionDistribution } from '@/components/AdoptionDistribution';
 import { ToolDistribution } from '@/components/ToolDistribution';
@@ -190,21 +188,7 @@ function DashboardContent() {
         </div>
       )}
 
-      {/* Header */}
-      <header className="relative z-20 border-b border-white/5">
-        <PageContainer className="py-4">
-          <div className="flex items-center justify-between gap-4">
-            <MainNav days={days} />
-            <div className="flex items-center gap-3">
-              <div className="hidden sm:block">
-                <SearchInput days={days} placeholder="Search users..." />
-              </div>
-              <UserMenu />
-              <MobileNav days={days} />
-            </div>
-          </div>
-        </PageContainer>
-      </header>
+      <AppHeader search={<SearchInput days={days} placeholder="Search users..." />} />
 
       <TipBar />
 

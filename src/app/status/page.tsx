@@ -2,11 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-import { MainNav } from '@/components/MainNav';
-import { UserMenu } from '@/components/UserMenu';
-import { MobileNav } from '@/components/MobileNav';
+import { AppHeader } from '@/components/AppHeader';
 import { PageContainer } from '@/components/PageContainer';
-import { DEFAULT_DAYS } from '@/lib/constants';
 import { formatTokens, formatCurrency } from '@/lib/utils';
 
 interface ProviderStatus {
@@ -166,18 +163,7 @@ export default function StatusPage() {
 
   return (
     <div className="min-h-screen bg-[#0a0a0f] text-white grid-bg">
-      {/* Header */}
-      <header className="relative z-20 border-b border-white/5">
-        <PageContainer className="py-4">
-          <div className="flex items-center justify-between">
-            <MainNav days={DEFAULT_DAYS} />
-            <div className="flex items-center gap-3">
-              <UserMenu />
-              <MobileNav days={DEFAULT_DAYS} />
-            </div>
-          </div>
-        </PageContainer>
-      </header>
+      <AppHeader />
 
       {/* Page Title */}
       <div className="border-b border-white/5">

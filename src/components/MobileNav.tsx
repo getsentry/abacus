@@ -95,7 +95,7 @@ export function MobileNav({ days }: MobileNavProps) {
       {/* Mobile Dropdown Menu */}
       {mobileMenuOpen && (
         <div
-          className="absolute right-0 top-full mt-2 w-48 origin-top-right rounded-lg border border-white/10 bg-[#0a0a0f]/95 backdrop-blur-sm shadow-xl shadow-black/20 z-50"
+          className="absolute left-0 top-full mt-2 w-48 origin-top-left rounded-lg border border-white/10 bg-[#0a0a0f]/95 backdrop-blur-sm shadow-xl shadow-black/20 z-50"
           style={{
             animation: 'slideUp 0.15s ease-out',
           }}

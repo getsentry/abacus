@@ -6,9 +6,7 @@ import { motion } from 'framer-motion';
 import { GitCommit, GitBranch, TrendingUp } from 'lucide-react';
 import { InlineSearchInput } from '@/components/SearchInput';
 import { TimeRangeSelector } from '@/components/TimeRangeSelector';
-import { MainNav } from '@/components/MainNav';
-import { UserMenu } from '@/components/UserMenu';
-import { MobileNav } from '@/components/MobileNav';
+import { AppHeader } from '@/components/AppHeader';
 import { TipBar } from '@/components/TipBar';
 import { PageContainer } from '@/components/PageContainer';
 import { useTimeRange } from '@/contexts/TimeRangeContext';
@@ -192,25 +190,15 @@ function CommitsPageContent() {
         </div>
       )}
 
-      {/* Header */}
-      <header className="relative z-20 border-b border-white/5">
-        <PageContainer className="py-4">
-          <div className="flex items-center justify-between gap-4">
-            <MainNav days={days} />
-            <div className="flex items-center gap-3">
-              <div className="hidden sm:block">
-                <InlineSearchInput
-                  value={searchQuery}
-                  onChange={setSearchQuery}
-                  placeholder="Filter repositories..."
-                />
-              </div>
-              <UserMenu />
-              <MobileNav days={days} />
-            </div>
-          </div>
-        </PageContainer>
-      </header>
+      <AppHeader
+        search={
+          <InlineSearchInput
+            value={searchQuery}
+            onChange={setSearchQuery}
+            placeholder="Filter repositories..."
+          />
+        }
+      />
 
       <TipBar />
 
