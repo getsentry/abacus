@@ -12,6 +12,7 @@ import { MainNav } from '@/components/MainNav';
 import { UserMenu } from '@/components/UserMenu';
 import { LifetimeStats } from '@/components/LifetimeStats';
 import { AdoptionDistribution } from '@/components/AdoptionDistribution';
+import { ToolDistribution } from '@/components/ToolDistribution';
 import { PageContainer } from '@/components/PageContainer';
 import { formatTokens, formatCurrency } from '@/lib/utils';
 import { useTimeRange } from '@/contexts/TimeRangeContext';
@@ -298,6 +299,26 @@ function DashboardContent() {
               <AdoptionDistribution
                 stages={adoptionData.stages}
                 totalUsers={adoptionData.totalUsers}
+                days={days}
+              />
+            )}
+
+            {/* Tool Distribution */}
+            {stats && stats.totalTokens > 0 && (
+              <ToolDistribution
+                tools={[
+                  ...(stats.claudeCodeTokens > 0 ? [{
+                    tool: 'claude_code',
+                    tokens: stats.claudeCodeTokens,
+                    percentage: (stats.claudeCodeTokens / stats.totalTokens) * 100,
+                  }] : []),
+                  ...(stats.cursorTokens > 0 ? [{
+                    tool: 'cursor',
+                    tokens: stats.cursorTokens,
+                    percentage: (stats.cursorTokens / stats.totalTokens) * 100,
+                  }] : []),
+                ].sort((a, b) => b.tokens - a.tokens)}
+                totalTokens={stats.totalTokens}
                 days={days}
               />
             )}
