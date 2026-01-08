@@ -48,7 +48,6 @@ interface RepositoryCommit {
   aiModel: string | null;
   additions: number;
   deletions: number;
-  message: string | null;
 }
 
 interface RepositoryAuthor {
@@ -115,17 +114,12 @@ function CommitRow({ commit, source, repoFullName }: { commit: RepositoryCommit;
       <div className="flex-1 min-w-0">
         <div className="flex items-start justify-between gap-4">
           <div className="min-w-0 flex-1">
-            {/* Commit message */}
-            <div className="font-mono text-sm text-white/80 truncate">
-              {commit.message?.split('\n')[0] || <span className="text-white/30 italic">No message</span>}
-            </div>
-
-            {/* Author and metadata */}
-            <div className="flex items-center gap-3 mt-1 text-xs text-white/40 font-mono">
-              <span>{commit.authorEmail.split('@')[0]}</span>
-              <span>{dateStr} {timeStr}</span>
+            {/* Commit info */}
+            <div className="flex items-center gap-3 text-sm font-mono">
+              <span className="text-white/80">{commit.authorEmail?.split('@')[0] || 'unknown'}</span>
+              <span className="text-white/40">{dateStr} {timeStr}</span>
               {(commit.additions > 0 || commit.deletions > 0) && (
-                <span>
+                <span className="text-xs">
                   <span className="text-emerald-400">+{commit.additions}</span>
                   {' / '}
                   <span className="text-red-400">-{commit.deletions}</span>

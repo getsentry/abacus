@@ -1270,7 +1270,6 @@ export interface RepositoryCommit {
   aiModel: string | null;
   additions: number;
   deletions: number;
-  message: string | null;
 }
 
 export interface RepositoryAuthor {
@@ -1383,8 +1382,7 @@ export async function getRepositoryCommits(
       c.ai_tool as "aiTool",
       c.ai_model as "aiModel",
       COALESCE(c.additions, 0)::int as additions,
-      COALESCE(c.deletions, 0)::int as deletions,
-      c.message
+      COALESCE(c.deletions, 0)::int as deletions
     FROM commits c
     WHERE c.repo_id = $1
       AND c.committed_at >= $2::timestamp
