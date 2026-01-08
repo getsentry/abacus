@@ -95,7 +95,7 @@ function SignInContent() {
           <h1 className="font-display text-2xl font-semibold text-white tracking-tight">
             Abacus
           </h1>
-          <p className="font-mono text-xs text-white/40 mt-1">
+          <p className="font-mono text-xs text-muted mt-1">
             AI usage analytics for your team
           </p>
         </div>
@@ -106,7 +106,7 @@ function SignInContent() {
           style={{ animation: 'slideUp 0.6s ease-out 0.1s forwards' }}
         >
           <h2 className="font-display text-lg text-white mb-1">Sign in</h2>
-          <p className="font-mono text-xs text-white/40 mb-6">
+          <p className="font-mono text-xs text-muted mb-6">
             Use your organization Google account
           </p>
 
@@ -170,7 +170,7 @@ export default function SignInPage() {
     <Suspense
       fallback={
         <div className="flex-1 bg-[#050507] grid-bg flex items-center justify-center">
-          <div className="font-mono text-white/40 text-sm">Loading...</div>
+          <div className="font-mono text-muted text-sm">Loading...</div>
         </div>
       }
     >

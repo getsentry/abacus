@@ -8,7 +8,7 @@ import { StatCard } from '@/components/StatCard';
 import { InlineSearchInput } from '@/components/SearchInput';
 import { AppHeader } from '@/components/AppHeader';
 import { TimeRangeSelector } from '@/components/TimeRangeSelector';
-import { AdoptionFunnel } from '@/components/AdoptionFunnel';
+import { AdoptionDistribution } from '@/components/AdoptionDistribution';
 import { AdoptionBadge } from '@/components/AdoptionBadge';
 import { UserLink } from '@/components/UserLink';
 import { TipBar } from '@/components/TipBar';
@@ -17,6 +17,7 @@ import { LoadingBar } from '@/components/LoadingBar';
 import { LoadingState, ErrorState } from '@/components/PageState';
 import { AnimatedCard } from '@/components/Card';
 import { ToolSplitBar, type ToolSplitData } from '@/components/ToolSplitBar';
+import { ExportButton } from '@/components/ExportButton';
 import { useTimeRange } from '@/contexts/TimeRangeContext';
 import { formatTokens, formatCurrency } from '@/lib/utils';
 import { type AdoptionStage, STAGE_CONFIG, STAGE_ORDER, STAGE_ICONS, isInactive } from '@/lib/adoption';
@@ -79,13 +80,15 @@ const columns: { key: ColumnKey; label: string; align: 'left' | 'right'; format?
   { key: 'adoptionScore', label: 'Score', align: 'right', format: (v) => v.toString() },
   { key: 'totalTokens', label: 'Total Tokens', align: 'right', format: formatTokens },
   { key: 'totalCost', label: 'Cost', align: 'right', format: formatCurrency },
-  { key: 'split', label: 'Split', align: 'left', sortable: false },
+  { key: 'split', label: 'Tools', align: 'left', sortable: false },
   { key: 'claudeCodeTokens', label: 'Claude Code', align: 'right', format: formatTokens },
   { key: 'cursorTokens', label: 'Cursor', align: 'right', format: formatTokens },
   { key: 'daysActive', label: 'Days Active', align: 'right', format: (v) => v.toString() },
   { key: 'avgTokensPerDay', label: 'Avg/Day', align: 'right', format: formatTokens },
   { key: 'lastActive', label: 'Last Active', align: 'right' },
 ];
+
+const DEFAULT_COLUMNS: ColumnKey[] = ['email', 'adoptionStage', 'totalTokens', 'totalCost', 'split', 'lastActive'];
 
 const filterTabs: { key: FilterType; label: string }[] = [
   { key: 'active', label: 'All Active' },
@@ -110,9 +113,16 @@ function TeamPageContent() {
   const [sortBy, setSortBy] = useState<SortKey>('totalTokens');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
   const [searchQuery, setSearchQuery] = useState(initialSearch);
-  const [visibleColumns, setVisibleColumns] = useState<Set<ColumnKey>>(
-    new Set(['email', 'adoptionStage', 'totalTokens', 'totalCost', 'split', 'avgTokensPerDay', 'lastActive'])
-  );
+
+  // Parse visible columns from URL
+  const visibleColumns = useMemo(() => {
+    const colsParam = searchParams.get('cols');
+    if (colsParam) {
+      const cols = colsParam.split(',').filter(c => columns.some(col => col.key === c)) as ColumnKey[];
+      return new Set(cols.length > 0 ? cols : DEFAULT_COLUMNS);
+    }
+    return new Set(DEFAULT_COLUMNS);
+  }, [searchParams]);
 
   // Get filter from URL or default to 'active' (hides inactive)
   const filterParam = searchParams.get('filter');
@@ -194,15 +204,6 @@ function TeamPageContent() {
     return users.filter(u => u.adoptionStage === selectedFilter && !isInactive(u.daysSinceLastActive));
   }, [users, selectedFilter]);
 
-  // Prepare funnel data
-  const funnelData = summary
-    ? STAGE_ORDER.map(stage => ({
-        stage,
-        count: summary.stages[stage]?.count || 0,
-        percentage: summary.stages[stage]?.percentage || 0,
-      }))
-    : [];
-
   const handleSort = (key: SortKey) => {
     if (sortBy === key) {
       setSortDir(sortDir === 'asc' ? 'desc' : 'asc');
@@ -212,15 +213,26 @@ function TeamPageContent() {
     }
   };
 
-  const toggleColumn = (key: ColumnKey) => {
+  const toggleColumn = useCallback((key: ColumnKey) => {
     const newVisible = new Set(visibleColumns);
     if (newVisible.has(key)) {
       if (key !== 'email') newVisible.delete(key); // Always keep email
     } else {
       newVisible.add(key);
     }
-    setVisibleColumns(newVisible);
-  };
+
+    const newParams = new URLSearchParams(searchParams.toString());
+    const colsArray = Array.from(newVisible);
+    // Only set cols param if different from default
+    const isDefault = colsArray.length === DEFAULT_COLUMNS.length &&
+      colsArray.every(c => DEFAULT_COLUMNS.includes(c));
+    if (isDefault) {
+      newParams.delete('cols');
+    } else {
+      newParams.set('cols', colsArray.join(','));
+    }
+    router.push(`/team?${newParams.toString()}`, { scroll: false });
+  }, [visibleColumns, searchParams, router]);
 
   const activeColumns = columns.filter(c => visibleColumns.has(c.key));
 
@@ -257,7 +269,7 @@ function TeamPageContent() {
           <div className="flex items-center justify-between">
             <div>
               <h1 className="font-display text-2xl text-white">Team</h1>
-              <p className="font-mono text-xs text-white/40 mt-1">
+              <p className="font-mono text-xs text-muted mt-1">
                 Track team members and AI tool adoption
               </p>
             </div>
@@ -359,71 +371,65 @@ function TeamPageContent() {
               })()}
             </div>
 
-            {/* Funnel Visualization */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.1 }}
-              className="rounded-lg border border-white/5 bg-white/[0.02] p-6"
-            >
-              <p className="font-mono text-xs uppercase tracking-wider text-white/60 mb-4">
-                Adoption Funnel
-              </p>
-              <AdoptionFunnel
-                data={funnelData}
-                onStageClick={(stage) => setSelectedFilter(stage === 'all' ? 'active' : stage)}
-                selectedStage={selectedFilter === 'all' || selectedFilter === 'active' || selectedFilter === 'inactive' ? null : selectedFilter}
-              />
-            </motion.div>
+            {/* Adoption Distribution */}
+            <AdoptionDistribution
+              stages={summary.stages}
+              totalUsers={summary.activeUsers}
+              days={days}
+              hideViewAll
+            />
 
-            {/* Filter Tabs */}
-            <div className="flex items-center gap-2 overflow-x-auto pb-2">
-              {filterTabs.map(tab => (
-                <button
-                  key={tab.key}
-                  onClick={() => setSelectedFilter(tab.key)}
-                  className={`px-3 py-1.5 rounded font-mono text-xs transition-all duration-200 whitespace-nowrap ${
-                    selectedFilter === tab.key
-                      ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
-                      : 'bg-white/5 text-white/40 border border-white/10 hover:bg-white/10 hover:text-white/60'
-                  }`}
+            {/* Filter, Column Selector and Export */}
+            <div className="flex items-center justify-between gap-4">
+              <div className="flex items-center gap-6">
+                {/* Filter Dropdown */}
+                <select
+                  value={selectedFilter}
+                  onChange={(e) => setSelectedFilter(e.target.value as FilterType)}
+                  className="px-3 py-1.5 rounded font-mono text-xs bg-white/5 text-muted border border-white/10 hover:bg-white/10 cursor-pointer focus:outline-none focus:border-amber-500/50 appearance-none pr-8"
+                  style={{
+                    backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='rgba(255,255,255,0.4)' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E")`,
+                    backgroundRepeat: 'no-repeat',
+                    backgroundPosition: 'right 8px center',
+                  }}
                 >
-                  {tab.label}
-                  {tab.key !== 'all' && tab.key !== 'active' && tab.key !== 'inactive' && summary && (
-                    <span className="ml-1.5 text-white/30">
-                      {summary.stages[tab.key]?.count || 0}
-                    </span>
-                  )}
-                  {tab.key === 'inactive' && summary && (
-                    <span className="ml-1.5 text-white/30">{summary.inactive.count}</span>
-                  )}
-                </button>
-              ))}
-            </div>
+                  {filterTabs.map(tab => (
+                    <option key={tab.key} value={tab.key}>
+                      {tab.label}
+                      {tab.key !== 'all' && tab.key !== 'active' && tab.key !== 'inactive' && summary
+                        ? ` (${summary.stages[tab.key as AdoptionStage]?.count || 0})`
+                        : tab.key === 'inactive' && summary
+                        ? ` (${summary.inactive.count})`
+                        : ''}
+                    </option>
+                  ))}
+                </select>
 
-            {/* Column Selector */}
-            <div className="flex items-center gap-2 overflow-x-auto pb-2">
-              <span className="font-mono text-[11px] uppercase tracking-wider text-white/40 mr-2">Columns:</span>
-              {columns.map(col => (
-                <button
-                  key={col.key}
-                  onClick={() => toggleColumn(col.key)}
-                  disabled={col.key === 'email'}
-                  className={`px-2 py-1 rounded font-mono text-[11px] transition-colors whitespace-nowrap ${
-                    visibleColumns.has(col.key)
-                      ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/30'
-                      : 'bg-white/5 text-white/40 border border-white/10 hover:bg-white/10'
-                  } ${col.key === 'email' ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
-                >
-                  {col.label}
-                </button>
-              ))}
+                {/* Column Selector - hidden on mobile */}
+                <div className="hidden md:flex items-center gap-1.5 flex-wrap">
+                  {columns.map(col => (
+                    <button
+                      key={col.key}
+                      onClick={() => toggleColumn(col.key)}
+                      disabled={col.key === 'email'}
+                      className={`px-2 py-1 rounded font-mono text-[11px] transition-colors whitespace-nowrap ${
+                        visibleColumns.has(col.key)
+                          ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/30'
+                          : 'bg-white/5 text-muted border border-white/10 hover:bg-white/10'
+                      } ${col.key === 'email' ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+                    >
+                      {col.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <ExportButton type="team" search={searchQuery} />
             </div>
 
             {/* User Table */}
             <AnimatedCard padding="none" className="overflow-hidden">
               <div className="overflow-x-auto">
-                <table className="w-full">
+                <table className="w-full min-w-[600px]">
                   <thead>
                     <tr className="border-b border-white/10 bg-white/[0.02]">
                       {activeColumns.map(col => {
@@ -453,7 +459,7 @@ function TeamPageContent() {
                     {filteredUsers.length === 0 ? (
                       <tr>
                         <td colSpan={activeColumns.length} className="px-4 py-8 text-center">
-                          <span className="font-mono text-sm text-white/30">
+                          <span className="font-mono text-sm text-muted">
                             No users in this category
                           </span>
                         </td>
@@ -518,7 +524,7 @@ function TeamPageContent() {
                                 {col.format!(totals[col.key as keyof typeof totals])}
                               </span>
                             ) : (
-                              <span className="text-white/30">-</span>
+                              <span className="text-faint">-</span>
                             )}
                           </td>
                         ))}

@@ -16,12 +16,19 @@ interface ToolData {
   userPercentage: number;
 }
 
+interface CommitToolData {
+  tool: string;
+  commits: number;
+}
+
 interface ToolDistributionProps {
   tools: ToolData[];
   totalTokens: number;
   totalUsers: number;
   className?: string;
   days?: number;
+  commitTools?: CommitToolData[];
+  totalCommits?: number;
 }
 
 // Extended colors for hover states
@@ -45,9 +52,11 @@ export function ToolDistribution({
   totalUsers,
   className = '',
   days,
+  commitTools = [],
+  totalCommits = 0,
 }: ToolDistributionProps) {
   const [hoveredTool, setHoveredTool] = useState<string | null>(null);
-  const [hoveredBar, setHoveredBar] = useState<'tokens' | 'users' | null>(null);
+  const [hoveredBar, setHoveredBar] = useState<'tokens' | 'users' | 'commits' | null>(null);
 
   // Calculate segment positions for tooltip placement
   const tokenPositions = useMemo(() => {
@@ -74,18 +83,51 @@ export function ToolDistribution({
     return positions;
   }, [tools]);
 
+  const commitPositions = useMemo(() => {
+    const positions: Record<string, { left: number; width: number; commits: number; percentage: number }> = {};
+    if (totalCommits === 0) return positions;
+    let cumulative = 0;
+    for (const tool of commitTools) {
+      const percentage = (tool.commits / totalCommits) * 100;
+      if (percentage > 0) {
+        positions[tool.tool] = { left: cumulative, width: percentage, commits: tool.commits, percentage };
+        cumulative += percentage;
+      }
+    }
+    return positions;
+  }, [commitTools, totalCommits]);
+
   if (totalTokens === 0 || tools.length === 0) return null;
 
-  const positions = hoveredBar === 'users' ? userPositions : tokenPositions;
+  const positions = hoveredBar === 'users' ? userPositions : hoveredBar === 'commits' ? commitPositions : tokenPositions;
+
+  // Get tooltip content based on hovered bar type
+  const getTooltipContent = () => {
+    if (!hoveredTool) return null;
+
+    if (hoveredBar === 'commits') {
+      const pos = commitPositions[hoveredTool];
+      if (!pos) return null;
+      return `${pos.commits} commits (${Math.round(pos.percentage)}%)`;
+    } else if (hoveredBar === 'users') {
+      const tool = tools.find(t => t.tool === hoveredTool);
+      if (!tool) return null;
+      return `${tool.users} users (${Math.round(tool.userPercentage)}%)`;
+    } else {
+      const tool = tools.find(t => t.tool === hoveredTool);
+      if (!tool) return null;
+      return `${formatTokens(tool.tokens)} (${Math.round(tool.tokenPercentage)}%)`;
+    }
+  };
 
   return (
     <AnimatedCard delay={0.35} padding="md" className={className}>
       <div className="flex items-center justify-between mb-3">
-        <SectionLabel days={days}>Tool Distribution</SectionLabel>
+        <SectionLabel days={days}>Tools</SectionLabel>
       </div>
 
-      {/* Dual stacked bars with tooltips */}
-      <div className="relative mb-3 space-y-2">
+      {/* Stacked bars with tooltips */}
+      <div className="relative space-y-2">
         {/* Tooltip */}
         {hoveredTool && positions[hoveredTool] && (
           <div
@@ -98,10 +140,7 @@ export function ToolDistribution({
             <TooltipBox>
               <div className="text-white/60 mb-1">{formatToolName(hoveredTool)}</div>
               <div className={getToolConfig(hoveredTool).text}>
-                {hoveredBar === 'users'
-                  ? `${tools.find(t => t.tool === hoveredTool)?.users || 0} users (${Math.round(tools.find(t => t.tool === hoveredTool)?.userPercentage || 0)}%)`
-                  : `${formatTokens(tools.find(t => t.tool === hoveredTool)?.tokens || 0)} (${Math.round(tools.find(t => t.tool === hoveredTool)?.tokenPercentage || 0)}%)`
-                }
+                {getTooltipContent()}
               </div>
             </TooltipBox>
           </div>
@@ -109,7 +148,7 @@ export function ToolDistribution({
 
         {/* Tokens Bar */}
         <div className="flex items-center gap-2">
-          <span className="text-sm text-white/30 w-14 shrink-0">Tokens</span>
+          <span className="font-mono text-xs text-muted w-14 shrink-0">Tokens</span>
           <div className="h-2 rounded-full bg-white/5 overflow-hidden flex flex-1">
             {tools.map((tool, i) => {
               if (tool.tokens === 0) return null;
@@ -134,7 +173,7 @@ export function ToolDistribution({
 
         {/* Users Bar */}
         <div className="flex items-center gap-2">
-          <span className="text-sm text-white/30 w-14 shrink-0">Users</span>
+          <span className="font-mono text-xs text-muted w-14 shrink-0">Users</span>
           <div className="h-2 rounded-full bg-white/5 overflow-hidden flex flex-1">
             {tools.map((tool, i) => {
               if (tool.users === 0) return null;
@@ -156,22 +195,34 @@ export function ToolDistribution({
             })}
           </div>
         </div>
-      </div>
 
-      {/* Legend */}
-      <div className="flex flex-wrap gap-x-4 gap-y-1">
-        {tools.map(tool => {
-          const config = getToolConfig(tool.tool);
+        {/* Commits Bar (only if commit data provided) */}
+        {commitTools.length > 0 && totalCommits > 0 && (
+          <div className="flex items-center gap-2">
+            <span className="font-mono text-xs text-muted w-14 shrink-0">Commits</span>
+            <div className="h-2 rounded-full bg-white/5 overflow-hidden flex flex-1">
+              {commitTools.map((tool, i) => {
+                if (tool.commits === 0) return null;
+                const colors = getToolHoverColors(tool.tool);
+                const isHovered = hoveredTool === tool.tool && hoveredBar === 'commits';
+                const percentage = (tool.commits / totalCommits) * 100;
 
-          return (
-            <div key={tool.tool} className="flex items-center gap-1.5">
-              <div className={`w-2 h-2 rounded-full ${config.bg}`} />
-              <span className={`text-sm ${config.text}`}>
-                {formatToolName(tool.tool)}
-              </span>
+                return (
+                  <motion.div
+                    key={tool.tool}
+                    initial={{ width: 0 }}
+                    animate={{ width: `${percentage}%` }}
+                    transition={{ duration: 0.6, delay: 0.65 + i * 0.1 }}
+                    onMouseEnter={() => { setHoveredTool(tool.tool); setHoveredBar('commits'); }}
+                    onMouseLeave={() => { setHoveredTool(null); setHoveredBar(null); }}
+                    className={`h-full transition-colors cursor-default ${isHovered ? colors.barHover : colors.bar} ${i === 0 ? 'rounded-l-full' : ''} ${i === commitTools.length - 1 ? 'rounded-r-full' : ''}`}
+                    style={{ minWidth: percentage > 0 ? '4px' : 0 }}
+                  />
+                );
+              })}
             </div>
-          );
-        })}
+          </div>
+        )}
       </div>
     </AnimatedCard>
   );

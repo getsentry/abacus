@@ -13,6 +13,7 @@
   --text-primary: rgba(255, 255, 255, 1);
   --text-secondary: rgba(255, 255, 255, 0.7);
   --text-muted: rgba(255, 255, 255, 0.5);
+  --text-faint: rgba(255, 255, 255, 0.3);
 }
 
 @theme inline {
@@ -68,6 +69,10 @@ body {
 
 .text-muted {
   color: var(--text-muted);
+}
+
+.text-faint {
+  color: var(--text-faint);
 }
 
 /* Grid background with vignette */

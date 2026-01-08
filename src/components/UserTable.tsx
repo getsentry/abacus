@@ -73,7 +73,7 @@ export function UserTable({ users, days = DEFAULT_DAYS }: UserTableProps) {
                 className="group border-b border-white/5 transition-colors hover:bg-white/[0.02]"
               >
                 <td className="py-2.5 sm:py-3 pr-2 w-8 sm:w-10">
-                  <span className="font-mono text-xs text-white/30">{i + 1}</span>
+                  <span className="font-mono text-xs text-faint">{i + 1}</span>
                 </td>
                 <td className="py-2.5 sm:py-3 pr-3">
                   <UserLink
@@ -82,10 +82,10 @@ export function UserTable({ users, days = DEFAULT_DAYS }: UserTableProps) {
                   />
                 </td>
                 <td className="py-2.5 sm:py-3 pr-3 text-right w-20 sm:w-24">
-                  <span className="font-mono text-sm text-white/80">{formatTokens(user.totalTokens)}</span>
+                  <span className="font-mono text-sm text-muted">{formatTokens(user.totalTokens)}</span>
                 </td>
                 <td className="py-2.5 sm:py-3 pr-3 text-right w-16 sm:w-20">
-                  <span className="font-mono text-sm text-white/60">{formatCurrency(user.totalCost)}</span>
+                  <span className="font-mono text-sm text-muted">{formatCurrency(user.totalCost)}</span>
                 </td>
                 <td className="py-2.5 sm:py-3 pr-3 hidden sm:table-cell w-20 sm:w-28">
                   <ToolSplitBar
@@ -95,7 +95,7 @@ export function UserTable({ users, days = DEFAULT_DAYS }: UserTableProps) {
                   />
                 </td>
                 <td className="py-2.5 sm:py-3 hidden md:table-cell w-24">
-                  <span className="text-xs text-white/50 truncate block">
+                  <span className="text-xs text-muted truncate block">
                     {user.favoriteModel.replace('claude-', '').split('-').slice(0, 2).join('-')}
                   </span>
                 </td>

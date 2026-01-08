@@ -303,7 +303,7 @@ function DashboardContent() {
               />
             )}
 
-            {/* Tool Breakdown - Usage & Commits Side by Side */}
+            {/* Tool Distribution & Commit Stats */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
               {stats && stats.totalTokens > 0 && (
                 <ToolDistribution
@@ -326,6 +326,8 @@ function DashboardContent() {
                   totalTokens={stats.totalTokens}
                   totalUsers={stats.activeUsers}
                   days={days}
+                  commitTools={commitStats?.toolBreakdown}
+                  totalCommits={commitStats?.aiAssistedCommits}
                 />
               )}
 
@@ -334,8 +336,8 @@ function DashboardContent() {
                   totalCommits={commitStats.totalCommits}
                   aiAssistedCommits={commitStats.aiAssistedCommits}
                   aiAssistanceRate={commitStats.aiAssistanceRate}
-                  toolBreakdown={commitStats.toolBreakdown}
                   days={days}
+                  hideToolBreakdown
                 />
               )}
             </div>

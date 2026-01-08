@@ -16,9 +16,10 @@ interface CommitStatsProps {
   totalCommits: number;
   aiAssistedCommits: number;
   aiAssistanceRate: number;
-  toolBreakdown: ToolBreakdown[];
+  toolBreakdown?: ToolBreakdown[];
   days?: number;
   className?: string;
+  hideToolBreakdown?: boolean;
 }
 
 function formatNumber(n: number): string {
@@ -31,13 +32,15 @@ export function CommitStats({
   totalCommits,
   aiAssistedCommits,
   aiAssistanceRate,
-  toolBreakdown,
+  toolBreakdown = [],
   days,
   className = '',
+  hideToolBreakdown = false,
 }: CommitStatsProps) {
   if (totalCommits === 0) return null;
 
   const totalAiCommits = toolBreakdown.reduce((sum, t) => sum + t.commits, 0);
+  const showBreakdown = !hideToolBreakdown && toolBreakdown.length > 0;
 
   return (
     <Card animate delay={0.4} className={className}>
@@ -61,15 +64,15 @@ export function CommitStats({
           <span className="font-display text-3xl font-light text-white">
             {aiAssistanceRate}%
           </span>
-          <span className="text-sm text-white/40">AI Attributed</span>
+          <span className="text-sm text-muted">AI Attributed</span>
         </div>
-        <p className="text-xs text-white/30 mt-1">
+        <p className="text-xs text-muted mt-1">
           <span className="font-mono">{formatNumber(aiAssistedCommits)}</span> of <span className="font-mono">{formatNumber(totalCommits)}</span> commits
         </p>
       </div>
 
       {/* Tool breakdown */}
-      {toolBreakdown.length > 0 && (
+      {showBreakdown && (
         <div>
           <div className="space-y-1.5">
             {toolBreakdown.map((tool, i) => {

@@ -3,6 +3,7 @@
 import { motion } from 'framer-motion';
 import { formatDate } from '@/lib/utils';
 import { TooltipContent } from '@/components/Tooltip';
+import { InlineLegend } from '@/components/Legend';
 import { type ReactNode } from 'react';
 
 export interface StackedBarSegment {
@@ -77,13 +78,14 @@ export function BaseStackedBarChart({
           {subtitle && <span className="text-white/30"> {subtitle}</span>}
         </h3>
         {legendContent || (
-          <div className="flex gap-4">
-            {segmentTotals.filter(s => s.total > 0).map(seg => (
-              <span key={seg.key} className={`text-sm ${seg.textColor}`}>
-                {seg.label}: <span className="font-mono">{formatValue(seg.total)}</span>
-              </span>
-            ))}
-          </div>
+          <InlineLegend
+            items={segmentTotals.filter(s => s.total > 0).map(seg => ({
+              key: seg.key,
+              label: seg.label,
+              value: formatValue(seg.total),
+              textColor: seg.textColor,
+            }))}
+          />
         )}
       </div>
 
@@ -126,7 +128,7 @@ export function BaseStackedBarChart({
 
               {/* Date label */}
               {showLabels && i % labelEvery === 0 && (
-                <span className="absolute -bottom-5 left-1/2 -translate-x-1/2 text-xs text-white/30 whitespace-nowrap">
+                <span className="absolute -bottom-6 left-1/2 -translate-x-1/2 font-mono text-[10px] text-muted whitespace-nowrap">
                   {formatDate(item.date)}
                 </span>
               )}

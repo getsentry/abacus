@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
-import { useParams } from 'next/navigation';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useParams, useSearchParams, useRouter } from 'next/navigation';
 import { useTimeRange } from '@/contexts/TimeRangeContext';
 import { motion } from 'framer-motion';
 import { StatCard } from '@/components/StatCard';
@@ -13,6 +13,7 @@ import { PageContainer } from '@/components/PageContainer';
 import { AppLink } from '@/components/AppLink';
 import { LoadingState, ErrorState, EmptyState } from '@/components/PageState';
 import { getToolConfig, formatToolName } from '@/lib/tools';
+import { Legend } from '@/components/Legend';
 import { calculateDelta } from '@/lib/comparison';
 import { GitCommit, Users, Calendar, ArrowLeft, ExternalLink, Filter, ChevronRight, ChevronDown, Database } from 'lucide-react';
 
@@ -101,7 +102,7 @@ function ToolBadge({ tool, model }: { tool: string; model?: string | null }) {
     <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[11px] uppercase tracking-wider font-mono ${config.bg}/20 ${config.text}`}>
       <span className={`w-1.5 h-1.5 rounded-full ${config.bg}`} />
       {formatToolName(tool)}
-      {model && <span className="text-white/30">/ {model}</span>}
+      {model && <span className="text-muted">/ {model}</span>}
     </span>
   );
 }
@@ -189,7 +190,7 @@ function CommitRow({ commit, source, repoFullName }: { commit: RepositoryCommit;
                   target="_blank"
                   rel="noopener noreferrer"
                   onClick={(e) => e.stopPropagation()}
-                  className="text-white/30 hover:text-white/60 transition-colors"
+                  className="text-white/50 hover:text-amber-400 transition-colors"
                 >
                   <code className="text-xs font-mono">{commit.commitId.slice(0, 7)}</code>
                 </a>
@@ -199,7 +200,7 @@ function CommitRow({ commit, source, repoFullName }: { commit: RepositoryCommit;
 
           {/* Second line: author, date, stats, AI badges */}
           <div className="flex items-center justify-between gap-4 mt-1">
-            <div className="flex items-center gap-3 text-xs font-mono text-white/50">
+            <div className="flex items-center gap-3 text-xs font-mono text-muted">
               {commit.mappedEmail ? (
                 <AppLink
                   href={`/users/${encodeURIComponent(commit.mappedEmail)}`}
@@ -232,7 +233,7 @@ function CommitRow({ commit, source, repoFullName }: { commit: RepositoryCommit;
       {/* Expanded body */}
       {expanded && hasBody && (
         <div className="px-4 pb-4 pl-11">
-          <pre className="text-xs font-mono text-white/50 whitespace-pre-wrap bg-white/[0.02] rounded p-3 border border-white/5 overflow-x-auto">
+          <pre className="text-xs font-mono text-muted whitespace-pre-wrap bg-white/[0.02] rounded p-3 border border-white/5 overflow-x-auto">
             {body}
           </pre>
         </div>
@@ -243,23 +244,47 @@ function CommitRow({ commit, source, repoFullName }: { commit: RepositoryCommit;
 
 export default function RepositoryDetailPage() {
   const params = useParams();
+  const searchParams = useSearchParams();
+  const router = useRouter();
   const { days, range, setRange, getDateParams, isPending } = useTimeRange();
   const [data, setData] = useState<RepositoryData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [commitsLoading, setCommitsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [aiFilter, setAiFilter] = useState<'all' | 'ai' | 'human'>('all');
   const [commitsPage, setCommitsPage] = useState(0);
   const commitsPerPage = 50;
+
+  // Parse filter from URL
+  const aiFilter = useMemo(() => {
+    const filter = searchParams.get('filter');
+    if (filter === 'ai' || filter === 'human') return filter;
+    return 'all';
+  }, [searchParams]) as 'all' | 'ai' | 'human';
+
+  const setAiFilter = useCallback((filter: 'all' | 'ai' | 'human') => {
+    const newParams = new URLSearchParams(searchParams.toString());
+    if (filter === 'all') {
+      newParams.delete('filter');
+    } else {
+      newParams.set('filter', filter);
+    }
+    router.push(`?${newParams.toString()}`, { scroll: false });
+    setCommitsPage(0);
+  }, [searchParams, router]);
 
   // Parse slug: ['github', 'getsentry', 'sentry'] or ['github', 'getsentry/sentry']
   const slug = params.slug as string[];
   const source = slug?.[0] || '';
   const fullName = slug?.slice(1).join('/') || '';
 
-  const fetchData = useCallback(async () => {
+  const fetchData = useCallback(async (isRefresh = false) => {
     if (!source || !fullName) return;
 
-    setLoading(true);
+    if (isRefresh) {
+      setCommitsLoading(true);
+    } else {
+      setLoading(true);
+    }
     setError(null);
 
     try {
@@ -289,11 +314,19 @@ export default function RepositoryDetailPage() {
       setError(err instanceof Error ? err.message : 'Unknown error');
     } finally {
       setLoading(false);
+      setCommitsLoading(false);
     }
   }, [source, fullName, getDateParams, aiFilter, commitsPage]);
 
+  const hasMounted = useRef(false);
+
   useEffect(() => {
-    fetchData();
+    if (!hasMounted.current) {
+      hasMounted.current = true;
+      fetchData(false);
+    } else {
+      fetchData(true);
+    }
   }, [fetchData]);
 
   // Build tool breakdown for the chart
@@ -343,7 +376,7 @@ export default function RepositoryDetailPage() {
                     href={`https://github.com/${fullName}`}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-white/30 hover:text-white/60 transition-colors"
+                    className="text-white/50 hover:text-amber-400 transition-colors"
                   >
                     <ExternalLink className="w-4 h-4" />
                   </a>
@@ -352,11 +385,11 @@ export default function RepositoryDetailPage() {
 
               {/* Source badge and data range */}
               <div className="mt-2 flex items-center gap-3">
-                <span className="font-mono text-[11px] uppercase tracking-wider text-white/40 px-2 py-0.5 rounded bg-white/5">
+                <span className="font-mono text-[11px] uppercase tracking-wider text-muted px-2 py-0.5 rounded bg-white/5">
                   {source}
                 </span>
                 {data?.dataRange?.firstCommit && (
-                  <span className="flex items-center gap-1.5 font-mono text-[11px] text-white/40" title={`Data synced from ${new Date(data.dataRange.firstCommit).toLocaleDateString()} to ${data.dataRange.lastCommit ? new Date(data.dataRange.lastCommit).toLocaleDateString() : 'present'}`}>
+                  <span className="flex items-center gap-1.5 font-mono text-[11px] text-muted" title={`Data synced from ${new Date(data.dataRange.firstCommit).toLocaleDateString()} to ${data.dataRange.lastCommit ? new Date(data.dataRange.lastCommit).toLocaleDateString() : 'present'}`}>
                     <Database className="w-3 h-3" />
                     <span>
                       Data from {new Date(data.dataRange.firstCommit).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}
@@ -427,7 +460,7 @@ export default function RepositoryDetailPage() {
                   transition={{ delay: 0.1 }}
                   className="bg-white/[0.02] border border-white/5 rounded-lg p-6"
                 >
-                  <h3 className="font-mono text-xs uppercase tracking-wider text-white/60 mb-4">
+                  <h3 className="font-mono text-xs uppercase tracking-wider text-muted mb-4">
                     AI Tool Attribution
                     <span className="text-white/20"> ({days}d)</span>
                   </h3>
@@ -448,23 +481,19 @@ export default function RepositoryDetailPage() {
                   </div>
 
                   {/* Legend */}
-                  <div className="flex flex-wrap gap-4">
-                    {toolBreakdown.map((tool) => {
+                  <Legend
+                    items={toolBreakdown.map((tool) => {
                       const config = getToolConfig(tool.tool);
                       const pct = Math.round((tool.commits / data.details.aiAssistedCommits) * 100);
-                      return (
-                        <div key={tool.tool} className="flex items-center gap-2">
-                          <div className={`w-2 h-2 rounded-full ${config.bg}`} />
-                          <span className="font-mono text-xs text-white/60">
-                            {formatToolName(tool.tool)}
-                          </span>
-                          <span className="font-mono text-xs text-white/40">
-                            {tool.commits} ({pct}%)
-                          </span>
-                        </div>
-                      );
+                      return {
+                        key: tool.tool,
+                        label: formatToolName(tool.tool),
+                        value: `${tool.commits} (${pct}%)`,
+                        dotColor: config.bg,
+                        textColor: 'text-muted',
+                      };
                     })}
-                  </div>
+                  />
                 </motion.div>
               )}
 
@@ -490,18 +519,15 @@ export default function RepositoryDetailPage() {
                 >
                   {/* Header with filter */}
                   <div className="flex items-center justify-between px-4 py-3 border-b border-white/5">
-                    <h3 className="font-mono text-xs uppercase tracking-wider text-white/60">
+                    <h3 className="font-mono text-xs uppercase tracking-wider text-muted">
                       Commits ({data.totalCommits})
                     </h3>
                     <div className="flex items-center gap-2">
                       <Filter className="w-3 h-3 text-white/30" />
                       <select
                         value={aiFilter}
-                        onChange={(e) => {
-                          setAiFilter(e.target.value as 'all' | 'ai' | 'human');
-                          setCommitsPage(0);
-                        }}
-                        className="bg-[#0a0a0c] border border-white/10 rounded px-2 py-1 font-mono text-[11px] text-white/60 focus:outline-none focus:border-white/30"
+                        onChange={(e) => setAiFilter(e.target.value as 'all' | 'ai' | 'human')}
+                        className="bg-[#0a0a0c] border border-white/10 rounded px-2 py-1 font-mono text-[11px] text-muted focus:outline-none focus:border-white/30 cursor-pointer"
                       >
                         <option value="all" className="bg-[#0a0a0c]">All commits</option>
                         <option value="ai" className="bg-[#0a0a0c]">AI attributed</option>
@@ -511,7 +537,12 @@ export default function RepositoryDetailPage() {
                   </div>
 
                   {/* Commits */}
-                  <div className="max-h-[600px] overflow-y-auto">
+                  <div className={`max-h-[600px] overflow-y-auto relative ${commitsLoading ? 'opacity-50' : ''} transition-opacity`}>
+                    {commitsLoading && (
+                      <div className="absolute inset-0 flex items-center justify-center bg-black/20 z-10">
+                        <div className="w-5 h-5 border-2 border-white/20 border-t-white/60 rounded-full animate-spin" />
+                      </div>
+                    )}
                     {data.commits.length === 0 ? (
                       <EmptyState title="No commits found" description="Try adjusting your filters" />
                     ) : (
@@ -532,17 +563,17 @@ export default function RepositoryDetailPage() {
                       <button
                         onClick={() => setCommitsPage(p => Math.max(0, p - 1))}
                         disabled={commitsPage === 0}
-                        className="font-mono text-xs text-white/40 hover:text-white/60 disabled:opacity-30 disabled:cursor-not-allowed"
+                        className="font-mono text-xs text-muted hover:text-white/60 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
                       >
                         Previous
                       </button>
-                      <span className="font-mono text-xs text-white/40">
+                      <span className="font-mono text-xs text-muted">
                         Page {commitsPage + 1} of {totalPages}
                       </span>
                       <button
                         onClick={() => setCommitsPage(p => Math.min(totalPages - 1, p + 1))}
                         disabled={commitsPage >= totalPages - 1}
-                        className="font-mono text-xs text-white/40 hover:text-white/60 disabled:opacity-30 disabled:cursor-not-allowed"
+                        className="font-mono text-xs text-muted hover:text-white/60 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
                       >
                         Next
                       </button>
@@ -557,7 +588,7 @@ export default function RepositoryDetailPage() {
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   transition={{ delay: 0.3 }}
-                  className="flex items-center justify-center gap-6 text-white/30 font-mono text-xs"
+                  className="flex items-center justify-center gap-6 text-muted font-mono text-xs"
                 >
                   {data.details.firstCommit && (
                     <div className="flex items-center gap-2">

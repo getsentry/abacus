@@ -63,7 +63,7 @@ export function ToolSplitBar({
   className = '',
 }: ToolSplitBarProps) {
   if (total === 0 || data.length === 0) {
-    return <span className="text-white/30">-</span>;
+    return <span className="text-faint">-</span>;
   }
 
   const formatter = formatValue || valueFormatters[valueType];

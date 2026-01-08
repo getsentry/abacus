@@ -10,6 +10,7 @@ import { SectionLabel } from '@/components/SectionLabel';
 import { TooltipContent } from '@/components/Tooltip';
 import { TrendLine } from '@/components/TrendLine';
 import { AppLink } from '@/components/AppLink';
+import { InlineLegend } from '@/components/Legend';
 import { TOOL_CONFIGS } from '@/lib/tools';
 
 interface DailyUsage {
@@ -67,7 +68,7 @@ export function UsageChart({ data, days }: UsageChartProps) {
         <div className="flex items-center gap-4">
           <button
             onClick={() => setShowTrend(!showTrend)}
-            className={`flex items-center gap-1 px-2 py-1 rounded text-sm transition-colors cursor-pointer ${
+            className={`flex items-center gap-1 px-2 py-1 rounded text-xs transition-colors cursor-pointer ${
               showTrend
                 ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
                 : 'bg-white/5 text-white/40 border border-white/10 hover:bg-white/10'
@@ -76,12 +77,12 @@ export function UsageChart({ data, days }: UsageChartProps) {
             <TrendingUp className="w-3 h-3" />
             <span>Trend</span>
           </button>
-          <span className={`text-sm ${TOOL_CONFIGS.claude_code.text}`}>
-            {TOOL_CONFIGS.claude_code.name}: <span className="font-mono">{formatTokens(claudeCodeTotal)}</span>
-          </span>
-          <span className={`text-sm ${TOOL_CONFIGS.cursor.text}`}>
-            {TOOL_CONFIGS.cursor.name}: <span className="font-mono">{formatTokens(cursorTotal)}</span>
-          </span>
+          <InlineLegend
+            items={[
+              { key: 'claude_code', label: TOOL_CONFIGS.claude_code.name, value: formatTokens(claudeCodeTotal), textColor: TOOL_CONFIGS.claude_code.text },
+              { key: 'cursor', label: TOOL_CONFIGS.cursor.name, value: formatTokens(cursorTotal), textColor: TOOL_CONFIGS.cursor.text },
+            ]}
+          />
         </div>
       </div>
 
@@ -117,7 +118,7 @@ export function UsageChart({ data, days }: UsageChartProps) {
 
               {/* Date label - only show every Nth label */}
               {i % labelEvery === 0 && (
-                <span className="absolute -bottom-5 left-1/2 -translate-x-1/2 text-xs text-white/30 whitespace-nowrap">
+                <span className="absolute -bottom-6 left-1/2 -translate-x-1/2 font-mono text-[10px] text-muted whitespace-nowrap">
                   {formatDate(item.date)}
                 </span>
               )}

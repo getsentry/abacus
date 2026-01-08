@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useEffect, useCallback, Suspense } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useState, useEffect, useCallback, Suspense, useMemo } from 'react';
+import { useSearchParams, useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { GitCommit, GitBranch, Percent, ExternalLink } from 'lucide-react';
 import { InlineSearchInput } from '@/components/SearchInput';
@@ -19,6 +19,7 @@ import { calculateDelta } from '@/lib/comparison';
 import { AnimatedCard } from '@/components/Card';
 import { SectionLabel } from '@/components/SectionLabel';
 import { ToolSplitBar, type ToolSplitData } from '@/components/ToolSplitBar';
+import { ExportButton } from '@/components/ExportButton';
 
 interface RepositoryPivotData {
   id: number;
@@ -89,9 +90,12 @@ const columns: { key: ColumnKey; label: string; align: 'left' | 'right'; format?
   { key: 'lastCommit', label: 'Last Commit', align: 'right' },
 ];
 
+const DEFAULT_COLUMNS: ColumnKey[] = ['fullName', 'totalCommits', 'aiAssistedCommits', 'aiAssistanceRate', 'toolSplit', 'uniqueAuthors', 'lastCommit'];
+
 function CommitsPageContent() {
   const { range, setRange, days, isPending, getDateParams } = useTimeRange();
   const searchParams = useSearchParams();
+  const router = useRouter();
   const initialSearch = searchParams.get('search') || '';
 
   const [repositories, setRepositories] = useState<RepositoryPivotData[]>([]);
@@ -103,9 +107,16 @@ function CommitsPageContent() {
   const [sortBy, setSortBy] = useState<SortKey>('totalCommits');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
   const [searchQuery, setSearchQuery] = useState(initialSearch);
-  const [visibleColumns, setVisibleColumns] = useState<Set<ColumnKey>>(
-    new Set(['fullName', 'totalCommits', 'aiAssistedCommits', 'aiAssistanceRate', 'toolSplit', 'uniqueAuthors', 'lastCommit'])
-  );
+
+  // Parse visible columns from URL or use defaults
+  const visibleColumns = useMemo(() => {
+    const colsParam = searchParams.get('cols');
+    if (colsParam) {
+      const cols = colsParam.split(',').filter(c => columns.some(col => col.key === c)) as ColumnKey[];
+      return new Set(cols.length > 0 ? cols : DEFAULT_COLUMNS);
+    }
+    return new Set(DEFAULT_COLUMNS);
+  }, [searchParams]);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -160,15 +171,23 @@ function CommitsPageContent() {
     }
   };
 
-  const toggleColumn = (key: ColumnKey) => {
+  const toggleColumn = useCallback((key: ColumnKey) => {
     const newVisible = new Set(visibleColumns);
     if (newVisible.has(key)) {
       if (key !== 'fullName') newVisible.delete(key);
     } else {
       newVisible.add(key);
     }
-    setVisibleColumns(newVisible);
-  };
+    const params = new URLSearchParams(searchParams.toString());
+    const colsArray = Array.from(newVisible);
+    // Only add cols param if different from defaults
+    if (JSON.stringify(colsArray.sort()) !== JSON.stringify([...DEFAULT_COLUMNS].sort())) {
+      params.set('cols', colsArray.join(','));
+    } else {
+      params.delete('cols');
+    }
+    router.push(`/commits?${params.toString()}`, { scroll: false });
+  }, [visibleColumns, searchParams, router]);
 
   const activeColumns = columns.filter(c => visibleColumns.has(c.key));
 
@@ -197,6 +216,21 @@ function CommitsPageContent() {
       />
 
       <TipBar />
+
+      {/* Page Title with Time Range Selector */}
+      <div className="border-b border-white/5">
+        <PageContainer className="py-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="font-display text-2xl text-white">Commits</h1>
+              <p className="font-mono text-xs text-muted mt-1">
+                Track AI-attributed commits across repositories
+              </p>
+            </div>
+            <TimeRangeSelector value={range} onChange={setRange} isPending={isPending} />
+          </div>
+        </PageContainer>
+      </div>
 
       {/* Summary Stats */}
       {totals && (
@@ -292,44 +326,37 @@ function CommitsPageContent() {
         </div>
       )}
 
-      {/* Page Title with Time Range Selector */}
+      {/* Repository Count and Controls */}
       <div className="border-b border-white/5">
         <PageContainer className="py-3">
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between gap-4">
             <h2 className="font-mono text-xs uppercase tracking-wider text-white/60">
               {loading ? '\u00A0' : totalCount > repositories.length
                 ? `${repositories.length} of ${totalCount} repositories (showing first ${repositories.length})`
                 : `${repositories.length} repositories`}
             </h2>
-            <TimeRangeSelector value={range} onChange={setRange} isPending={isPending} />
+            <div className="flex items-center gap-2 flex-nowrap sm:flex-wrap">
+              <span className="font-mono text-[11px] uppercase tracking-wider text-white/40 mr-2">Columns:</span>
+              {columns.map(col => (
+                <button
+                  key={col.key}
+                  onClick={() => toggleColumn(col.key)}
+                  disabled={col.key === 'fullName'}
+                  className={`px-2 py-1 rounded font-mono text-[11px] transition-colors whitespace-nowrap cursor-pointer ${
+                    visibleColumns.has(col.key)
+                      ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
+                      : 'bg-white/5 text-white/40 border border-white/10 hover:bg-white/10'
+                  } ${col.key === 'fullName' ? 'opacity-50 cursor-not-allowed' : ''}`}
+                >
+                  {col.label}
+                </button>
+              ))}
+              <ExportButton type="commits" search={searchQuery} />
+            </div>
           </div>
         </PageContainer>
       </div>
 
-      {/* Column Selector */}
-      <div className="border-b border-white/5 overflow-x-auto">
-        <PageContainer className="py-3">
-          <div className="flex items-center gap-2 flex-nowrap sm:flex-wrap min-w-max sm:min-w-0">
-            <span className="font-mono text-[11px] uppercase tracking-wider text-white/40 mr-2">Columns:</span>
-            {columns.map(col => (
-              <button
-                key={col.key}
-                onClick={() => toggleColumn(col.key)}
-                disabled={col.key === 'fullName'}
-                className={`px-2 py-1 rounded font-mono text-[11px] transition-colors whitespace-nowrap ${
-                  visibleColumns.has(col.key)
-                    ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
-                    : 'bg-white/5 text-white/40 border border-white/10 hover:bg-white/10'
-                } ${col.key === 'fullName' ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
-              >
-                {col.label}
-              </button>
-            ))}
-          </div>
-        </PageContainer>
-      </div>
-
-      {/* Main Content */}
       <main className={`relative z-10 py-4 sm:py-8 transition-opacity duration-300 ${
         isRefreshing ? 'opacity-60' : 'opacity-100'
       }`}>
@@ -397,7 +424,7 @@ function CommitsPageContent() {
                                       <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/>
                                     </svg>
                                   ) : (
-                                    <span className="text-white/30 text-[11px] uppercase">{repo.source}</span>
+                                    <span className="text-faint text-[11px] uppercase">{repo.source}</span>
                                   )}
                                   <span className="text-white group-hover:text-amber-400">{repo.fullName}</span>
                                 </AppLink>
@@ -458,7 +485,7 @@ function CommitsPageContent() {
                                 : 0}%
                             </span>
                           ) : (
-                            <span className="text-white/30">-</span>
+                            <span className="text-faint">-</span>
                           )}
                         </td>
                       ))}

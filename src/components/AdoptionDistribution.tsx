@@ -7,6 +7,7 @@ import { AppLink } from './AppLink';
 import { AnimatedCard } from './Card';
 import { SectionLabel } from './SectionLabel';
 import { TooltipBox } from './Tooltip';
+import { Legend, type LegendItem } from './Legend';
 import { type AdoptionStage, STAGE_CONFIG, STAGE_ORDER, STAGE_ICONS } from '@/lib/adoption';
 
 interface StageData {
@@ -19,6 +20,7 @@ interface AdoptionDistributionProps {
   totalUsers: number;
   className?: string;
   days?: number;
+  hideViewAll?: boolean;
 }
 
 const STAGE_COLORS = {
@@ -33,6 +35,7 @@ export function AdoptionDistribution({
   totalUsers,
   className = '',
   days,
+  hideViewAll = false,
 }: AdoptionDistributionProps) {
   const [hoveredStage, setHoveredStage] = useState<AdoptionStage | null>(null);
 
@@ -56,13 +59,15 @@ export function AdoptionDistribution({
     <AnimatedCard delay={0.3} padding="md" className={className}>
       <div className="flex items-center justify-between mb-3">
         <SectionLabel days={days}>Adoption Distribution</SectionLabel>
-        <AppLink
-          href="/team"
-          className="p-1 rounded hover:bg-white/5 text-white/40 hover:text-amber-400 transition-colors"
-          aria-label="View all"
-        >
-          <ArrowRight className="w-4 h-4" />
-        </AppLink>
+        {!hideViewAll && (
+          <AppLink
+            href="/team"
+            className="p-1 rounded hover:bg-white/5 text-white/40 hover:text-amber-400 transition-colors"
+            aria-label="View all"
+          >
+            <ArrowRight className="w-4 h-4" />
+          </AppLink>
+        )}
       </div>
 
       {/* Stacked bar with tooltips */}
@@ -110,27 +115,20 @@ export function AdoptionDistribution({
       </div>
 
       {/* Legend */}
-      <div className="flex flex-wrap gap-x-4 gap-y-1">
-        {STAGE_ORDER.map(stage => {
+      <Legend
+        items={STAGE_ORDER.map(stage => {
           const data = stages[stage];
           const config = STAGE_CONFIG[stage];
           const Icon = STAGE_ICONS[stage];
-          const count = data?.count || 0;
-          const pct = data?.percentage || 0;
-
-          return (
-            <div key={stage} className="flex items-center gap-1.5">
-              <Icon className={`w-3.5 h-3.5 ${config.textColor}`} />
-              <span className="font-mono text-sm text-white/50">
-                {count}
-              </span>
-              <span className="font-mono text-sm text-white/30">
-                ({Math.round(pct)}%)
-              </span>
-            </div>
-          );
+          return {
+            key: stage,
+            label: String(data?.count || 0),
+            percentage: data?.percentage || 0,
+            icon: Icon,
+            textColor: config.textColor,
+          };
         })}
-      </div>
+      />
     </AnimatedCard>
   );
 }
