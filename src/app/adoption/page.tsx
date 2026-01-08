@@ -7,6 +7,7 @@ import { Compass, Flame, Zap, Star, Users, TrendingUp, Target } from 'lucide-rea
 import { StatCard } from '@/components/StatCard';
 import { MainNav } from '@/components/MainNav';
 import { UserMenu } from '@/components/UserMenu';
+import { MobileNav } from '@/components/MobileNav';
 import { TimeRangeSelector } from '@/components/TimeRangeSelector';
 import { AdoptionFunnel } from '@/components/AdoptionFunnel';
 import { AdoptionBadge } from '@/components/AdoptionBadge';
@@ -150,7 +151,10 @@ function AdoptionPageContent() {
         <PageContainer className="py-4">
           <div className="flex items-center justify-between gap-4">
             <MainNav days={days} />
-            <UserMenu />
+            <div className="flex items-center gap-3">
+              <UserMenu />
+              <MobileNav days={days} />
+            </div>
           </div>
         </PageContainer>
       </header>

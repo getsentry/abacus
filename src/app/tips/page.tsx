@@ -6,6 +6,7 @@ import { ArrowRight, Compass, RefreshCw, Command, MapPin, Cpu, MessageSquare, Gi
 import { AppLink } from '@/components/AppLink';
 import { MainNav } from '@/components/MainNav';
 import { UserMenu } from '@/components/UserMenu';
+import { MobileNav } from '@/components/MobileNav';
 import { TipBar } from '@/components/TipBar';
 import { PageContainer } from '@/components/PageContainer';
 import { useTimeRange } from '@/contexts/TimeRangeContext';
@@ -74,7 +75,10 @@ function TipsIndexContent() {
         <PageContainer className="py-4">
           <div className="flex items-center justify-between gap-4">
             <MainNav days={days} />
-            <UserMenu />
+            <div className="flex items-center gap-3">
+              <UserMenu />
+              <MobileNav days={days} />
+            </div>
           </div>
         </PageContainer>
       </header>

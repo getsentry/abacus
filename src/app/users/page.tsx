@@ -7,6 +7,7 @@ import { InlineSearchInput } from '@/components/SearchInput';
 import { TimeRangeSelector } from '@/components/TimeRangeSelector';
 import { MainNav } from '@/components/MainNav';
 import { UserMenu } from '@/components/UserMenu';
+import { MobileNav } from '@/components/MobileNav';
 import { AdoptionBadge } from '@/components/AdoptionBadge';
 import { UserLink } from '@/components/UserLink';
 import { TipBar } from '@/components/TipBar';
@@ -178,6 +179,7 @@ function UsersPageContent() {
                 />
               </div>
               <UserMenu />
+              <MobileNav days={days} />
             </div>
           </div>
         </PageContainer>
