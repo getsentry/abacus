@@ -951,6 +951,49 @@ export async function getCommitStats(startDate?: string, endDate?: string): Prom
   };
 }
 
+export interface CommitStatsWithComparison extends CommitStats {
+  previousPeriod?: {
+    totalCommits: number;
+    aiAssistedCommits: number;
+    aiAssistanceRate: number;
+    repositoryCount: number;
+  };
+}
+
+export async function getCommitStatsWithComparison(
+  startDate: string,
+  endDate: string
+): Promise<CommitStatsWithComparison> {
+  const { prevStartDate, prevEndDate } = getPreviousPeriodDates(startDate, endDate);
+
+  const [currentStats, prevResult] = await Promise.all([
+    getCommitStats(startDate, endDate),
+    sql`
+      SELECT
+        COUNT(*)::int as "totalCommits",
+        COUNT(*) FILTER (WHERE ai_tool IS NOT NULL)::int as "aiAssistedCommits",
+        COUNT(DISTINCT repo_id)::int as "repositoryCount"
+      FROM commits
+      WHERE committed_at >= ${prevStartDate}::timestamp
+        AND committed_at < (${prevEndDate}::date + interval '1 day')
+    `
+  ]);
+
+  const prev = prevResult.rows[0];
+  const prevTotalCommits = Number(prev.totalCommits);
+  const prevAiAssistedCommits = Number(prev.aiAssistedCommits);
+
+  return {
+    ...currentStats,
+    previousPeriod: {
+      totalCommits: prevTotalCommits,
+      aiAssistedCommits: prevAiAssistedCommits,
+      aiAssistanceRate: prevTotalCommits > 0 ? Math.round((prevAiAssistedCommits / prevTotalCommits) * 100) : 0,
+      repositoryCount: Number(prev.repositoryCount),
+    },
+  };
+}
+
 // ============================================================================
 // Repository Stats (per-repo commit breakdown)
 // ============================================================================

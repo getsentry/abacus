@@ -94,15 +94,9 @@ interface CommitStatsData {
   totalCommits: number;
   aiAssistedCommits: number;
   aiAssistanceRate: number;
-  totalAdditions: number;
-  totalDeletions: number;
-  aiAdditions: number;
-  aiDeletions: number;
   toolBreakdown: {
     tool: string;
     commits: number;
-    additions: number;
-    deletions: number;
   }[];
   repositoryCount: number;
 }
@@ -294,16 +288,17 @@ function DashboardContent() {
               })()}
             </div>
 
-            {/* Adoption & Tool Distribution - Side by Side */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-              {adoptionData && (
-                <AdoptionDistribution
-                  stages={adoptionData.stages}
-                  totalUsers={adoptionData.totalUsers}
-                  days={days}
-                />
-              )}
+            {/* Adoption Distribution - Full Width */}
+            {adoptionData && (
+              <AdoptionDistribution
+                stages={adoptionData.stages}
+                totalUsers={adoptionData.totalUsers}
+                days={days}
+              />
+            )}
 
+            {/* Tool Breakdown - Usage & Commits Side by Side */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
               {stats && stats.totalTokens > 0 && (
                 <ToolDistribution
                   tools={[
@@ -333,8 +328,6 @@ function DashboardContent() {
                   totalCommits={commitStats.totalCommits}
                   aiAssistedCommits={commitStats.aiAssistedCommits}
                   aiAssistanceRate={commitStats.aiAssistanceRate}
-                  aiAdditions={commitStats.aiAdditions}
-                  aiDeletions={commitStats.aiDeletions}
                   toolBreakdown={commitStats.toolBreakdown}
                   days={days}
                 />

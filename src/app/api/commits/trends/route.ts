@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { wrapRouteHandlerWithSentry } from '@sentry/nextjs';
-import { getDailyCommitStats, getCommitStats } from '@/lib/queries';
+import { getDailyCommitStats, getCommitStats, getCommitStatsWithComparison } from '@/lib/queries';
 import { getSession } from '@/lib/auth';
 import { isValidDateString } from '@/lib/utils';
 
@@ -13,6 +13,7 @@ async function handler(request: Request) {
   const { searchParams } = new URL(request.url);
   const startDate = searchParams.get('startDate');
   const endDate = searchParams.get('endDate');
+  const includeComparison = searchParams.get('comparison') === 'true';
 
   if (!startDate || !endDate) {
     return NextResponse.json(
@@ -30,7 +31,9 @@ async function handler(request: Request) {
 
   const [dailyStats, overallStats] = await Promise.all([
     getDailyCommitStats(startDate, endDate),
-    getCommitStats(startDate, endDate),
+    includeComparison
+      ? getCommitStatsWithComparison(startDate, endDate)
+      : getCommitStats(startDate, endDate),
   ]);
 
   return NextResponse.json({

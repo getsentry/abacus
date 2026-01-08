@@ -3,16 +3,18 @@
 import { useState, useEffect, useCallback, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { motion } from 'framer-motion';
-import { GitCommit, GitBranch, TrendingUp } from 'lucide-react';
+import { GitCommit, GitBranch, TrendingUp, Percent } from 'lucide-react';
 import { InlineSearchInput } from '@/components/SearchInput';
 import { TimeRangeSelector } from '@/components/TimeRangeSelector';
 import { AppHeader } from '@/components/AppHeader';
 import { TipBar } from '@/components/TipBar';
 import { PageContainer } from '@/components/PageContainer';
 import { LoadingBar } from '@/components/LoadingBar';
+import { StatCard } from '@/components/StatCard';
 import { LoadingState, ErrorState, EmptyState } from '@/components/PageState';
 import { useTimeRange } from '@/contexts/TimeRangeContext';
 import { getToolConfig, formatToolName } from '@/lib/tools';
+import { calculateDelta } from '@/lib/comparison';
 
 interface RepositoryPivotData {
   id: number;
@@ -21,10 +23,6 @@ interface RepositoryPivotData {
   totalCommits: number;
   aiAssistedCommits: number;
   aiAssistanceRate: number;
-  totalAdditions: number;
-  totalDeletions: number;
-  aiAdditions: number;
-  aiDeletions: number;
   uniqueAuthors: number;
   firstCommit: string | null;
   lastCommit: string | null;
@@ -37,12 +35,14 @@ interface CommitTotals {
   totalCommits: number;
   aiAssistedCommits: number;
   aiAssistanceRate: number;
-  totalAdditions: number;
-  totalDeletions: number;
-  aiAdditions: number;
-  aiDeletions: number;
   repositoryCount: number;
-  toolBreakdown: { tool: string; commits: number; additions: number; deletions: number }[];
+  toolBreakdown: { tool: string; commits: number }[];
+  previousPeriod?: {
+    totalCommits: number;
+    aiAssistedCommits: number;
+    aiAssistanceRate: number;
+    repositoryCount: number;
+  };
 }
 
 type SortKey = keyof RepositoryPivotData;
@@ -78,11 +78,9 @@ function getToolBreakdownFromRepo(repo: RepositoryPivotData) {
 const columns: { key: ColumnKey; label: string; align: 'left' | 'right'; format?: (v: number) => string; sortable?: boolean }[] = [
   { key: 'fullName', label: 'Repository', align: 'left' },
   { key: 'totalCommits', label: 'Commits', align: 'right', format: formatNumber },
-  { key: 'aiAssistedCommits', label: 'AI Commits', align: 'right', format: formatNumber },
+  { key: 'aiAssistedCommits', label: 'AI Attributed', align: 'right', format: formatNumber },
   { key: 'aiAssistanceRate', label: 'AI %', align: 'right', format: (v) => `${v}%` },
   { key: 'toolSplit', label: 'Tool Split', align: 'left', sortable: false },
-  { key: 'totalAdditions', label: 'Additions', align: 'right', format: formatNumber },
-  { key: 'totalDeletions', label: 'Deletions', align: 'right', format: formatNumber },
   { key: 'uniqueAuthors', label: 'Authors', align: 'right', format: (v) => v.toString() },
   { key: 'lastCommit', label: 'Last Commit', align: 'right' },
 ];
@@ -120,7 +118,7 @@ function CommitsPageContent() {
 
       const [repoRes, trendsRes] = await Promise.all([
         fetch(`/api/commits/pivot?${params}`),
-        fetch(`/api/commits/trends?startDate=${startDate}&endDate=${endDate}`),
+        fetch(`/api/commits/trends?startDate=${startDate}&endDate=${endDate}&comparison=true`),
       ]);
 
       const repoData = await repoRes.json();
@@ -175,11 +173,9 @@ function CommitsPageContent() {
     (acc, r) => ({
       totalCommits: acc.totalCommits + r.totalCommits,
       aiAssistedCommits: acc.aiAssistedCommits + r.aiAssistedCommits,
-      totalAdditions: acc.totalAdditions + r.totalAdditions,
-      totalDeletions: acc.totalDeletions + r.totalDeletions,
       uniqueAuthors: acc.uniqueAuthors + r.uniqueAuthors,
     }),
-    { totalCommits: 0, aiAssistedCommits: 0, totalAdditions: 0, totalDeletions: 0, uniqueAuthors: 0 }
+    { totalCommits: 0, aiAssistedCommits: 0, uniqueAuthors: 0 }
   );
 
   return (
@@ -202,75 +198,64 @@ function CommitsPageContent() {
       {totals && (
         <div className="border-b border-white/5">
           <PageContainer className="py-6">
-            <motion.div
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="grid grid-cols-2 md:grid-cols-4 gap-4"
-            >
-              {/* Total Commits */}
-              <div className="rounded-lg border border-white/5 bg-white/[0.02] p-4">
-                <div className="flex items-center gap-2 mb-2">
-                  <GitCommit className="w-3.5 h-3.5 text-white/40" />
-                  <p className="font-mono text-[10px] uppercase tracking-wider text-white/40">
-                    Total Commits
-                  </p>
-                </div>
-                <p className="font-display text-2xl font-light text-white">
-                  {formatNumber(totals.totalCommits)}
-                </p>
-                <p className="font-mono text-[10px] text-white/30 mt-1">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
+              <StatCard
+                label="Total Commits"
+                days={days}
+                value={formatNumber(totals.totalCommits)}
+                icon={GitCommit}
+                trend={totals.previousPeriod ? calculateDelta(totals.totalCommits, totals.previousPeriod.totalCommits) : undefined}
+                delay={0}
+              >
+                <p className="font-mono text-xs text-white/50">
                   across {formatNumber(totals.repositoryCount)} repos
                 </p>
-              </div>
+              </StatCard>
 
-              {/* AI Assistance Rate */}
-              <div className="rounded-lg border border-white/5 bg-white/[0.02] p-4">
-                <div className="flex items-center gap-2 mb-2">
-                  <TrendingUp className="w-3.5 h-3.5 text-white/40" />
-                  <p className="font-mono text-[10px] uppercase tracking-wider text-white/40">
-                    AI Assisted
-                  </p>
-                </div>
-                <p className="font-display text-2xl font-light text-white">
-                  {totals.aiAssistanceRate}%
-                </p>
-                <p className="font-mono text-[10px] text-white/30 mt-1">
+              <StatCard
+                label="AI Attributed"
+                days={days}
+                value={`${totals.aiAssistanceRate}%`}
+                icon={Percent}
+                accentColor="#10b981"
+                trend={totals.previousPeriod ? calculateDelta(totals.aiAssistanceRate, totals.previousPeriod.aiAssistanceRate) : undefined}
+                delay={0.1}
+              >
+                <p className="font-mono text-xs text-white/50">
                   {formatNumber(totals.aiAssistedCommits)} commits
                 </p>
-              </div>
+              </StatCard>
 
-              {/* Lines Added */}
-              <div className="rounded-lg border border-white/5 bg-white/[0.02] p-4">
-                <div className="flex items-center gap-2 mb-2">
-                  <GitBranch className="w-3.5 h-3.5 text-emerald-400/60" />
-                  <p className="font-mono text-[10px] uppercase tracking-wider text-white/40">
-                    Lines Added
-                  </p>
-                </div>
-                <p className="font-display text-2xl font-light text-emerald-400">
-                  +{formatNumber(totals.totalAdditions)}
+              <StatCard
+                label="Repositories"
+                days={days}
+                value={formatNumber(totals.repositoryCount)}
+                icon={GitBranch}
+                accentColor="#06b6d4"
+                trend={totals.previousPeriod ? calculateDelta(totals.repositoryCount, totals.previousPeriod.repositoryCount) : undefined}
+                delay={0.2}
+              >
+                <p className="font-mono text-xs text-white/50">
+                  with commits in period
                 </p>
-                <p className="font-mono text-[10px] text-white/30 mt-1">
-                  <span className="text-emerald-400/60">+{formatNumber(totals.aiAdditions)}</span> with AI
-                </p>
-              </div>
+              </StatCard>
 
-              {/* Lines Removed */}
-              <div className="rounded-lg border border-white/5 bg-white/[0.02] p-4">
-                <div className="flex items-center gap-2 mb-2">
-                  <GitBranch className="w-3.5 h-3.5 text-rose-400/60" />
-                  <p className="font-mono text-[10px] uppercase tracking-wider text-white/40">
-                    Lines Removed
+              <StatCard
+                label="AI Commits"
+                days={days}
+                value={formatNumber(totals.aiAssistedCommits)}
+                icon={TrendingUp}
+                accentColor="#8b5cf6"
+                trend={totals.previousPeriod ? calculateDelta(totals.aiAssistedCommits, totals.previousPeriod.aiAssistedCommits) : undefined}
+                delay={0.3}
+              >
+                {totals.toolBreakdown && totals.toolBreakdown.length > 0 && (
+                  <p className="font-mono text-xs text-white/50">
+                    {formatToolName(totals.toolBreakdown[0].tool)} leads
                   </p>
-                </div>
-                <p className="font-display text-2xl font-light text-rose-400">
-                  -{formatNumber(totals.totalDeletions)}
-                </p>
-                <p className="font-mono text-[10px] text-white/30 mt-1">
-                  <span className="text-rose-400/60">-{formatNumber(totals.aiDeletions)}</span> with AI
-                </p>
-              </div>
-            </motion.div>
+                )}
+              </StatCard>
+            </div>
 
             {/* Tool Breakdown Bar */}
             {totals.toolBreakdown && totals.toolBreakdown.length > 0 && (
@@ -426,16 +411,21 @@ function CommitsPageContent() {
                             }`}
                           >
                             {col.key === 'fullName' ? (
-                              <div className="flex items-center gap-1.5">
+                              <a
+                                href={repo.source === 'github' ? `https://github.com/${repo.fullName}` : '#'}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="flex items-center gap-1.5 hover:text-amber-400 transition-colors group"
+                              >
                                 {repo.source === 'github' ? (
-                                  <svg className="w-3.5 h-3.5 text-white/30 flex-shrink-0" viewBox="0 0 16 16" fill="currentColor">
+                                  <svg className="w-3.5 h-3.5 text-white/30 group-hover:text-amber-400/60 flex-shrink-0 transition-colors" viewBox="0 0 16 16" fill="currentColor">
                                     <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/>
                                   </svg>
                                 ) : (
                                   <span className="text-white/30 text-[10px] uppercase">{repo.source}</span>
                                 )}
-                                <span className="text-white">{repo.fullName}</span>
-                              </div>
+                                <span className="text-white group-hover:text-amber-400">{repo.fullName}</span>
+                              </a>
                             ) : col.key === 'aiAssistanceRate' ? (
                               <span className={repo.aiAssistanceRate >= 50 ? 'text-emerald-400' : 'text-white/70'}>
                                 {col.format!(repo[col.key])}
@@ -476,10 +466,6 @@ function CommitsPageContent() {
                                   </div>
                                 );
                               })()
-                            ) : col.key === 'totalAdditions' ? (
-                              <span className="text-emerald-400/80">+{col.format!(repo[col.key])}</span>
-                            ) : col.key === 'totalDeletions' ? (
-                              <span className="text-rose-400/80">-{col.format!(repo[col.key])}</span>
                             ) : col.key === 'lastCommit' ? (
                               <span className="text-white/50">{formatDate(repo[col.key])}</span>
                             ) : col.format ? (
@@ -513,10 +499,6 @@ function CommitsPageContent() {
                                 ? Math.round((tableTotals.aiAssistedCommits / tableTotals.totalCommits) * 100)
                                 : 0}%
                             </span>
-                          ) : col.key === 'totalAdditions' ? (
-                            <span className="text-emerald-400">+{formatNumber(tableTotals.totalAdditions)}</span>
-                          ) : col.key === 'totalDeletions' ? (
-                            <span className="text-rose-400">-{formatNumber(tableTotals.totalDeletions)}</span>
                           ) : (
                             <span className="text-white/30">-</span>
                           )}

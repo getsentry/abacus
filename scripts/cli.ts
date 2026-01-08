@@ -478,8 +478,6 @@ async function cmdGitHubCommits(repo: string, limit: number = 20) {
       c.author_email,
       c.ai_tool,
       c.ai_model,
-      c.additions,
-      c.deletions,
       c.committed_at::date as date
     FROM commits c
     JOIN repositories r ON c.repo_id = r.id
@@ -497,25 +495,19 @@ async function cmdGitHubCommits(repo: string, limit: number = 20) {
   const stats = await sql`
     SELECT
       COUNT(*)::int as total,
-      COUNT(*) FILTER (WHERE ai_tool IS NOT NULL)::int as ai_count,
-      SUM(additions)::int as total_additions,
-      SUM(deletions)::int as total_deletions
+      COUNT(*) FILTER (WHERE ai_tool IS NOT NULL)::int as ai_count
     FROM commits c
     JOIN repositories r ON c.repo_id = r.id
     WHERE r.full_name = ${repo}
   `;
   const s = stats.rows[0];
-  console.log(`Total: ${s.total} commits, ${s.ai_count} AI-attributed (${Math.round((s.ai_count / s.total) * 100)}%)`);
-  console.log(`Lines: +${s.total_additions || 0} / -${s.total_deletions || 0}\n`);
+  console.log(`Total: ${s.total} commits, ${s.ai_count} AI-attributed (${Math.round((s.ai_count / s.total) * 100)}%)\n`);
 
   // Print commits
   for (const row of result.rows) {
     const sha = row.commit_id.slice(0, 7);
     const tool = row.ai_tool ? `[${row.ai_tool}${row.ai_model ? ':' + row.ai_model : ''}]` : '[no-ai]';
-    const adds = row.additions > 0 ? `+${row.additions}` : '';
-    const dels = row.deletions > 0 ? `-${row.deletions}` : '';
-    const lines = adds || dels ? ` (${adds}${adds && dels ? '/' : ''}${dels})` : '';
-    console.log(`  ${sha} ${row.date.toISOString().split('T')[0]} ${tool.padEnd(20)} ${row.author_email}${lines}`);
+    console.log(`  ${sha} ${row.date.toISOString().split('T')[0]} ${tool.padEnd(20)} ${row.author_email}`);
   }
 }
 

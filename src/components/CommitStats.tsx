@@ -8,16 +8,12 @@ import { AppLink } from '@/components/AppLink';
 interface ToolBreakdown {
   tool: string;
   commits: number;
-  additions: number;
-  deletions: number;
 }
 
 interface CommitStatsProps {
   totalCommits: number;
   aiAssistedCommits: number;
   aiAssistanceRate: number;
-  aiAdditions: number;
-  aiDeletions: number;
   toolBreakdown: ToolBreakdown[];
   days?: number;
   className?: string;
@@ -33,8 +29,6 @@ export function CommitStats({
   totalCommits,
   aiAssistedCommits,
   aiAssistanceRate,
-  aiAdditions,
-  aiDeletions,
   toolBreakdown,
   days,
   className = '',
@@ -65,33 +59,18 @@ export function CommitStats({
         </AppLink>
       </div>
 
-      {/* Main stat: AI Assistance Rate */}
+      {/* Main stat: AI Attribution Rate */}
       <div className="mb-4">
         <div className="flex items-baseline gap-2">
           <span className="font-display text-3xl font-light text-white">
             {aiAssistanceRate}%
           </span>
-          <span className="font-mono text-xs text-white/40">AI-assisted</span>
+          <span className="font-mono text-xs text-white/40">AI-attributed</span>
         </div>
         <p className="font-mono text-[10px] text-white/30 mt-1">
           {formatNumber(aiAssistedCommits)} of {formatNumber(totalCommits)} commits
         </p>
       </div>
-
-      {/* Lines of code bar */}
-      {(aiAdditions > 0 || aiDeletions > 0) && (
-        <div className="mb-4">
-          <p className="font-mono text-[10px] text-white/40 mb-2">Lines changed with AI</p>
-          <div className="flex items-center gap-3">
-            <div className="flex items-center gap-1.5">
-              <span className="font-mono text-sm text-emerald-400">+{formatNumber(aiAdditions)}</span>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <span className="font-mono text-sm text-rose-400">-{formatNumber(aiDeletions)}</span>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Tool breakdown */}
       {toolBreakdown.length > 0 && (
