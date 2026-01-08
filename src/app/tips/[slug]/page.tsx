@@ -5,12 +5,9 @@ import { useParams } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { ExternalLink, Compass, RefreshCw, Command, MapPin, Cpu, MessageSquare, GitBranch, Users, FileCode, Plug } from 'lucide-react';
 import { AppLink } from '@/components/AppLink';
-import { MainNav } from '@/components/MainNav';
-import { UserMenu } from '@/components/UserMenu';
-import { MobileNav } from '@/components/MobileNav';
+import { AppHeader } from '@/components/AppHeader';
 import { TipBar } from '@/components/TipBar';
 import { PageContainer } from '@/components/PageContainer';
-import { useTimeRange } from '@/contexts/TimeRangeContext';
 import { getGuide } from '@/lib/tips';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -34,7 +31,6 @@ const TOOL_LABELS = {
 } as const;
 
 function GuideContent() {
-  const { days } = useTimeRange();
   const params = useParams();
   const slug = params.slug as string;
   const guide = getGuide(slug);
@@ -42,18 +38,7 @@ function GuideContent() {
   if (!guide) {
     return (
       <div className="min-h-screen bg-[#0a0a0f] text-white">
-        {/* Header */}
-        <header className="relative z-20 border-b border-white/5">
-          <PageContainer className="py-4">
-            <div className="flex items-center justify-between gap-4">
-              <div className="flex items-center gap-3">
-                <MobileNav days={days} />
-                <MainNav days={days} />
-              </div>
-              <UserMenu />
-            </div>
-          </PageContainer>
-        </header>
+        <AppHeader />
 
         <TipBar />
 
@@ -79,15 +64,7 @@ function GuideContent() {
       {/* Subtle gradient background */}
       <div className="fixed inset-0 bg-gradient-to-b from-amber-500/[0.02] via-transparent to-transparent pointer-events-none" />
 
-      {/* Header */}
-      <header className="relative z-20 border-b border-white/5">
-        <PageContainer className="py-4">
-          <div className="flex items-center justify-between gap-4">
-            <MainNav days={days} />
-            <UserMenu />
-          </div>
-        </PageContainer>
-      </header>
+      <AppHeader />
 
       <TipBar />
 
