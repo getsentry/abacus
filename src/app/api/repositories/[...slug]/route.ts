@@ -7,6 +7,7 @@ import {
   getRepositoryCommits,
   getRepositoryAuthors,
   getRepositoryDailyStats,
+  getRepositoryDataRange,
 } from '@/lib/queries';
 import { getSession } from '@/lib/auth';
 import { isValidDateString } from '@/lib/utils';
@@ -52,7 +53,7 @@ async function handler(
   }
 
   // Fetch all data in parallel
-  const [details, commitsData, authors, dailyStats] = await Promise.all([
+  const [details, commitsData, authors, dailyStats, dataRange] = await Promise.all([
     includeComparison && startDate && endDate
       ? getRepositoryDetailsWithComparison(repo.id, startDate, endDate)
       : getRepositoryDetails(repo.id, startDate || undefined, endDate || undefined),
@@ -61,6 +62,7 @@ async function handler(
     startDate && endDate
       ? getRepositoryDailyStats(repo.id, startDate, endDate)
       : Promise.resolve([]),
+    getRepositoryDataRange(repo.id),
   ]);
 
   if (!details) {
@@ -73,6 +75,7 @@ async function handler(
     totalCommits: commitsData.totalCount,
     authors,
     dailyStats,
+    dataRange,
   });
 }
 

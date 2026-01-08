@@ -1419,6 +1419,32 @@ export async function getRepositoryDetailsWithComparison(
   };
 }
 
+export interface RepositoryDataRange {
+  firstCommit: string | null;
+  lastCommit: string | null;
+  totalCommits: number;
+}
+
+export async function getRepositoryDataRange(
+  repoId: number
+): Promise<RepositoryDataRange> {
+  const result = await sql`
+    SELECT
+      MIN(committed_at)::text as "firstCommit",
+      MAX(committed_at)::text as "lastCommit",
+      COUNT(*)::int as "totalCommits"
+    FROM commits
+    WHERE repo_id = ${repoId}
+  `;
+
+  const row = result.rows[0];
+  return {
+    firstCommit: row?.firstCommit || null,
+    lastCommit: row?.lastCommit || null,
+    totalCommits: row?.totalCommits || 0,
+  };
+}
+
 export async function getRepositoryCommits(
   repoId: number,
   source: string,
@@ -1472,7 +1498,7 @@ export async function getRepositoryCommits(
 
   // Fetch attributions for all commits in one query
   const commitIds = result.rows.map(r => r.id);
-  let attributionsByCommitId: Map<number, CommitAttributionData[]> = new Map();
+  const attributionsByCommitId: Map<number, CommitAttributionData[]> = new Map();
 
   if (commitIds.length > 0) {
     const attrResult = await sql.query(`

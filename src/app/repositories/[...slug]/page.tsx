@@ -14,7 +14,7 @@ import { AppLink } from '@/components/AppLink';
 import { LoadingState, ErrorState, EmptyState } from '@/components/PageState';
 import { getToolConfig, formatToolName } from '@/lib/tools';
 import { calculateDelta } from '@/lib/comparison';
-import { GitCommit, Users, Calendar, ArrowLeft, ExternalLink, Filter, ChevronRight, ChevronDown } from 'lucide-react';
+import { GitCommit, Users, Calendar, ArrowLeft, ExternalLink, Filter, ChevronRight, ChevronDown, Database } from 'lucide-react';
 
 function formatNumber(n: number): string {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
@@ -81,11 +81,18 @@ interface DailyStats {
   windsurfCommits: number;
 }
 
+interface DataRange {
+  firstCommit: string | null;
+  lastCommit: string | null;
+  totalCommits: number;
+}
+
 interface RepositoryData {
   details: RepositoryDetails;
   commits: RepositoryCommit[];
   totalCommits: number;
   dailyStats: DailyStats[];
+  dataRange: DataRange;
 }
 
 function ToolBadge({ tool, model }: { tool: string; model?: string | null }) {
@@ -343,11 +350,19 @@ export default function RepositoryDetailPage() {
                 )}
               </div>
 
-              {/* Source badge */}
-              <div className="mt-2">
+              {/* Source badge and data range */}
+              <div className="mt-2 flex items-center gap-3">
                 <span className="font-mono text-[11px] uppercase tracking-wider text-white/40 px-2 py-0.5 rounded bg-white/5">
                   {source}
                 </span>
+                {data?.dataRange?.firstCommit && (
+                  <span className="flex items-center gap-1.5 font-mono text-[11px] text-white/40" title={`Data synced from ${new Date(data.dataRange.firstCommit).toLocaleDateString()} to ${data.dataRange.lastCommit ? new Date(data.dataRange.lastCommit).toLocaleDateString() : 'present'}`}>
+                    <Database className="w-3 h-3" />
+                    <span>
+                      Data from {new Date(data.dataRange.firstCommit).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}
+                    </span>
+                  </span>
+                )}
               </div>
             </div>
 
