@@ -624,6 +624,13 @@ export async function processWebhookPush(payload: GitHubPushEvent): Promise<Sync
   };
 
   const repoFullName = payload.repository.full_name;
+  const defaultBranch = payload.repository.default_branch;
+  const pushedBranch = payload.ref.replace('refs/heads/', '');
+
+  // Only process commits pushed to the default branch
+  if (pushedBranch !== defaultBranch) {
+    return result;
+  }
 
   // Get token for fetching commit stats
   let token: string | null = null;
@@ -703,6 +710,26 @@ export async function processWebhookPush(payload: GitHubPushEvent): Promise<Sync
 // ============================================
 
 /**
+ * Fetch the default branch for a repository from GitHub API.
+ */
+async function fetchDefaultBranch(
+  repoFullName: string,
+  token: string
+): Promise<string | null> {
+  const response = await githubFetch(
+    `https://api.github.com/repos/${repoFullName}`,
+    token
+  );
+
+  if (!response.ok) {
+    return null;
+  }
+
+  const data = await response.json();
+  return data.default_branch || null;
+}
+
+/**
  * Fetch individual commit details including stats (additions/deletions) and merge status.
  * The list commits endpoint doesn't include stats, so we need to fetch each commit.
  */
@@ -760,12 +787,20 @@ export async function syncGitHubRepo(
   try {
     const repoId = await getOrCreateRepository('github', repoFullName);
 
+    // Get the default branch to filter commits
+    const defaultBranch = await fetchDefaultBranch(repoFullName, token);
+    if (!defaultBranch) {
+      result.errors.push(`Could not determine default branch for ${repoFullName}`);
+      return result;
+    }
+
     let page = 1;
     const perPage = 100;
     let hasMore = true;
 
     while (hasMore) {
       const params = new URLSearchParams({
+        sha: defaultBranch,  // Only fetch commits from the default branch
         since,
         per_page: perPage.toString(),
         page: page.toString(),
