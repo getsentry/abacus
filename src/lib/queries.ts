@@ -764,10 +764,11 @@ export interface LifetimeStats {
   firstRecordDate: string | null;
   totalCommits: number;
   aiAttributedCommits: number;
+  totalRepos: number;
 }
 
 export async function getLifetimeStats(): Promise<LifetimeStats> {
-  const [usageResult, commitsResult] = await Promise.all([
+  const [usageResult, commitsResult, reposResult] = await Promise.all([
     sql`
       SELECT
         COALESCE(SUM(input_tokens + cache_write_tokens + output_tokens), 0)::bigint as "totalTokens",
@@ -782,12 +783,16 @@ export async function getLifetimeStats(): Promise<LifetimeStats> {
         COUNT(*) FILTER (WHERE ai_tool IS NOT NULL)::int as "aiAttributedCommits"
       FROM commits
     `,
+    sql`
+      SELECT COUNT(*)::int as "totalRepos" FROM repositories
+    `,
   ]);
 
   return {
     ...usageResult.rows[0],
     totalCommits: commitsResult.rows[0]?.totalCommits || 0,
     aiAttributedCommits: commitsResult.rows[0]?.aiAttributedCommits || 0,
+    totalRepos: reposResult.rows[0]?.totalRepos || 0,
   } as LifetimeStats;
 }
 

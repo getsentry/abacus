@@ -44,15 +44,20 @@ export interface SyncResult {
 const SYNC_STATE_ID = 'anthropic';
 
 // Get Anthropic sync state from database
-export async function getAnthropicSyncState(): Promise<{ lastSyncedDate: string | null }> {
+export async function getAnthropicSyncState(): Promise<{ lastSyncedDate: string | null; lastSyncAt: string | null }> {
   const result = await sql`
-    SELECT last_synced_hour_end FROM sync_state WHERE id = ${SYNC_STATE_ID}
+    SELECT last_synced_hour_end, last_sync_at FROM sync_state WHERE id = ${SYNC_STATE_ID}
   `;
-  if (result.rows.length === 0 || !result.rows[0].last_synced_hour_end) {
-    return { lastSyncedDate: null };
+  if (result.rows.length === 0) {
+    return { lastSyncedDate: null, lastSyncAt: null };
   }
-  // We store date as ISO string in the last_synced_hour_end column (reusing the column)
-  return { lastSyncedDate: result.rows[0].last_synced_hour_end };
+  const row = result.rows[0];
+  return {
+    // Date string of last synced data (e.g., "2025-01-08")
+    lastSyncedDate: row.last_synced_hour_end || null,
+    // Actual timestamp when sync ran (for freshness check)
+    lastSyncAt: row.last_sync_at ? new Date(row.last_sync_at).toISOString() : null
+  };
 }
 
 // Update Anthropic sync state

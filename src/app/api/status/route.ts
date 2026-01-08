@@ -3,7 +3,8 @@ import { wrapRouteHandlerWithSentry } from '@sentry/nextjs';
 import { getAnthropicSyncState, getAnthropicBackfillState } from '@/lib/sync/anthropic';
 import { getCursorSyncState, getCursorBackfillState } from '@/lib/sync/cursor';
 import { getGitHubSyncState, getGitHubBackfillState } from '@/lib/sync/github';
-import { getUnattributedStats, getLifetimeStats } from '@/lib/queries';
+import { getUnmappedGitHubUsers } from '@/lib/sync/github-mappings';
+import { getUnattributedStats, getLifetimeStats, getUnmappedToolRecords } from '@/lib/queries';
 import { getSession } from '@/lib/auth';
 
 type SyncStatus = 'up_to_date' | 'behind' | 'never_synced';
@@ -60,8 +61,8 @@ async function handler() {
       color: 'amber',
       configured: true,
       forwardSync: {
-        lastSyncedDate: anthropicSync.lastSyncedDate,
-        status: getForwardSyncStatus(anthropicSync.lastSyncedDate, false)
+        lastSyncedDate: anthropicSync.lastSyncAt,  // Show actual sync timestamp
+        status: getForwardSyncStatus(anthropicSync.lastSyncAt, true)  // Hourly freshness check
       },
       backfill: {
         oldestDate: anthropicBackfill.oldestDate,
@@ -120,7 +121,9 @@ async function handler() {
       name: 'GitHub Commits',
       color: 'cyan',
       configured: true,
+      syncType: 'webhook',  // Commits come via webhooks, not polling
       forwardSync: {
+        label: 'Mappings Sync',  // Clarify this syncs email mappings, not commits
         lastSyncedDate: githubSync.lastSyncedDate,
         status: getForwardSyncStatus(githubSync.lastSyncedDate, false)
       },
@@ -131,22 +134,38 @@ async function handler() {
     };
 
     crons.push(
-      { path: '/api/cron/sync-github-mappings', schedule: 'Hourly', type: 'forward' },
+      { path: '/api/cron/sync-github-mappings', schedule: 'Hourly', type: 'mappings' },
       { path: '/api/cron/backfill-github', schedule: 'Every 6 hours', type: 'backfill' }
     );
   }
 
-  // Get unattributed usage stats and lifetime stats in parallel
-  const [unattributed, lifetimeStats] = await Promise.all([
+  // Get unattributed usage stats, lifetime stats, and mapping health data in parallel
+  const [unattributed, lifetimeStats, unmappedGitHubUsers, unmappedApiKeys] = await Promise.all([
     getUnattributedStats(),
     getLifetimeStats(),
+    githubConfigured ? getUnmappedGitHubUsers() : Promise.resolve([]),
+    anthropicConfigured ? getUnmappedToolRecords('claude_code') : Promise.resolve([]),
   ]);
+
+  const githubMappings = githubConfigured ? {
+    unmappedUserCount: unmappedGitHubUsers.length,
+    unmappedCommitCount: unmappedGitHubUsers.reduce((sum, u) => sum + u.commitCount, 0),
+    unmappedUsers: unmappedGitHubUsers.slice(0, 50),
+  } : null;
+
+  const anthropicMappings = anthropicConfigured ? {
+    unmappedKeyCount: unmappedApiKeys.length,
+    unmappedUsageCount: unmappedApiKeys.reduce((sum, k) => sum + k.usage_count, 0),
+    unmappedKeys: unmappedApiKeys.slice(0, 50),
+  } : null;
 
   return NextResponse.json({
     providers,
     crons,
     unattributed,
     lifetimeStats,
+    githubMappings,
+    anthropicMappings,
     // For backwards compatibility, also include at top level
     anthropic: providers.anthropic || null,
     cursor: providers.cursor || null
