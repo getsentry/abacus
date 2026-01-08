@@ -75,7 +75,7 @@ export function BaseStackedBarChart({
       <div className="mb-4 flex items-center justify-between">
         <h3 className="text-xs font-medium uppercase tracking-wider text-white/60">
           {title}
-          {subtitle && <span className="text-white/30"> {subtitle}</span>}
+          {subtitle && <span className="text-faint"> {subtitle}</span>}
         </h3>
         {legendContent || (
           <InlineLegend

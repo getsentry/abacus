@@ -358,7 +358,7 @@ function UserDetailContent() {
                             <span className="text-white/40 text-sm ml-1">tokens/day</span>
                           </p>
                           <div className="flex items-center gap-2 mt-0.5">
-                            <p className="font-mono text-[10px] text-white/30">
+                            <p className="font-mono text-[10px] text-faint">
                               {adoptionData.daysActive} active days
                             </p>
                             {percentile !== null && percentile > 50 && (
@@ -381,7 +381,7 @@ function UserDetailContent() {
                       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                         {/* What defines this level */}
                         <div>
-                          <p className="font-mono text-xs uppercase tracking-wider text-white/60 mb-2">
+                          <p className="font-mono text-[11px] uppercase tracking-wider text-white/60 mb-2">
                             {adoptionData.stage === 'power_user' ? 'What Power Users Do' : 'At This Level'}
                           </p>
                           <div className="space-y-1.5">
@@ -403,7 +403,7 @@ function UserDetailContent() {
 
                         {/* Suggestion */}
                         <div>
-                          <p className="font-mono text-xs uppercase tracking-wider text-white/60 mb-2">
+                          <p className="font-mono text-[11px] uppercase tracking-wider text-white/60 mb-2">
                             {adoptionData.stage === 'power_user' ? 'Keep It Going' : 'Try This'}
                           </p>
                           <p className="font-mono text-[11px] text-white/50 leading-relaxed">
@@ -425,7 +425,7 @@ function UserDetailContent() {
                 transition={{ delay: 0.2 }}
                 className="rounded-lg border border-white/5 bg-white/[0.02] p-4 sm:p-6"
               >
-                <h3 className="font-mono text-xs uppercase tracking-wider text-white/60 mb-4">
+                <h3 className="font-mono text-[11px] uppercase tracking-wider text-white/60 mb-4">
                   Tool Usage
                 </h3>
 
@@ -498,7 +498,7 @@ function UserDetailContent() {
               transition={{ delay: 0.25 }}
               className="rounded-lg border border-white/5 bg-white/[0.02] p-4 sm:p-6"
             >
-              <h3 className="font-mono text-xs uppercase tracking-wider text-white/60 mb-4 sm:mb-6">
+              <h3 className="font-mono text-[11px] uppercase tracking-wider text-white/60 mb-4 sm:mb-6">
                 Models Used
               </h3>
 
@@ -520,7 +520,7 @@ function UserDetailContent() {
                       <div className="flex items-start justify-between mb-2">
                         <div className="flex items-center gap-2 min-w-0">
                           <div className={`w-2 h-2 rounded-full ${colors.bg} shrink-0`} />
-                          <span className="font-mono text-xs text-white/80 truncate">
+                          <span className="font-mono text-xs text-white/70 truncate">
                             {displayName}
                           </span>
                         </div>
@@ -549,7 +549,7 @@ function UserDetailContent() {
                 })}
               </div>
               {data.modelBreakdown.length > 9 && (
-                <div className="font-mono text-[10px] text-white/30 pt-4 text-center">
+                <div className="font-mono text-[10px] text-faint pt-4 text-center">
                   +{data.modelBreakdown.length - 9} more models
                 </div>
               )}
@@ -574,7 +574,7 @@ function UserDetailContent() {
                   transition={{ delay: 0.3 }}
                   className="rounded-lg border border-white/5 bg-white/[0.02] p-4 sm:p-6"
                 >
-                  <h3 className="font-mono text-xs uppercase tracking-wider text-white/60 mb-4">
+                  <h3 className="font-mono text-[11px] uppercase tracking-wider text-white/60 mb-4">
                     Weekly Pattern
                   </h3>
                   <div className="flex items-end justify-between gap-2">
@@ -594,7 +594,7 @@ function UserDetailContent() {
                               style={{ minHeight: tokens > 0 ? 4 : 0 }}
                             />
                           </div>
-                          <span className={`font-mono text-[10px] ${isWeekend ? 'text-white/30' : 'text-white/50'}`}>
+                          <span className={`font-mono text-[10px] ${isWeekend ? 'text-faint' : 'text-white/50'}`}>
                             {day}
                           </span>
                           {/* Tooltip */}
@@ -617,20 +617,20 @@ function UserDetailContent() {
               transition={{ delay: 0.35 }}
               className="rounded-lg border border-white/5 bg-white/[0.02] p-4 sm:p-6"
             >
-              <h3 className="font-mono text-xs uppercase tracking-wider text-white/60 mb-4">
+              <h3 className="font-mono text-[11px] uppercase tracking-wider text-white/60 mb-4">
                 Activity
               </h3>
               <div className="grid grid-cols-3 gap-4 sm:gap-8">
                 <div>
-                  <p className="font-mono text-xs uppercase tracking-wider text-white/60 mb-1">First Active</p>
+                  <p className="font-mono text-[11px] uppercase tracking-wider text-white/60 mb-1">First Active</p>
                   <p className="font-mono text-xs sm:text-sm text-white">{formatDate(data.summary.firstActive)}</p>
                 </div>
                 <div>
-                  <p className="font-mono text-xs uppercase tracking-wider text-white/60 mb-1">Last Active</p>
+                  <p className="font-mono text-[11px] uppercase tracking-wider text-white/60 mb-1">Last Active</p>
                   <p className="font-mono text-xs sm:text-sm text-white">{formatDate(data.summary.lastActive)}</p>
                 </div>
                 <div>
-                  <p className="font-mono text-xs uppercase tracking-wider text-white/60 mb-1">Days Active</p>
+                  <p className="font-mono text-[11px] uppercase tracking-wider text-white/60 mb-1">Days Active</p>
                   <p className="font-mono text-xs sm:text-sm text-white">{data.summary.daysActive}</p>
                 </div>
               </div>

@@ -43,7 +43,7 @@ export function EmptyState({ icon: Icon, title, description }: EmptyStateProps) 
         {Icon && <Icon className="w-8 h-8 text-white/20 mx-auto mb-3" />}
         <div className="font-mono text-sm text-white/40 mb-2">{title}</div>
         {description && (
-          <div className="font-mono text-xs text-white/30">{description}</div>
+          <div className="font-mono text-xs text-faint">{description}</div>
         )}
       </div>
     </div>

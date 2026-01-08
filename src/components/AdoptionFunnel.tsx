@@ -132,7 +132,7 @@ export function AdoptionFunnel({
           {/* Empty state */}
           {totalUsers === 0 && (
             <div className="flex-1 flex items-center justify-center">
-              <span className="text-sm text-white/30">No data</span>
+              <span className="text-sm text-faint">No data</span>
             </div>
           )}
         </div>

@@ -109,7 +109,7 @@ export function MappingAssistant({
         <div className={`rounded-lg border border-emerald-500/20 bg-emerald-500/5 ${compact ? 'p-4' : 'p-6'}`}>
           <div className="flex items-center justify-between mb-3">
             <div>
-              <h4 className="font-mono text-xs uppercase tracking-wider text-emerald-400">
+              <h4 className="font-mono text-[11px] uppercase tracking-wider text-emerald-400">
                 Auto-Detected ({withSuggestions.length})
               </h4>
             </div>
@@ -133,7 +133,7 @@ export function MappingAssistant({
                   </code>
                   <div className="flex items-center gap-2">
                     <span className="font-mono text-xs text-emerald-400">{item.suggested_email}</span>
-                    <span className="font-mono text-[10px] text-white/30">({item.usage_count} records)</span>
+                    <span className="font-mono text-[10px] text-faint">({item.usage_count} records)</span>
                   </div>
                 </div>
                 <button
@@ -152,7 +152,7 @@ export function MappingAssistant({
       {/* Manual mapping needed */}
       {withoutSuggestions.length > 0 && (
         <div className={`rounded-lg border border-amber-500/20 bg-amber-500/5 ${compact ? 'p-4' : 'p-6'}`}>
-          <h4 className="font-mono text-xs uppercase tracking-wider text-amber-400 mb-3">
+          <h4 className="font-mono text-[11px] uppercase tracking-wider text-amber-400 mb-3">
             Manual Mapping ({withoutSuggestions.length})
           </h4>
           <div className="space-y-2 max-h-48 overflow-y-auto">
@@ -165,7 +165,7 @@ export function MappingAssistant({
                   <code className="font-mono text-[10px] text-white/50 truncate block">
                     {item.api_key}
                   </code>
-                  <span className="font-mono text-[10px] text-white/30">{item.usage_count} records</span>
+                  <span className="font-mono text-[10px] text-faint">{item.usage_count} records</span>
                 </div>
                 {editingKey === item.api_key ? (
                   <div className="flex items-center gap-2 ml-2" ref={dropdownRef}>

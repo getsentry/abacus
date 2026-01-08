@@ -204,7 +204,7 @@ function CommitRow({ commit, source, repoFullName }: { commit: RepositoryCommit;
               {commit.mappedEmail ? (
                 <AppLink
                   href={`/users/${encodeURIComponent(commit.mappedEmail)}`}
-                  className="hover:text-white/80 transition-colors"
+                  className="hover:text-white/70 transition-colors"
                   onClick={(e) => e.stopPropagation()}
                 >
                   {commit.authorEmail?.split('@')[0] || 'unknown'}
@@ -460,7 +460,7 @@ export default function RepositoryDetailPage() {
                   transition={{ delay: 0.1 }}
                   className="bg-white/[0.02] border border-white/5 rounded-lg p-6"
                 >
-                  <h3 className="font-mono text-xs uppercase tracking-wider text-muted mb-4">
+                  <h3 className="font-mono text-[11px] uppercase tracking-wider text-muted mb-4">
                     AI Tool Attribution
                     <span className="text-white/20"> ({days}d)</span>
                   </h3>
@@ -519,11 +519,11 @@ export default function RepositoryDetailPage() {
                 >
                   {/* Header with filter */}
                   <div className="flex items-center justify-between px-4 py-3 border-b border-white/5">
-                    <h3 className="font-mono text-xs uppercase tracking-wider text-muted">
+                    <h3 className="font-mono text-[11px] uppercase tracking-wider text-muted">
                       Commits ({data.totalCommits})
                     </h3>
                     <div className="flex items-center gap-2">
-                      <Filter className="w-3 h-3 text-white/30" />
+                      <Filter className="w-3 h-3 text-faint" />
                       <select
                         value={aiFilter}
                         onChange={(e) => setAiFilter(e.target.value as 'all' | 'ai' | 'human')}

@@ -97,7 +97,7 @@ export function UserProfileHeader({ email, lifetime, days }: UserProfileHeaderPr
             className="mt-5 flex items-center gap-8 sm:gap-12 flex-wrap"
           >
             <div>
-              <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-white/30 block mb-1">
+              <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-faint block mb-1">
                 Lifetime Tokens
               </span>
               <span className="font-display text-xl sm:text-2xl font-light text-white">
@@ -108,7 +108,7 @@ export function UserProfileHeader({ email, lifetime, days }: UserProfileHeaderPr
             <div className="w-px h-10 bg-white/10 hidden sm:block" />
 
             <div>
-              <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-white/30 block mb-1">
+              <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-faint block mb-1">
                 Lifetime Spend
               </span>
               <span className="font-display text-xl sm:text-2xl font-light text-white">
@@ -120,7 +120,7 @@ export function UserProfileHeader({ email, lifetime, days }: UserProfileHeaderPr
               <>
                 <div className="w-px h-10 bg-white/10 hidden sm:block" />
                 <div className="hidden sm:block">
-                  <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-white/30 block mb-1">
+                  <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-faint block mb-1">
                     Preferred Tool
                   </span>
                   <div className="flex items-center gap-2">
@@ -137,7 +137,7 @@ export function UserProfileHeader({ email, lifetime, days }: UserProfileHeaderPr
               <>
                 <div className="w-px h-10 bg-white/10 hidden sm:block" />
                 <div className="hidden sm:block">
-                  <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-white/30 block mb-1">
+                  <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-faint block mb-1">
                     Record Day
                   </span>
                   <span className="font-mono text-sm text-white/60">
@@ -151,7 +151,7 @@ export function UserProfileHeader({ email, lifetime, days }: UserProfileHeaderPr
               <>
                 <div className="w-px h-10 bg-white/10 hidden lg:block" />
                 <div className="hidden lg:block">
-                  <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-white/30 block mb-1">
+                  <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-faint block mb-1">
                     Tracking
                   </span>
                   <span className="font-mono text-sm text-white/60">

@@ -46,7 +46,7 @@ export function MainNav({ days }: MainNavProps) {
     <nav className="flex items-center gap-4 sm:gap-8">
       {/* App Title */}
       <Link href={`/?days=${days}`} className="flex items-center gap-2.5 group">
-        <AbacusLogo className="w-6 h-6 text-white/80 transition-all duration-200 group-hover:text-white group-hover:scale-105" />
+        <AbacusLogo className="w-6 h-6 text-white/70 transition-all duration-200 group-hover:text-white group-hover:scale-105" />
         <span className="font-display text-lg font-medium tracking-tight text-white group-hover:text-white/90 transition-colors">
           Abacus
         </span>

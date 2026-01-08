@@ -99,7 +99,7 @@ export function Calendar({
     ];
 
     if (isDisabled) {
-      classes.push('text-white/15 cursor-not-allowed');
+      classes.push('text-white/20 cursor-not-allowed');
     } else {
       classes.push('cursor-pointer');
 
@@ -137,7 +137,7 @@ export function Calendar({
         {WEEKDAYS.map((day) => (
           <div
             key={day}
-            className="w-8 h-5 flex items-center justify-center text-[10px] font-mono text-white/30 uppercase tracking-wide"
+            className="w-8 h-5 flex items-center justify-center text-[10px] font-mono text-faint uppercase tracking-wide"
           >
             {day}
           </div>

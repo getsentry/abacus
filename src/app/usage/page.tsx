@@ -510,7 +510,7 @@ function UsagePageContent() {
                               <div className="text-white/60 mb-1">{formatDate(item.date)}</div>
                               <div className={TOOL_CONFIGS.claude_code.text}>Claude Code: {formatTokens(item.claudeCode)}</div>
                               <div className={TOOL_CONFIGS.cursor.text}>Cursor: {formatTokens(item.cursor)}</div>
-                              <div className="text-green-400 mt-1 pt-1 border-t border-white/10">Cost: {formatCurrency(item.cost)}</div>
+                              <div className="text-emerald-400 mt-1 pt-1 border-t border-white/10">Cost: {formatCurrency(item.cost)}</div>
                             </TooltipContent>
                           </div>
                         );

@@ -129,7 +129,7 @@ export function UsageChart({ data, days }: UsageChartProps) {
                 <div className={TOOL_CONFIGS.claude_code.text}>{TOOL_CONFIGS.claude_code.name}: {formatTokens(item.claudeCode)}</div>
                 <div className={TOOL_CONFIGS.cursor.text}>{TOOL_CONFIGS.cursor.name}: {formatTokens(item.cursor)}</div>
                 {item.cost !== undefined && (
-                  <div className="text-green-400 mt-1 pt-1 border-t border-white/10">Cost: {formatCurrency(item.cost)}</div>
+                  <div className="text-emerald-400 mt-1 pt-1 border-t border-white/10">Cost: {formatCurrency(item.cost)}</div>
                 )}
               </TooltipContent>
             </div>

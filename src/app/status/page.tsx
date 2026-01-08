@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Database, Clock, Users, ChevronDown, Key } from 'lucide-react';
 import { AppHeader } from '@/components/AppHeader';
+import { TipBar } from '@/components/TipBar';
 import { PageContainer } from '@/components/PageContainer';
 import { AnimatedCard, Card } from '@/components/Card';
 import { SectionLabel } from '@/components/SectionLabel';
@@ -284,10 +285,10 @@ function GitHubMappingCard({ data }: { data: GitHubMappingHealth }) {
                       key={user.authorId}
                       className="border-b border-white/5 last:border-0"
                     >
-                      <td className="px-3 py-2 text-sm text-white/70 font-mono">
+                      <td className="px-3 py-2 text-xs text-white/70 font-mono">
                         {user.authorId}
                       </td>
-                      <td className="px-3 py-2 text-sm text-white/50 font-mono">
+                      <td className="px-3 py-2 text-xs text-white/50 font-mono">
                         {user.sampleEmail || '-'}
                       </td>
                       <td className="px-3 py-2 text-sm text-white/70 font-mono text-right">
@@ -399,7 +400,7 @@ function AnthropicMappingCard({ data, unattributed }: { data: AnthropicMappingHe
                       key={key.tool_record_id}
                       className="border-b border-white/5 last:border-0"
                     >
-                      <td className="px-3 py-2 text-sm text-white/70 font-mono">
+                      <td className="px-3 py-2 text-xs text-white/70 font-mono">
                         {key.tool_record_id}
                       </td>
                       <td className="px-3 py-2 text-sm text-white/70 font-mono text-right">
@@ -442,10 +443,12 @@ export default function StatusPage() {
     <div className="min-h-screen bg-[#050507] text-white grid-bg">
       <AppHeader />
 
+      <TipBar />
+
       {/* Page Title */}
       <div className="border-b border-white/5">
         <PageContainer className="py-3">
-          <p className="font-mono text-xs uppercase tracking-wider text-white/60">
+          <p className="font-mono text-[11px] uppercase tracking-wider text-white/60">
             System Status
           </p>
         </PageContainer>
@@ -467,7 +470,7 @@ export default function StatusPage() {
                   <Database className="w-4 h-4 text-white/50" />
                   <h2 className="font-display text-lg text-white">System Stats</h2>
                   {data.lifetimeStats.firstRecordDate && (
-                    <span className="font-mono text-[11px] text-white/30 ml-auto">
+                    <span className="font-mono text-[11px] text-faint ml-auto">
                       tracking since {formatDateShort(data.lifetimeStats.firstRecordDate)}
                     </span>
                   )}
@@ -637,7 +640,7 @@ export default function StatusPage() {
                           transition={{ duration: 0.3, delay: 0.3 + i * 0.05 }}
                           className="border-b border-white/5 last:border-0 hover:bg-white/[0.02] transition-colors"
                         >
-                          <td className="px-5 py-3 text-sm text-white/70 font-mono">
+                          <td className="px-5 py-3 text-xs text-white/70 font-mono">
                             {cron.path}
                           </td>
                           <td className="px-5 py-3">
@@ -651,7 +654,7 @@ export default function StatusPage() {
                               {cron.type}
                             </span>
                           </td>
-                          <td className="px-5 py-3 text-sm text-white/50 font-mono">
+                          <td className="px-5 py-3 text-xs text-white/50 font-mono">
                             {cron.schedule}
                           </td>
                         </motion.tr>

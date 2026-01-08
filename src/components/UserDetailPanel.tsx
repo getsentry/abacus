@@ -209,7 +209,7 @@ export function UserDetailPanel({ email, onClose }: UserDetailPanelProps) {
                   <Card padding="md">
                     <div className="flex items-baseline justify-between">
                       <SectionLabel>Total Tokens</SectionLabel>
-                      <p className="font-mono text-[10px] text-white/30">{rangeLabel}</p>
+                      <p className="font-mono text-[10px] text-faint">{rangeLabel}</p>
                     </div>
                     <div className="mt-1 flex items-baseline gap-2">
                       <p className="font-display text-2xl text-white">{formatTokens(user.totalTokens)}</p>
@@ -277,7 +277,7 @@ export function UserDetailPanel({ email, onClose }: UserDetailPanelProps) {
                               </span>
                             )}
                           </div>
-                          <p className="font-mono text-[10px] text-white/30 mt-0.5">
+                          <p className="font-mono text-[10px] text-faint mt-0.5">
                             {adoptionData.daysActive} active days in period
                           </p>
                         </div>
@@ -331,7 +331,7 @@ export function UserDetailPanel({ email, onClose }: UserDetailPanelProps) {
                                 <span className="font-mono text-xs text-white/60">
                                   {formatTokens(t.tokens)}
                                 </span>
-                                <span className="font-mono text-[10px] text-white/30 ml-2">
+                                <span className="font-mono text-[10px] text-faint ml-2">
                                   {t.percentage.toFixed(0)}%
                                 </span>
                               </div>
@@ -388,7 +388,7 @@ export function UserDetailPanel({ email, onClose }: UserDetailPanelProps) {
                             );
                           })}
                         </div>
-                        <div className="mt-1 flex justify-between font-mono text-[8px] text-white/30">
+                        <div className="mt-1 flex justify-between font-mono text-[8px] text-faint">
                           <span>{details.dailyUsage.length}d ago</span>
                           <span>Today</span>
                         </div>

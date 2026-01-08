@@ -61,7 +61,7 @@ const TOOL_LABELS = {
 
 function TipsIndexContent() {
   return (
-    <div className="min-h-screen bg-[#050507] text-white">
+    <div className="min-h-screen bg-[#050507] text-white grid-bg">
       {/* Gradient background */}
       <div className="fixed inset-0 bg-gradient-to-br from-amber-500/[0.02] via-transparent to-cyan-500/[0.02] pointer-events-none" />
 
@@ -148,7 +148,7 @@ function TipsIndexContent() {
                             {guide.tools.map(tool => (
                               <span
                                 key={tool}
-                                className="font-mono text-[9px] px-1.5 py-0.5 rounded bg-white/5 text-white/30"
+                                className="font-mono text-[9px] px-1.5 py-0.5 rounded bg-white/5 text-faint"
                               >
                                 {TOOL_LABELS[tool]}
                               </span>

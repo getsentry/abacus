@@ -37,7 +37,7 @@ function GuideContent() {
 
   if (!guide) {
     return (
-      <div className="min-h-screen bg-[#050507] text-white">
+      <div className="min-h-screen bg-[#050507] text-white grid-bg">
         <AppHeader />
 
         <TipBar />
@@ -60,7 +60,7 @@ function GuideContent() {
   const Icon = GUIDE_ICONS[slug] || Compass;
 
   return (
-    <div className="min-h-screen bg-[#050507] text-white">
+    <div className="min-h-screen bg-[#050507] text-white grid-bg">
       {/* Subtle gradient background */}
       <div className="fixed inset-0 bg-gradient-to-b from-amber-500/[0.02] via-transparent to-transparent pointer-events-none" />
 
@@ -108,7 +108,7 @@ function GuideContent() {
 
             {/* Tool badges */}
             <div className="flex flex-wrap items-center gap-2">
-              <span className="font-mono text-[11px] text-white/30 uppercase tracking-wider">Works with:</span>
+              <span className="font-mono text-[11px] text-faint uppercase tracking-wider">Works with:</span>
               {guide.tools.map(tool => (
                 <span
                   key={tool}
@@ -145,7 +145,7 @@ function GuideContent() {
                   </h2>
                 ),
                 h3: ({ children }) => (
-                  <h3 className="font-display text-base text-white/80 mt-6 mb-3">{children}</h3>
+                  <h3 className="font-display text-base text-white/90 mt-6 mb-3">{children}</h3>
                 ),
                 p: ({ children }) => (
                   <p className="font-mono text-[13px] text-white/60 leading-relaxed mb-4">{children}</p>
@@ -163,7 +163,7 @@ function GuideContent() {
                   </li>
                 ),
                 strong: ({ children }) => (
-                  <strong className="text-white/80 font-medium">{children}</strong>
+                  <strong className="text-white/90 font-medium">{children}</strong>
                 ),
                 code: ({ className, children }) => {
                   // Check if this is inside a pre (code block) or inline
