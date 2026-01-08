@@ -108,7 +108,7 @@ async function handler() {
   }
 
   // GitHub
-  const githubConfigured = !!(process.env.GITHUB_APP_ID && process.env.GITHUB_PRIVATE_KEY) || !!process.env.GITHUB_TOKEN;
+  const githubConfigured = !!(process.env.GITHUB_APP_ID && process.env.GITHUB_APP_PRIVATE_KEY && process.env.GITHUB_APP_INSTALLATION_ID) || !!process.env.GITHUB_TOKEN;
   if (githubConfigured) {
     const [githubSync, githubBackfill] = await Promise.all([
       getGitHubSyncState(),
