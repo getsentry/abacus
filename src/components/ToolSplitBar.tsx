@@ -2,6 +2,7 @@
 
 import { getToolConfig, formatToolName } from '@/lib/tools';
 import { formatTokens } from '@/lib/utils';
+import { TooltipContent } from '@/components/Tooltip';
 
 export interface ToolSplitData {
   tool: string;
@@ -87,19 +88,17 @@ export function ToolSplitBar({
 
       {/* Tooltip */}
       {showTooltip && (
-        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover/dist:block z-20 pointer-events-none">
-          <div className="rounded bg-black/90 px-2 py-1.5 text-[10px] font-mono whitespace-nowrap border border-white/10 shadow-lg">
-            {data.map(item => {
-              const config = getToolConfig(item.tool);
-              const pct = Math.round((item.value / total) * 100);
-              return (
-                <div key={item.tool} className={config.text}>
-                  {formatToolName(item.tool)}: {formatter(item.value)} ({pct}%)
-                </div>
-              );
-            })}
-          </div>
-        </div>
+        <TooltipContent groupName="dist">
+          {data.map(item => {
+            const config = getToolConfig(item.tool);
+            const pct = Math.round((item.value / total) * 100);
+            return (
+              <div key={item.tool} className={config.text}>
+                {formatToolName(item.tool)}: {formatter(item.value)} ({pct}%)
+              </div>
+            );
+          })}
+        </TooltipContent>
       )}
     </div>
   );

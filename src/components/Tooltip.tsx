@@ -27,12 +27,33 @@ interface TooltipContentProps {
   position?: TooltipPosition;
   /** Additional CSS classes */
   className?: string;
+  /** z-index level. Default: 20 */
+  zIndex?: 10 | 20 | 30 | 40 | 50;
+  /** Named group for hover trigger (e.g., 'dist' for group/dist). Default: unnamed group */
+  groupName?: string;
 }
 
 const positionClasses: Record<TooltipPosition, string> = {
   top: 'bottom-full mb-2',
   bottom: 'top-full mt-2',
 };
+
+/**
+ * TooltipBox - Just the styled tooltip container
+ * Use this when you need custom positioning/trigger logic
+ *
+ * @example
+ * <div className="absolute bottom-full ...">
+ *   <TooltipBox>Content here</TooltipBox>
+ * </div>
+ */
+export function TooltipBox({ children, className = '' }: { children: ReactNode; className?: string }) {
+  return (
+    <div className={`rounded bg-[#0a0a0c] px-2 py-1.5 text-xs font-mono whitespace-nowrap border border-white/20 ${className}`}>
+      {children}
+    </div>
+  );
+}
 
 /**
  * TooltipContent - The styled tooltip box
@@ -48,14 +69,17 @@ export function TooltipContent({
   children,
   position = 'top',
   className = '',
+  zIndex = 20,
+  groupName,
 }: TooltipContentProps) {
+  const hoverClass = groupName ? `group-hover/${groupName}:block` : 'group-hover:block';
+  const zClass = `z-${zIndex}`;
+
   return (
     <div
-      className={`absolute left-1/2 -translate-x-1/2 ${positionClasses[position]} hidden group-hover:block z-20 pointer-events-none ${className}`}
+      className={`absolute left-1/2 -translate-x-1/2 ${positionClasses[position]} hidden ${hoverClass} ${zClass} pointer-events-none ${className}`}
     >
-      <div className="rounded bg-black/90 px-2 py-1.5 text-[10px] font-mono whitespace-nowrap border border-white/10 shadow-lg">
-        {children}
-      </div>
+      <TooltipBox>{children}</TooltipBox>
     </div>
   );
 }

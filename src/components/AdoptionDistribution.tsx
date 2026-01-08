@@ -5,6 +5,7 @@ import { motion } from 'framer-motion';
 import { AppLink } from './AppLink';
 import { AnimatedCard } from './Card';
 import { SectionLabel } from './SectionLabel';
+import { TooltipBox } from './Tooltip';
 import { type AdoptionStage, STAGE_CONFIG, STAGE_ORDER, STAGE_ICONS } from '@/lib/adoption';
 
 interface StageData {
@@ -73,12 +74,12 @@ export function AdoptionDistribution({
               transform: 'translateX(-50%)',
             }}
           >
-            <div className="rounded bg-black/90 px-2 py-1.5 text-[10px] whitespace-nowrap border border-white/10">
+            <TooltipBox>
               <div className="text-white/60 mb-1">{STAGE_CONFIG[hoveredStage].label}</div>
               <div className={STAGE_COLORS[hoveredStage].text}>
                 {stages[hoveredStage]?.count} users ({Math.round(stages[hoveredStage]?.percentage || 0)}%)
               </div>
-            </div>
+            </TooltipBox>
           </div>
         )}
 

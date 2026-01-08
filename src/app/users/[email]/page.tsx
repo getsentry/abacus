@@ -5,8 +5,9 @@ import { useParams } from 'next/navigation';
 import { useTimeRange } from '@/contexts/TimeRangeContext';
 import { motion } from 'framer-motion';
 import { StatCard } from '@/components/StatCard';
-import { StackedBarChart } from '@/components/StackedBarChart';
+import { UsageChart } from '@/components/UsageChart';
 import { TimeRangeSelector } from '@/components/TimeRangeSelector';
+import { TooltipContent } from '@/components/Tooltip';
 import { AppHeader } from '@/components/AppHeader';
 import { UserProfileHeader } from '@/components/UserProfileHeader';
 import { AdoptionBadge } from '@/components/AdoptionBadge';
@@ -486,12 +487,8 @@ function UserDetailContent() {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.2 }}
-              className="rounded-lg border border-white/5 bg-white/[0.02] p-6"
             >
-              <StackedBarChart
-                data={data.dailyUsage}
-                height={180}
-              />
+              <UsageChart data={data.dailyUsage} days={days} />
             </motion.div>
 
             {/* Models Used - Full Width */}
@@ -587,7 +584,7 @@ function UserDetailContent() {
                       const isWeekend = i === 0 || i === 6;
 
                       return (
-                        <div key={day} className="flex-1 flex flex-col items-center gap-2">
+                        <div key={day} className="group relative flex-1 flex flex-col items-center gap-2">
                           <div className="h-16 w-full flex items-end">
                             <motion.div
                               initial={{ height: 0 }}
@@ -600,6 +597,11 @@ function UserDetailContent() {
                           <span className={`font-mono text-[10px] ${isWeekend ? 'text-white/30' : 'text-white/50'}`}>
                             {day}
                           </span>
+                          {/* Tooltip */}
+                          <TooltipContent zIndex={10}>
+                            <div className="text-white/60">{day}</div>
+                            <div className="text-amber-400">{formatTokens(tokens)}</div>
+                          </TooltipContent>
                         </div>
                       );
                     })}

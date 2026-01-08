@@ -26,7 +26,8 @@ const QUICK_RANGE_OPTIONS: { key: QuickRangeKey; label: string }[] = [
   { key: 'thisWeek', label: 'This Week' },
   { key: 'thisMonth', label: 'This Month' },
   { key: 'lastMonth', label: 'Last Month' },
-  { key: 'thisQuarter', label: 'This Quarter' },
+  { key: 'thisYear', label: 'This Year' },
+  { key: 'allTime', label: 'All Time' },
 ];
 
 export function DateRangePicker({

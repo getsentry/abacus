@@ -1,7 +1,9 @@
 'use client';
 
+import { useMemo } from 'react';
 import { BaseStackedBarChart, type StackedBarSegment, type StackedBarDataPoint } from './BaseStackedBarChart';
 import { formatTokens } from '@/lib/utils';
+import { aggregateToWeekly } from '@/lib/dateUtils';
 import { TOOL_CONFIGS } from '@/lib/tools';
 
 interface DailyUsage {
@@ -16,6 +18,8 @@ interface StackedBarChartProps {
   height?: number;
   showLabels?: boolean;
 }
+
+const AGGREGATION_THRESHOLD = 90;
 
 // Define segments for the usage chart (rendered bottom to top in stack)
 // Uses centralized tool colors from lib/tools.ts
@@ -35,8 +39,16 @@ const USAGE_SEGMENTS: StackedBarSegment[] = [
 ];
 
 export function StackedBarChart({ data, height = 200, showLabels = true }: StackedBarChartProps) {
+  // Auto-aggregate to weekly when >90 data points
+  const { displayData, isWeekly } = useMemo(() => {
+    if (data.length > AGGREGATION_THRESHOLD) {
+      return { displayData: aggregateToWeekly(data), isWeekly: true };
+    }
+    return { displayData: data, isWeekly: false };
+  }, [data]);
+
   // Transform data to BaseStackedBarChart format
-  const chartData: StackedBarDataPoint[] = data.map(d => ({
+  const chartData: StackedBarDataPoint[] = displayData.map(d => ({
     date: d.date,
     values: {
       claudeCode: Number(d.claudeCode),
@@ -44,7 +56,7 @@ export function StackedBarChart({ data, height = 200, showLabels = true }: Stack
     },
   }));
 
-  // Calculate totals for custom legend
+  // Calculate totals for custom legend (from original data, not aggregated)
   const claudeCodeTotal = data.reduce((sum, d) => sum + Number(d.claudeCode), 0);
   const cursorTotal = data.reduce((sum, d) => sum + Number(d.cursor), 0);
 
@@ -62,7 +74,7 @@ export function StackedBarChart({ data, height = 200, showLabels = true }: Stack
 
   return (
     <BaseStackedBarChart
-      title="Daily Usage"
+      title={isWeekly ? 'Weekly Usage' : 'Daily Usage'}
       subtitle={`(${data.length} days)`}
       data={chartData}
       segments={USAGE_SEGMENTS}

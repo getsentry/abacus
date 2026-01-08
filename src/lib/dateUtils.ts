@@ -7,7 +7,7 @@ export type TimeRange =
   | { type: 'relative'; days: number }
   | { type: 'absolute'; startDate: string; endDate: string };
 
-export type QuickRangeKey = 'thisWeek' | 'thisMonth' | 'lastMonth' | 'thisQuarter';
+export type QuickRangeKey = 'thisWeek' | 'thisMonth' | 'lastMonth' | 'thisYear' | 'allTime';
 
 /**
  * Format a Date object to YYYY-MM-DD string
@@ -65,6 +65,13 @@ export function endOfMonth(date: Date): Date {
 export function startOfQuarter(date: Date): Date {
   const quarter = Math.floor(date.getMonth() / 3);
   return new Date(date.getFullYear(), quarter * 3, 1);
+}
+
+/**
+ * Get start of year for a given date
+ */
+export function startOfYear(date: Date): Date {
+  return new Date(date.getFullYear(), 0, 1);
 }
 
 /**
@@ -171,10 +178,17 @@ export const quickRanges: Record<QuickRangeKey, () => { startDate: string; endDa
       endDate: formatDate(endOfMonth(lastMonthDate)),
     };
   },
-  thisQuarter: () => {
+  thisYear: () => {
     const now = new Date();
     return {
-      startDate: formatDate(startOfQuarter(now)),
+      startDate: formatDate(startOfYear(now)),
+      endDate: formatDate(now),
+    };
+  },
+  allTime: () => {
+    const now = new Date();
+    return {
+      startDate: '2020-01-01',
       endDate: formatDate(now),
     };
   },
@@ -219,6 +233,46 @@ export function formatDateRange(startDate: string, endDate: string): string {
 
   // Different years
   return `${startMonth} ${start.getDate()}, ${start.getFullYear()} – ${endMonth} ${end.getDate()}, ${end.getFullYear()}`;
+}
+
+/**
+ * Aggregate daily data points into weekly buckets (Monday-Sunday)
+ * Used when displaying charts with large date ranges (>90 days)
+ */
+export function aggregateToWeekly<T extends { date: string }>(data: T[]): T[] {
+  if (data.length === 0) return [];
+
+  const weekMap = new Map<string, T>();
+
+  for (const item of data) {
+    const date = parseDate(item.date);
+    const weekStart = startOfWeek(date);
+    const weekKey = formatDate(weekStart);
+
+    if (!weekMap.has(weekKey)) {
+      // Initialize with the week start date and zero values for numeric fields
+      const initial = { ...item, date: weekKey } as T;
+      for (const key of Object.keys(item) as (keyof T)[]) {
+        if (key !== 'date' && typeof item[key] === 'number') {
+          (initial as Record<string, unknown>)[key as string] = 0;
+        }
+      }
+      weekMap.set(weekKey, initial);
+    }
+
+    // Sum numeric values
+    const weekData = weekMap.get(weekKey)!;
+    for (const key of Object.keys(item) as (keyof T)[]) {
+      if (key !== 'date' && typeof item[key] === 'number') {
+        const currentVal = (weekData as Record<string, unknown>)[key as string] as number || 0;
+        const addVal = item[key] as number;
+        (weekData as Record<string, unknown>)[key as string] = currentVal + addVal;
+      }
+    }
+  }
+
+  // Sort by date and return
+  return Array.from(weekMap.values()).sort((a, b) => a.date.localeCompare(b.date));
 }
 
 /**

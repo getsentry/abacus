@@ -211,3 +211,38 @@ export function formatModelName(model: string): string {
 
   return display;
 }
+
+/**
+ * Calculate linear regression for a set of data points
+ * Returns slope, intercept, and predicted Y values for each X
+ */
+export function linearRegression(values: number[]): {
+  slope: number;
+  intercept: number;
+  predictions: number[];
+} {
+  const n = values.length;
+  if (n === 0) return { slope: 0, intercept: 0, predictions: [] };
+  if (n === 1) return { slope: 0, intercept: values[0], predictions: [values[0]] };
+
+  // X values are just indices (0, 1, 2, ...)
+  let sumX = 0;
+  let sumY = 0;
+  let sumXY = 0;
+  let sumXX = 0;
+
+  for (let i = 0; i < n; i++) {
+    sumX += i;
+    sumY += values[i];
+    sumXY += i * values[i];
+    sumXX += i * i;
+  }
+
+  const slope = (n * sumXY - sumX * sumY) / (n * sumXX - sumX * sumX);
+  const intercept = (sumY - slope * sumX) / n;
+
+  // Generate predictions for each point
+  const predictions = values.map((_, i) => slope * i + intercept);
+
+  return { slope, intercept, predictions };
+}

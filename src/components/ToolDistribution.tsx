@@ -6,6 +6,7 @@ import { formatTokens } from '@/lib/utils';
 import { getToolConfig, formatToolName } from '@/lib/tools';
 import { AnimatedCard } from './Card';
 import { SectionLabel } from './SectionLabel';
+import { TooltipBox } from './Tooltip';
 
 interface ToolData {
   tool: string;
@@ -94,7 +95,7 @@ export function ToolDistribution({
               transform: 'translateX(-50%)',
             }}
           >
-            <div className="rounded bg-black/90 px-2 py-1.5 text-[10px] whitespace-nowrap border border-white/10">
+            <TooltipBox>
               <div className="text-white/60 mb-1">{formatToolName(hoveredTool)}</div>
               <div className={getToolConfig(hoveredTool).text}>
                 {hoveredBar === 'users'
@@ -102,7 +103,7 @@ export function ToolDistribution({
                   : `${formatTokens(tools.find(t => t.tool === hoveredTool)?.tokens || 0)} (${Math.round(tools.find(t => t.tool === hoveredTool)?.tokenPercentage || 0)}%)`
                 }
               </div>
-            </div>
+            </TooltipBox>
           </div>
         )}
 

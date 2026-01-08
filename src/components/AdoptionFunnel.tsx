@@ -3,6 +3,7 @@
 import { useState, useMemo } from 'react';
 import { Users } from 'lucide-react';
 import { type AdoptionStage, STAGE_CONFIG, STAGE_ORDER, STAGE_ICONS } from '@/lib/adoption';
+import { TooltipBox } from '@/components/Tooltip';
 
 interface StageData {
   stage: AdoptionStage;
@@ -90,12 +91,12 @@ export function AdoptionFunnel({
               transform: 'translateX(-50%)',
             }}
           >
-            <div className="rounded bg-black/90 px-2 py-1.5 text-[10px] whitespace-nowrap border border-white/10">
+            <TooltipBox>
               <div className="text-white/60 mb-1">{STAGE_CONFIG[hoveredStage].label}</div>
               <div className={STAGE_COLORS[hoveredStage].text}>
                 {sortedData.find(d => d.stage === hoveredStage)?.count} users ({sortedData.find(d => d.stage === hoveredStage)?.percentage}%)
               </div>
-            </div>
+            </TooltipBox>
           </div>
         )}
 

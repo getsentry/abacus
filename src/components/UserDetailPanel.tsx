@@ -3,6 +3,7 @@
 import { motion, AnimatePresence } from 'framer-motion';
 import { useEffect, useState, useMemo } from 'react';
 import { formatTokens, formatCurrency, formatModelName } from '@/lib/utils';
+import { aggregateToWeekly } from '@/lib/dateUtils';
 import { getToolConfig, formatToolName, calculateToolBreakdown, type ToolBreakdown } from '@/lib/tools';
 import { useTimeRange } from '@/contexts/TimeRangeContext';
 import { AppLink } from '@/components/AppLink';
@@ -363,29 +364,37 @@ export function UserDetailPanel({ email, onClose }: UserDetailPanelProps) {
                     </Card>
                   )}
 
-                  {details?.dailyUsage && details.dailyUsage.length > 0 && (
-                    <Card padding="md">
-                      <SectionLabel margin="md">Daily Activity</SectionLabel>
-                      <div className="flex h-16 items-end gap-0.5">
-                        {details.dailyUsage.map((d) => {
-                          const total = Number(d.claudeCode) + Number(d.cursor);
-                          const maxDaily = Math.max(...details.dailyUsage.map(dd => Number(dd.claudeCode) + Number(dd.cursor)), 1);
-                          const height = (total / maxDaily) * 100;
-                          return (
-                            <div
-                              key={d.date}
-                              className="flex-1 rounded-t bg-gradient-to-t from-amber-500/60 to-amber-500"
-                              style={{ height: `${Math.max(height, total > 0 ? 4 : 0)}%` }}
-                            />
-                          );
-                        })}
-                      </div>
-                      <div className="mt-1 flex justify-between font-mono text-[8px] text-white/30">
-                        <span>{details.dailyUsage.length}d ago</span>
-                        <span>Today</span>
-                      </div>
-                    </Card>
-                  )}
+                  {details?.dailyUsage && details.dailyUsage.length > 0 && (() => {
+                    const AGGREGATION_THRESHOLD = 90;
+                    const isWeekly = details.dailyUsage.length > AGGREGATION_THRESHOLD;
+                    const displayData = isWeekly
+                      ? aggregateToWeekly(details.dailyUsage)
+                      : details.dailyUsage;
+                    const maxDaily = Math.max(...displayData.map(dd => Number(dd.claudeCode) + Number(dd.cursor)), 1);
+
+                    return (
+                      <Card padding="md">
+                        <SectionLabel margin="md">{isWeekly ? 'Weekly Activity' : 'Daily Activity'}</SectionLabel>
+                        <div className="flex h-16 items-end gap-0.5">
+                          {displayData.map((d) => {
+                            const total = Number(d.claudeCode) + Number(d.cursor);
+                            const height = (total / maxDaily) * 100;
+                            return (
+                              <div
+                                key={d.date}
+                                className="flex-1 rounded-t bg-gradient-to-t from-amber-500/60 to-amber-500"
+                                style={{ height: `${Math.max(height, total > 0 ? 4 : 0)}%` }}
+                              />
+                            );
+                          })}
+                        </div>
+                        <div className="mt-1 flex justify-between font-mono text-[8px] text-white/30">
+                          <span>{details.dailyUsage.length}d ago</span>
+                          <span>Today</span>
+                        </div>
+                      </Card>
+                    );
+                  })()}
 
                 <Card padding="md">
                   <div className="flex justify-between">

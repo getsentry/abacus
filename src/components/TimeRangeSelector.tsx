@@ -14,7 +14,7 @@ interface TimeRangeSelectorProps {
 export function TimeRangeSelector({
   value,
   onChange,
-  options = [7, 30, 90],
+  options = [7, 30, 90, 365],
   isPending = false,
 }: TimeRangeSelectorProps) {
   const [isPickerOpen, setIsPickerOpen] = useState(false);
@@ -46,7 +46,7 @@ export function TimeRangeSelector({
           disabled={isPending}
           className={`${buttonBase} ${isRelative(days) ? buttonActive : buttonInactive} ${buttonPending}`}
         >
-          {days}d
+          {days === 365 ? '1y' : `${days}d`}
         </button>
       ))}
 

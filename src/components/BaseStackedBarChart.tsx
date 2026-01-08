@@ -2,6 +2,7 @@
 
 import { motion } from 'framer-motion';
 import { formatDate } from '@/lib/utils';
+import { TooltipContent } from '@/components/Tooltip';
 import { type ReactNode } from 'react';
 
 export interface StackedBarSegment {
@@ -131,17 +132,15 @@ export function BaseStackedBarChart({
               )}
 
               {/* Tooltip */}
-              <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block z-10 pointer-events-none">
-                <div className="rounded bg-black/90 px-2 py-1.5 text-[10px] font-mono whitespace-nowrap border border-white/10">
-                  <div className="text-white/60 mb-1">{formatDate(item.date)}</div>
-                  <div className="text-white mb-1">{formatValue(total)} total</div>
-                  {segmentHeights.filter(s => s.value > 0).map(seg => (
-                    <div key={seg.key} className={seg.textColor}>
-                      {seg.label}: {formatValue(seg.value)}
-                    </div>
-                  ))}
-                </div>
-              </div>
+              <TooltipContent zIndex={10}>
+                <div className="text-white/60 mb-1">{formatDate(item.date)}</div>
+                <div className="text-white mb-1">{formatValue(total)} total</div>
+                {segmentHeights.filter(s => s.value > 0).map(seg => (
+                  <div key={seg.key} className={seg.textColor}>
+                    {seg.label}: {formatValue(seg.value)}
+                  </div>
+                ))}
+              </TooltipContent>
             </div>
           );
         })}

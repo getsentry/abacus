@@ -1,10 +1,14 @@
 'use client';
 
+import { useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
+import { TrendingUp } from 'lucide-react';
 import { formatTokens, formatDate, formatCurrency } from '@/lib/utils';
+import { aggregateToWeekly } from '@/lib/dateUtils';
 import { Card } from '@/components/Card';
 import { SectionLabel } from '@/components/SectionLabel';
 import { TooltipContent } from '@/components/Tooltip';
+import { TrendLine } from '@/components/TrendLine';
 import { TOOL_CONFIGS } from '@/lib/tools';
 
 interface DailyUsage {
@@ -19,20 +23,49 @@ interface UsageChartProps {
   days?: number;
 }
 
+const AGGREGATION_THRESHOLD = 90;
+
 export function UsageChart({ data, days }: UsageChartProps) {
-  const maxValue = Math.max(...data.map(d => Number(d.claudeCode) + Number(d.cursor)), 1);
-  const claudeCodeTotal = data.reduce((sum, d) => sum + Number(d.claudeCode), 0);
-  const cursorTotal = data.reduce((sum, d) => sum + Number(d.cursor), 0);
+  const [showTrend, setShowTrend] = useState(true);
+
+  // Auto-aggregate to weekly when >90 data points
+  const { chartData, isWeekly } = useMemo(() => {
+    if (data.length > AGGREGATION_THRESHOLD) {
+      return { chartData: aggregateToWeekly(data), isWeekly: true };
+    }
+    return { chartData: data, isWeekly: false };
+  }, [data]);
+
+  // Calculate totals per data point for trend line
+  const totalValues = useMemo(
+    () => chartData.map(d => Number(d.claudeCode) + Number(d.cursor)),
+    [chartData]
+  );
+
+  const maxValue = Math.max(...totalValues, 1);
+  const claudeCodeTotal = chartData.reduce((sum, d) => sum + Number(d.claudeCode), 0);
+  const cursorTotal = chartData.reduce((sum, d) => sum + Number(d.cursor), 0);
 
   // Determine label frequency to show max ~10 labels
   const maxLabels = 10;
-  const labelEvery = Math.max(1, Math.ceil(data.length / maxLabels));
+  const labelEvery = Math.max(1, Math.ceil(chartData.length / maxLabels));
 
   return (
     <Card animate delay={0.4} padding="lg" className="h-full">
       <div className="mb-4 flex items-center justify-between">
-        <SectionLabel days={days}>Daily Usage</SectionLabel>
-        <div className="flex gap-4">
+        <SectionLabel days={days}>{isWeekly ? 'Weekly Usage' : 'Daily Usage'}</SectionLabel>
+        <div className="flex items-center gap-4">
+          <button
+            onClick={() => setShowTrend(!showTrend)}
+            className={`flex items-center gap-1 px-2 py-1 rounded text-xs font-mono transition-colors cursor-pointer ${
+              showTrend
+                ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
+                : 'bg-white/5 text-white/40 border border-white/10 hover:bg-white/10'
+            }`}
+          >
+            <TrendingUp className="w-3 h-3" />
+            <span>Trend</span>
+          </button>
           <span className={`font-mono text-xs ${TOOL_CONFIGS.claude_code.text}`}>
             {TOOL_CONFIGS.claude_code.name}: {formatTokens(claudeCodeTotal)}
           </span>
@@ -42,8 +75,10 @@ export function UsageChart({ data, days }: UsageChartProps) {
         </div>
       </div>
 
-      <div className="flex items-end gap-0.5" style={{ height: '200px' }}>
-        {data.map((item, i) => {
+      <div className="relative" style={{ height: '200px' }}>
+{showTrend && <TrendLine values={totalValues} maxValue={maxValue} />}
+        <div className="flex items-end gap-0.5 h-full">
+        {chartData.map((item, i) => {
           const claudeHeight = (Number(item.claudeCode) / maxValue) * 100;
           const cursorHeight = (Number(item.cursor) / maxValue) * 100;
 
@@ -89,6 +124,7 @@ export function UsageChart({ data, days }: UsageChartProps) {
             </div>
           );
         })}
+        </div>
       </div>
 
       {/* X-axis line */}
