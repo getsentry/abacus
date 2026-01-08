@@ -42,6 +42,7 @@ interface GitHubCommitResponse {
     };
   };
   author: {
+    id: number;
     login: string;
   } | null;
   stats?: {
@@ -337,7 +338,7 @@ async function getInstallationToken(appId: string, privateKey: string, installat
  * Get a GitHub API token.
  * Prefers GitHub App authentication, falls back to personal access token.
  */
-async function getGitHubToken(): Promise<string> {
+export async function getGitHubToken(): Promise<string> {
   const appId = process.env.GITHUB_APP_ID;
   const privateKey = process.env.GITHUB_APP_PRIVATE_KEY;
   const installationId = process.env.GITHUB_APP_INSTALLATION_ID;
@@ -405,6 +406,7 @@ interface CommitInsert {
   repoId: number;
   commitId: string;
   authorEmail: string | null;
+  authorId: string | null;
   committedAt: Date;
   aiTool: string | null;
   aiModel: string | null;
@@ -412,19 +414,67 @@ interface CommitInsert {
   deletions: number;
 }
 
+/**
+ * Check if an email is a "real" work email (not a noreply/anonymous email).
+ * Returns true if it's a real email that should be used for auto-mapping.
+ */
+function isRealWorkEmail(email: string | null): boolean {
+  if (!email) return false;
+
+  // Skip GitHub noreply emails
+  if (email.endsWith('@users.noreply.github.com')) return false;
+
+  // Skip other common noreply patterns
+  if (email.includes('noreply')) return false;
+
+  // Check if it matches the configured domain (if set)
+  const domain = process.env.DOMAIN;
+  if (domain && email.endsWith(`@${domain}`)) {
+    return true;
+  }
+
+  // If no domain configured, accept any non-noreply email
+  // This is less strict but allows the feature to work without DOMAIN set
+  return !domain;
+}
+
 async function insertCommit(commit: CommitInsert): Promise<void> {
+  let resolvedEmail = commit.authorEmail;
+
+  // If we have an author ID, try to resolve the email
+  if (commit.authorId) {
+    if (isRealWorkEmail(commit.authorEmail)) {
+      // Real work email - create/update the mapping for future use
+      await sql`
+        INSERT INTO identity_mappings (source, external_id, email)
+        VALUES ('github', ${commit.authorId}, ${commit.authorEmail})
+        ON CONFLICT (source, external_id) DO NOTHING
+      `;
+    } else {
+      // Noreply/anonymous email - try to resolve using existing mapping
+      const mapping = await sql`
+        SELECT email FROM identity_mappings
+        WHERE source = 'github' AND external_id = ${commit.authorId}
+      `;
+      if (mapping.rows.length > 0) {
+        resolvedEmail = mapping.rows[0].email;
+      }
+    }
+  }
+
   await sql`
     INSERT INTO commits (
-      repo_id, commit_id, author_email, committed_at,
+      repo_id, commit_id, author_email, author_id, committed_at,
       ai_tool, ai_model, additions, deletions
     )
     VALUES (
-      ${commit.repoId}, ${commit.commitId}, ${commit.authorEmail},
-      ${commit.committedAt.toISOString()}, ${commit.aiTool},
+      ${commit.repoId}, ${commit.commitId}, ${resolvedEmail},
+      ${commit.authorId}, ${commit.committedAt.toISOString()}, ${commit.aiTool},
       ${commit.aiModel}, ${commit.additions}, ${commit.deletions}
     )
     ON CONFLICT (repo_id, commit_id) DO UPDATE SET
       author_email = EXCLUDED.author_email,
+      author_id = COALESCE(EXCLUDED.author_id, commits.author_id),
       ai_tool = EXCLUDED.ai_tool,
       ai_model = EXCLUDED.ai_model,
       additions = EXCLUDED.additions,
@@ -521,10 +571,13 @@ export async function processWebhookPush(payload: GitHubPushEvent): Promise<Sync
         const additions = commit.added.length + commit.modified.length;
         const deletions = commit.removed.length;
 
+        // Note: Webhook payload doesn't include author.id, will be null
+        // Author ID will be populated on next sync or backfill from API
         await insertCommit({
           repoId,
           commitId: commit.id,
           authorEmail: commit.author.email || null,
+          authorId: null,
           committedAt: new Date(commit.timestamp),
           aiTool: aiAttribution?.tool || null,
           aiModel: aiAttribution?.model || null,
@@ -638,6 +691,7 @@ export async function syncGitHubRepo(
             repoId,
             commitId: commit.sha,
             authorEmail: commit.commit.author.email || null,
+            authorId: commit.author?.id?.toString() || null,
             committedAt: new Date(commit.commit.author.date),
             aiTool: aiAttribution?.tool || null,
             aiModel: aiAttribution?.model || null,
@@ -654,7 +708,7 @@ export async function syncGitHubRepo(
         }
       }
 
-      log(`  ${repoFullName}: Page ${page}, ${commits.length} commits (${result.aiAttributedCommits} AI-attributed)`);
+      log(`  ${repoFullName}: Page ${page}, ${commits.length} commits (${result.aiAttributedCommits} AI Attributed)`);
 
       if (commits.length < perPage) {
         hasMore = false;

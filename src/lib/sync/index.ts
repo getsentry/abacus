@@ -11,9 +11,18 @@ import {
   processWebhookPush,
   detectAiAttribution,
   getOrCreateRepository,
+  getGitHubToken,
   SyncResult as GitHubResult,
   GitHubPushEvent,
 } from './github';
+import {
+  getGitHubUsersWithMappingStatus,
+  getUnmappedGitHubUsers,
+  mapGitHubUser,
+  syncGitHubOrgMembers,
+  getGitHubUser,
+  GitHubMappingResult,
+} from './github-mappings';
 import { sql } from '@vercel/postgres';
 
 export interface FullSyncResult {
@@ -138,6 +147,13 @@ export {
   processWebhookPush,
   detectAiAttribution,
   getOrCreateRepository,
+  getGitHubToken,
+  // GitHub user mapping exports
+  getGitHubUsersWithMappingStatus,
+  getUnmappedGitHubUsers,
+  mapGitHubUser,
+  syncGitHubOrgMembers,
+  getGitHubUser,
 };
 
-export type { GitHubResult, GitHubPushEvent };
+export type { GitHubResult, GitHubPushEvent, GitHubMappingResult };

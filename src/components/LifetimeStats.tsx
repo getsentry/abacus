@@ -9,6 +9,8 @@ interface LifetimeStatsProps {
   totalTokens: number;
   firstRecordDate: string | null;
   totalUsers?: number;
+  totalCommits?: number;
+  aiAttributedCommits?: number;
 }
 
 function formatSinceDate(dateStr: string | null): string {
@@ -19,7 +21,7 @@ function formatSinceDate(dateStr: string | null): string {
   return `since ${month} '${year}`;
 }
 
-export function LifetimeStats({ totalCost, totalTokens, firstRecordDate, totalUsers }: LifetimeStatsProps) {
+export function LifetimeStats({ totalCost, totalTokens, firstRecordDate, totalUsers, totalCommits, aiAttributedCommits }: LifetimeStatsProps) {
   const hasData = totalTokens > 0;
 
   if (!hasData) return null;
@@ -33,8 +35,8 @@ export function LifetimeStats({ totalCost, totalTokens, firstRecordDate, totalUs
     >
       <PageContainer className="flex items-center min-h-[48px]">
         <div className="flex items-center gap-6 sm:gap-8 flex-wrap">
-          <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-white/30 leading-none">
-            Lifetime
+          <span className="font-mono text-[10px] tracking-wider text-white/30 leading-none">
+            lifetime
           </span>
 
           <motion.div
@@ -80,13 +82,30 @@ export function LifetimeStats({ totalCost, totalTokens, firstRecordDate, totalUs
             </>
           )}
 
+          {aiAttributedCommits !== undefined && totalCommits !== undefined && totalCommits > 0 && (
+            <>
+              <div className="w-px h-4 bg-white/10 hidden sm:block" />
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 0.25 }}
+                className="hidden sm:flex items-center gap-2"
+              >
+                <span className="font-display text-lg sm:text-xl font-light text-white/90 leading-none">
+                  {aiAttributedCommits.toLocaleString()}
+                </span>
+                <span className="font-mono text-[10px] text-white/40 leading-none">commits attributed to ai</span>
+              </motion.div>
+            </>
+          )}
+
           {firstRecordDate && (
             <>
               <div className="w-px h-4 bg-white/10 hidden md:block" />
               <motion.span
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
-                transition={{ delay: 0.25 }}
+                transition={{ delay: 0.3 }}
                 className="hidden md:block font-mono text-[10px] text-white/30 leading-none"
               >
                 {formatSinceDate(firstRecordDate)}

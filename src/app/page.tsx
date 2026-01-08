@@ -20,7 +20,7 @@ import { formatTokens, formatCurrency } from '@/lib/utils';
 import { useTimeRange } from '@/contexts/TimeRangeContext';
 import { type AdoptionStage, STAGE_CONFIG, STAGE_ORDER, STAGE_ICONS } from '@/lib/adoption';
 import { calculateDelta } from '@/lib/comparison';
-import { Users, Target, BarChart3 } from 'lucide-react';
+import { Users, Target, BarChart3, Zap, DollarSign } from 'lucide-react';
 
 interface Stats {
   totalTokens: number;
@@ -50,6 +50,8 @@ interface LifetimeStatsData {
   totalCost: number;
   totalUsers: number;
   firstRecordDate: string | null;
+  totalCommits: number;
+  aiAttributedCommits: number;
 }
 
 interface UserSummary {
@@ -169,7 +171,7 @@ function DashboardContent() {
   const hasData = stats && stats.totalTokens > 0;
 
   return (
-    <div className="min-h-screen bg-[#0a0a0f] text-white grid-bg">
+    <div className="min-h-screen bg-[#050507] text-white grid-bg">
       <LoadingBar isLoading={isRefreshing} />
 
       <AppHeader search={<SearchInput days={days} placeholder="Search users..." />} />
@@ -182,6 +184,8 @@ function DashboardContent() {
           totalCost={lifetimeStats.totalCost}
           totalTokens={lifetimeStats.totalTokens}
           firstRecordDate={lifetimeStats.firstRecordDate}
+          totalCommits={lifetimeStats.totalCommits}
+          aiAttributedCommits={lifetimeStats.aiAttributedCommits}
         />
       )}
 
@@ -211,6 +215,7 @@ function DashboardContent() {
                 label="Total Tokens"
                 days={days}
                 value={formatTokens(stats.totalTokens)}
+                icon={Zap}
                 trend={stats.previousPeriod ? calculateDelta(stats.totalTokens, stats.previousPeriod.totalTokens) : undefined}
                 delay={0}
               >
@@ -222,6 +227,7 @@ function DashboardContent() {
                 label="Estimated Cost"
                 days={days}
                 value={formatCurrency(stats.totalCost)}
+                icon={DollarSign}
                 trend={stats.previousPeriod ? calculateDelta(stats.totalCost, stats.previousPeriod.totalCost) : undefined}
                 accentColor="#06b6d4"
                 delay={0.1}
@@ -355,7 +361,7 @@ function DashboardContent() {
 export default function Dashboard() {
   return (
     <Suspense fallback={
-      <div className="min-h-screen bg-[#0a0a0f] text-white grid-bg flex items-center justify-center">
+      <div className="min-h-screen bg-[#050507] text-white grid-bg flex items-center justify-center">
         <div className="font-mono text-sm text-white/40">Loading...</div>
       </div>
     }>

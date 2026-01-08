@@ -36,7 +36,8 @@ import { syncAnthropicUsage, getAnthropicSyncState, backfillAnthropicUsage, rese
 import { syncCursorUsage, backfillCursorUsage, getCursorSyncState, getPreviousCompleteHourEnd, resetCursorBackfillComplete } from '../src/lib/sync/cursor';
 import { syncGitHubRepo, backfillGitHubUsage, getGitHubSyncState, getGitHubBackfillState, resetGitHubBackfillComplete, detectAiAttribution } from '../src/lib/sync/github';
 import { syncApiKeyMappingsSmart, syncAnthropicApiKeyMappings } from '../src/lib/sync/anthropic-mappings';
-import { getToolIdentityMappings, setToolIdentityMapping, getUnmappedToolRecords, getKnownEmails, insertUsageRecord } from '../src/lib/queries';
+import { getGitHubUsersWithMappingStatus, mapGitHubUser, getGitHubUser } from '../src/lib/sync/github-mappings';
+import { getIdentityMappings, setIdentityMapping, getUnmappedToolRecords, getKnownEmails, insertUsageRecord } from '../src/lib/queries';
 import { normalizeModelName } from '../src/lib/utils';
 
 const rl = readline.createInterface({
@@ -156,6 +157,9 @@ Commands:
                         Use --dry-run to test detection without database
   github:commits <repo> [--limit N]
                         Dump commits from database for debugging
+  github:users          List GitHub users with commits and their mapping status
+  github:users:map <github_id> <email>
+                        Map a GitHub user ID to a work email
   import:cursor-csv <file>
                         Import Cursor usage from CSV export
   stats                 Show database statistics
@@ -289,7 +293,7 @@ async function cmdGitHubStatus() {
     const row = stats.rows[0];
     console.log(`\nDatabase stats:`);
     console.log(`  Total commits: ${row.total_commits}`);
-    console.log(`  AI-attributed: ${row.ai_commits}`);
+    console.log(`  AI Attributed: ${row.ai_commits}`);
     if (row.total_commits > 0) {
       const pct = ((row.ai_commits / row.total_commits) * 100).toFixed(1);
       console.log(`  AI percentage: ${pct}%`);
@@ -335,7 +339,7 @@ async function cmdGitHubSync(repo: string, days: number = 7, dryRun: boolean = f
       return;
     }
 
-    console.log(`🔍 Dry run: Scanning ${repo} for AI-attributed commits (last ${days} days)\n`);
+    console.log(`🔍 Dry run: Scanning ${repo} for AI Attributed commits (last ${days} days)\n`);
     console.log('This does NOT write to the database - just shows what would be detected.\n');
 
     // Fetch commits directly from GitHub API
@@ -396,9 +400,9 @@ async function cmdGitHubSync(repo: string, days: number = 7, dryRun: boolean = f
     }
 
     if (aiCommits.length === 0) {
-      console.log('No AI-attributed commits found.');
+      console.log('No AI Attributed commits found.');
     } else {
-      console.log(`Found ${aiCount} AI-attributed commit(s):\n`);
+      console.log(`Found ${aiCount} AI Attributed commit(s):\n`);
       for (const c of aiCommits) {
         console.log(`  ${c.sha} ${c.date} [${c.tool}${c.model ? `:${c.model}` : ''}]`);
         console.log(`    by ${c.author}: ${c.message}`);
@@ -412,7 +416,7 @@ async function cmdGitHubSync(repo: string, days: number = 7, dryRun: boolean = f
 
       console.log('\nSummary:');
       console.log(`  Total commits: ${commits.length}`);
-      console.log(`  AI-attributed: ${aiCount} (${((aiCount / commits.length) * 100).toFixed(1)}%)`);
+      console.log(`  AI Attributed: ${aiCount} (${((aiCount / commits.length) * 100).toFixed(1)}%)`);
       console.log('  By tool:');
       for (const [tool, count] of Object.entries(byTool)) {
         console.log(`    ${tool}: ${count}`);
@@ -432,7 +436,7 @@ async function cmdGitHubSync(repo: string, days: number = 7, dryRun: boolean = f
 
   console.log(`\n✓ Sync complete`);
   console.log(`  Commits processed: ${result.commitsProcessed}`);
-  console.log(`  AI-attributed: ${result.aiAttributedCommits}`);
+  console.log(`  AI Attributed: ${result.aiAttributedCommits}`);
   if (result.errors.length > 0) {
     console.log(`  Errors: ${result.errors.slice(0, 5).join(', ')}`);
   }
@@ -454,7 +458,7 @@ async function cmdGitHubBackfill(fromDate: string) {
 
   console.log(`\n✓ Backfill complete`);
   console.log(`  Commits processed: ${result.commitsProcessed}`);
-  console.log(`  AI-attributed: ${result.aiAttributedCommits}`);
+  console.log(`  AI Attributed: ${result.aiAttributedCommits}`);
   if (result.rateLimited) {
     console.log(`  ⚠️  Rate limited - will continue on next run`);
   }
@@ -512,14 +516,14 @@ async function cmdGitHubCommits(repo: string, limit: number = 20) {
 }
 
 async function cmdMappings() {
-  console.log('🔑 Tool Identity Mappings\n');
-  const mappings = await getToolIdentityMappings();
+  console.log('🔑 Identity Mappings\n');
+  const mappings = await getIdentityMappings();
   if (mappings.length === 0) {
     console.log('No mappings found. Run `mappings:sync` to sync from Anthropic.');
     return;
   }
   for (const m of mappings) {
-    console.log(`  [${m.tool}] ${m.external_id} → ${m.email}`);
+    console.log(`  [${m.source}] ${m.external_id} → ${m.email}`);
   }
 }
 
@@ -539,15 +543,15 @@ async function cmdMappingsFix() {
   console.log('🔧 Fix Unmapped Tool Records\n');
 
   // Currently only claude_code uses tool_record_id for identity mapping
-  const tool = 'claude_code';
-  const unmapped = await getUnmappedToolRecords(tool);
+  const source = 'claude_code';
+  const unmapped = await getUnmappedToolRecords(source);
   if (unmapped.length === 0) {
     console.log('No unmapped tool records found!');
     return;
   }
 
   const knownEmails = await getKnownEmails();
-  console.log(`Found ${unmapped.length} unmapped ${tool} records.\n`);
+  console.log(`Found ${unmapped.length} unmapped ${source} records.\n`);
   console.log('Known emails:', knownEmails.join(', '), '\n');
 
   for (const item of unmapped) {
@@ -565,11 +569,65 @@ async function cmdMappingsFix() {
       continue;
     }
 
-    await setToolIdentityMapping(tool, item.tool_record_id, email);
-    console.log(`✓ Mapped [${tool}] ${item.tool_record_id} → ${email}`);
+    await setIdentityMapping(source, item.tool_record_id, email);
+    console.log(`✓ Mapped [${source}] ${item.tool_record_id} → ${email}`);
   }
 
   console.log('\nDone!');
+}
+
+async function cmdGitHubUsers() {
+  console.log('👥 GitHub Users with Commits\n');
+
+  const users = await getGitHubUsersWithMappingStatus('getsentry');
+
+  if (users.length === 0) {
+    console.log('No GitHub users found with commits. Run github:sync first.');
+    return;
+  }
+
+  console.log('ID'.padEnd(12) + 'Login'.padEnd(20) + 'Email'.padEnd(35) + 'Commits'.padEnd(10) + 'Status');
+  console.log('-'.repeat(85));
+
+  for (const user of users) {
+    const id = user.authorId.padEnd(12);
+    const login = (user.login || '-').padEnd(20);
+    const email = (user.email || '-').padEnd(35);
+    const commits = user.commitCount.toString().padEnd(10);
+    const status = user.isMapped ? '✓ mapped' : '○ unmapped';
+    console.log(`${id}${login}${email}${commits}${status}`);
+  }
+
+  const unmappedCount = users.filter(u => !u.isMapped).length;
+  console.log(`\nTotal: ${users.length} users (${unmappedCount} unmapped)`);
+
+  if (unmappedCount > 0) {
+    console.log('\nTo map a user: npm run cli github:users:map <github_id> <email>');
+  }
+}
+
+async function cmdGitHubUsersMap(githubId: string, email: string) {
+  if (!githubId || !email) {
+    console.error('Error: Both GitHub user ID and email are required');
+    console.error('Usage: npm run cli github:users:map <github_id> <email>');
+    return;
+  }
+
+  if (!email.includes('@')) {
+    console.error('Error: Invalid email format');
+    return;
+  }
+
+  // Try to get the user's login for display
+  const userInfo = await getGitHubUser(githubId);
+  const displayName = userInfo ? `${userInfo.login} (${githubId})` : githubId;
+
+  console.log(`Mapping GitHub user ${displayName} → ${email}...`);
+
+  await mapGitHubUser(githubId, email);
+
+  console.log(`✓ Mapped ${displayName} → ${email}`);
+  console.log('  Existing commits from this user have been updated.');
 }
 
 async function cmdSync(days: number = 7, tools: ('anthropic' | 'cursor')[] = ['anthropic', 'cursor'], skipMappings: boolean = false) {
@@ -872,6 +930,15 @@ async function main() {
         const limitIdx = args.indexOf('--limit');
         const limit = limitIdx >= 0 ? parseInt(args[limitIdx + 1]) : 20;
         await cmdGitHubCommits(repo, limit);
+        break;
+      }
+      case 'github:users':
+        await cmdGitHubUsers();
+        break;
+      case 'github:users:map': {
+        const githubId = args[1];
+        const email = args[2];
+        await cmdGitHubUsersMap(githubId, email);
         break;
       }
       case 'mappings':

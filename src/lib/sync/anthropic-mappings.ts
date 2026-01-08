@@ -8,7 +8,7 @@
  * Cross-references to create external_id → email mappings for the claude_code tool
  */
 
-import { setToolIdentityMapping, getToolIdentityMappings, getUnmappedToolRecords } from '../queries';
+import { setIdentityMapping, getIdentityMappings, getUnmappedToolRecords } from '../queries';
 
 const TOOL = 'claude_code';
 
@@ -160,7 +160,7 @@ export async function syncAnthropicApiKeyMappings(
     const apiKeys = [...activeKeys, ...archivedKeys];
 
     // Get existing mappings to avoid duplicates
-    const existingMappings = await getToolIdentityMappings(TOOL);
+    const existingMappings = await getIdentityMappings(TOOL);
     const existingSet = new Set(existingMappings.map(m => m.external_id));
 
     // Create mappings for each API key (already filtered to active keys)
@@ -180,7 +180,7 @@ export async function syncAnthropicApiKeyMappings(
       }
 
       try {
-        await setToolIdentityMapping(TOOL, apiKey.id, creatorEmail);
+        await setIdentityMapping(TOOL, apiKey.id, creatorEmail);
         result.mappingsCreated++;
       } catch (err) {
         result.errors.push(`Failed to save mapping for ${apiKey.id}: ${err}`);
@@ -350,7 +350,7 @@ async function syncApiKeyMappingsIncremental(apiKeyIds: string[]): Promise<Mappi
       }
 
       // Save the mapping (also updates usage_records)
-      await setToolIdentityMapping(TOOL, apiKeyId, email);
+      await setIdentityMapping(TOOL, apiKeyId, email);
       result.mappingsCreated++;
 
     } catch (err) {

@@ -232,7 +232,7 @@ function UserDetailContent() {
   }, [data?.modelBreakdown]);
 
   return (
-    <div className="min-h-screen bg-[#0a0a0f] text-white grid-bg">
+    <div className="min-h-screen bg-[#050507] text-white grid-bg">
       {/* Loading Progress Bar */}
       {isRefreshing && (
         <div className="fixed top-0 left-0 right-0 z-50 h-0.5 bg-amber-500/20 overflow-hidden">
@@ -375,7 +375,7 @@ function UserDetailContent() {
                       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                         {/* What defines this level */}
                         <div>
-                          <p className="font-mono text-[10px] uppercase tracking-wider text-white/40 mb-2">
+                          <p className="font-mono text-xs uppercase tracking-wider text-white/60 mb-2">
                             {adoptionData.stage === 'power_user' ? 'What Power Users Do' : 'At This Level'}
                           </p>
                           <div className="space-y-1.5">
@@ -397,7 +397,7 @@ function UserDetailContent() {
 
                         {/* Suggestion */}
                         <div>
-                          <p className="font-mono text-[10px] uppercase tracking-wider text-white/40 mb-2">
+                          <p className="font-mono text-xs uppercase tracking-wider text-white/60 mb-2">
                             {adoptionData.stage === 'power_user' ? 'Keep It Going' : 'Try This'}
                           </p>
                           <p className="font-mono text-[11px] text-white/50 leading-relaxed">
@@ -615,15 +615,15 @@ function UserDetailContent() {
               </h3>
               <div className="grid grid-cols-3 gap-4 sm:gap-8">
                 <div>
-                  <p className="font-mono text-[10px] uppercase tracking-wider text-white/40 mb-1">First Active</p>
+                  <p className="font-mono text-xs uppercase tracking-wider text-white/60 mb-1">First Active</p>
                   <p className="font-mono text-xs sm:text-sm text-white">{formatDate(data.summary.firstActive)}</p>
                 </div>
                 <div>
-                  <p className="font-mono text-[10px] uppercase tracking-wider text-white/40 mb-1">Last Active</p>
+                  <p className="font-mono text-xs uppercase tracking-wider text-white/60 mb-1">Last Active</p>
                   <p className="font-mono text-xs sm:text-sm text-white">{formatDate(data.summary.lastActive)}</p>
                 </div>
                 <div>
-                  <p className="font-mono text-[10px] uppercase tracking-wider text-white/40 mb-1">Days Active</p>
+                  <p className="font-mono text-xs uppercase tracking-wider text-white/60 mb-1">Days Active</p>
                   <p className="font-mono text-xs sm:text-sm text-white">{data.summary.daysActive}</p>
                 </div>
               </div>
@@ -643,7 +643,7 @@ function UserDetailContent() {
 export default function UserDetailPage() {
   return (
     <Suspense fallback={
-      <div className="min-h-screen bg-[#0a0a0f] text-white grid-bg flex items-center justify-center">
+      <div className="min-h-screen bg-[#050507] text-white grid-bg flex items-center justify-center">
         <div className="flex flex-col items-center gap-3">
           <div className="h-8 w-8 border-2 border-amber-500/30 border-t-amber-500 rounded-full animate-spin" />
           <span className="font-mono text-sm text-white/40">Loading...</span>

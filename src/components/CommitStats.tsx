@@ -46,14 +46,14 @@ export function CommitStats({
     >
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">
-          <GitCommit className="w-3.5 h-3.5 text-white/40" />
-          <p className="font-mono text-[10px] uppercase tracking-wider text-white/40">
-            Commits {days && <span className="text-white/20">({days}d)</span>}
+          <GitCommit className="w-4 h-4 text-white/50" />
+          <p className="font-mono text-xs uppercase tracking-wider text-white/60">
+            Commits {days && <span className="text-white/30">({days}d)</span>}
           </p>
         </div>
         <AppLink
           href="/commits"
-          className="font-mono text-[10px] text-amber-500/70 hover:text-amber-400 transition-colors cursor-pointer"
+          className="font-mono text-xs text-amber-500 hover:text-amber-400 transition-colors cursor-pointer"
         >
           View details
         </AppLink>
@@ -65,7 +65,7 @@ export function CommitStats({
           <span className="font-display text-3xl font-light text-white">
             {aiAssistanceRate}%
           </span>
-          <span className="font-mono text-xs text-white/40">AI-attributed</span>
+          <span className="font-mono text-xs text-white/40">AI Attributed</span>
         </div>
         <p className="font-mono text-[10px] text-white/30 mt-1">
           {formatNumber(aiAssistedCommits)} of {formatNumber(totalCommits)} commits
@@ -75,7 +75,6 @@ export function CommitStats({
       {/* Tool breakdown */}
       {toolBreakdown.length > 0 && (
         <div>
-          <p className="font-mono text-[10px] text-white/40 mb-2">By tool</p>
           <div className="space-y-1.5">
             {toolBreakdown.map((tool, i) => {
               const config = getToolConfig(tool.tool);

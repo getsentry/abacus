@@ -162,7 +162,7 @@ export default function StatusPage() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-[#0a0a0f] text-white grid-bg">
+    <div className="min-h-screen bg-[#050507] text-white grid-bg">
       <AppHeader />
 
       {/* Page Title */}

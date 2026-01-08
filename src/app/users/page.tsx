@@ -156,7 +156,7 @@ function UsersPageContent() {
   );
 
   return (
-    <div className="min-h-screen bg-[#0a0a0f] text-white grid-bg">
+    <div className="min-h-screen bg-[#050507] text-white grid-bg">
       <LoadingBar isLoading={isRefreshing} />
 
       <AppHeader
@@ -356,7 +356,7 @@ function UsersPageContent() {
 export default function UsersPage() {
   return (
     <Suspense fallback={
-      <div className="min-h-screen bg-[#0a0a0f] text-white grid-bg flex items-center justify-center">
+      <div className="min-h-screen bg-[#050507] text-white grid-bg flex items-center justify-center">
         <div className="font-mono text-sm text-white/40">Loading...</div>
       </div>
     }>

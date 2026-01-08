@@ -1,5 +1,5 @@
 -- Migration: Add commits tracking for AI attribution analysis
--- This enables tracking AI-attributed commits across repositories (GitHub, GitLab, etc.)
+-- This enables tracking AI Attributed commits across repositories (GitHub, GitLab, etc.)
 
 -- Normalized repositories table (saves space, enables source-agnostic design)
 CREATE TABLE repositories (
@@ -33,5 +33,5 @@ CREATE INDEX idx_commits_author ON commits(author_email);
 CREATE INDEX idx_commits_committed_at ON commits(committed_at);
 CREATE INDEX idx_commits_repo_date ON commits(repo_id, committed_at);
 
--- Partial index for AI-attributed commits (commonly queried)
+-- Partial index for AI Attributed commits (commonly queried)
 CREATE INDEX idx_commits_ai_tool ON commits(ai_tool) WHERE ai_tool IS NOT NULL;

@@ -489,30 +489,42 @@ export async function getUnmappedToolRecords(tool: string = 'claude_code'): Prom
   return result.rows as { tool_record_id: string; usage_count: number }[];
 }
 
-export async function getToolIdentityMappings(tool?: string): Promise<{ tool: string; external_id: string; email: string }[]> {
-  const result = tool
-    ? await sql`SELECT tool, external_id, email FROM tool_identity_mappings WHERE tool = ${tool}`
-    : await sql`SELECT tool, external_id, email FROM tool_identity_mappings`;
-  return result.rows as { tool: string; external_id: string; email: string }[];
+export async function getIdentityMappings(source?: string): Promise<{ source: string; external_id: string; email: string }[]> {
+  const result = source
+    ? await sql`SELECT source, external_id, email FROM identity_mappings WHERE source = ${source}`
+    : await sql`SELECT source, external_id, email FROM identity_mappings`;
+  return result.rows as { source: string; external_id: string; email: string }[];
 }
 
-export async function setToolIdentityMapping(tool: string, externalId: string, email: string): Promise<void> {
-
+export async function setIdentityMapping(source: string, externalId: string, email: string): Promise<void> {
   await sql`
-    INSERT INTO tool_identity_mappings (tool, external_id, email)
-    VALUES (${tool}, ${externalId}, ${email})
-    ON CONFLICT (tool, external_id) DO UPDATE SET email = ${email}
+    INSERT INTO identity_mappings (source, external_id, email)
+    VALUES (${source}, ${externalId}, ${email})
+    ON CONFLICT (source, external_id) DO UPDATE SET email = ${email}
   `;
 
-  // Update any existing usage records with this identity
-  await sql`
-    UPDATE usage_records SET email = ${email}
-    WHERE tool = ${tool} AND tool_record_id = ${externalId}
-  `;
+  // Update existing records based on source type
+  if (source === 'claude_code' || source === 'cursor') {
+    // For API tools: update usage records
+    await sql`
+      UPDATE usage_records SET email = ${email}
+      WHERE tool = ${source} AND tool_record_id = ${externalId}
+    `;
+  } else {
+    // For VCS providers (github, gitlab, etc.): update commit author emails
+    await sql`
+      UPDATE commits c
+      SET author_email = ${email}
+      FROM repositories r
+      WHERE c.repo_id = r.id
+        AND r.source = ${source}
+        AND c.author_id = ${externalId}
+    `;
+  }
 }
 
-export async function deleteToolIdentityMapping(tool: string, externalId: string): Promise<void> {
-  await sql`DELETE FROM tool_identity_mappings WHERE tool = ${tool} AND external_id = ${externalId}`;
+export async function deleteIdentityMapping(source: string, externalId: string): Promise<void> {
+  await sql`DELETE FROM identity_mappings WHERE source = ${source} AND external_id = ${externalId}`;
 }
 
 /**
@@ -541,7 +553,7 @@ export async function getKnownEmails(): Promise<string[]> {
     SELECT DISTINCT email FROM (
       SELECT email FROM usage_records WHERE tool = 'cursor' AND email IS NOT NULL
       UNION
-      SELECT email FROM tool_identity_mappings
+      SELECT email FROM identity_mappings
       UNION
       SELECT email FROM usage_records WHERE email LIKE '%@%' AND email IS NOT NULL
     ) AS combined
@@ -739,9 +751,9 @@ export async function insertUsageRecord(record: {
   `;
 }
 
-// Get existing mapping for a tool identity
-export async function getToolIdentityMapping(tool: string, externalId: string): Promise<string | null> {
-  const result = await sql`SELECT email FROM tool_identity_mappings WHERE tool = ${tool} AND external_id = ${externalId}`;
+// Get existing mapping for an identity
+export async function getIdentityMapping(source: string, externalId: string): Promise<string | null> {
+  const result = await sql`SELECT email FROM identity_mappings WHERE source = ${source} AND external_id = ${externalId}`;
   return result.rows[0]?.email || null;
 }
 
@@ -750,18 +762,33 @@ export interface LifetimeStats {
   totalCost: number;
   totalUsers: number;
   firstRecordDate: string | null;
+  totalCommits: number;
+  aiAttributedCommits: number;
 }
 
 export async function getLifetimeStats(): Promise<LifetimeStats> {
-  const result = await sql`
-    SELECT
-      COALESCE(SUM(input_tokens + cache_write_tokens + output_tokens), 0)::bigint as "totalTokens",
-      COALESCE(SUM(cost), 0)::float as "totalCost",
-      COUNT(DISTINCT email)::int as "totalUsers",
-      MIN(date)::text as "firstRecordDate"
-    FROM usage_records
-  `;
-  return result.rows[0] as LifetimeStats;
+  const [usageResult, commitsResult] = await Promise.all([
+    sql`
+      SELECT
+        COALESCE(SUM(input_tokens + cache_write_tokens + output_tokens), 0)::bigint as "totalTokens",
+        COALESCE(SUM(cost), 0)::float as "totalCost",
+        COUNT(DISTINCT email)::int as "totalUsers",
+        MIN(date)::text as "firstRecordDate"
+      FROM usage_records
+    `,
+    sql`
+      SELECT
+        COUNT(*)::int as "totalCommits",
+        COUNT(*) FILTER (WHERE ai_tool IS NOT NULL)::int as "aiAttributedCommits"
+      FROM commits
+    `,
+  ]);
+
+  return {
+    ...usageResult.rows[0],
+    totalCommits: commitsResult.rows[0]?.totalCommits || 0,
+    aiAttributedCommits: commitsResult.rows[0]?.aiAttributedCommits || 0,
+  } as LifetimeStats;
 }
 
 export interface UserLifetimeStats {

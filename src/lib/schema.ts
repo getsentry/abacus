@@ -16,18 +16,21 @@ import { sql } from 'drizzle-orm';
 /**
  * Maps provider-specific identities to user emails.
  *
+ * Uses 'source' to match repositories.source for consistency.
+ *
  * Examples:
- * - Anthropic: tool='claude_code', external_id=API key ID
- * - Future providers: tool='provider_name', external_id=their user/key ID
+ * - Anthropic: source='claude_code', external_id=API key ID
+ * - GitHub: source='github', external_id=GitHub user ID
+ * - GitLab: source='gitlab', external_id=GitLab user ID
  */
-export const toolIdentityMappings = pgTable('tool_identity_mappings', {
-  tool: varchar('tool', { length: 64 }).notNull(),
+export const identityMappings = pgTable('identity_mappings', {
+  source: varchar('source', { length: 64 }).notNull(),
   externalId: varchar('external_id', { length: 255 }).notNull(),
   email: varchar('email', { length: 255 }).notNull(),
   createdAt: timestamp('created_at').defaultNow(),
 }, (table) => [
-  primaryKey({ columns: [table.tool, table.externalId] }),
-  index('idx_identity_email').on(table.email),
+  primaryKey({ columns: [table.source, table.externalId] }),
+  index('idx_identity_mappings_email').on(table.email),
 ]);
 
 /**
@@ -98,12 +101,16 @@ export const repositories = pgTable('repositories', {
 /**
  * Commits table for tracking AI attribution in code commits.
  * Stores all commits to enable percentage calculations.
+ *
+ * The author_id is the provider's user ID (e.g., GitHub user ID) for identity mapping.
+ * Resolution: (repositories.source, commits.author_id) -> identity_mappings -> email
  */
 export const commits = pgTable('commits', {
   id: serial('id').primaryKey(),
   repoId: integer('repo_id').notNull().references(() => repositories.id),
   commitId: varchar('commit_id', { length: 64 }).notNull(),
   authorEmail: varchar('author_email', { length: 255 }),
+  authorId: varchar('author_id', { length: 64 }),
   committedAt: timestamp('committed_at').notNull(),
   aiTool: varchar('ai_tool', { length: 64 }),
   aiModel: varchar('ai_model', { length: 128 }),
@@ -113,12 +120,13 @@ export const commits = pgTable('commits', {
 }, (table) => [
   uniqueIndex('idx_commits_unique').on(table.repoId, table.commitId),
   index('idx_commits_author').on(table.authorEmail),
+  index('idx_commits_author_id').on(table.authorId),
   index('idx_commits_committed_at').on(table.committedAt),
 ]);
 
 // Type exports for use in queries
-export type ToolIdentityMapping = typeof toolIdentityMappings.$inferSelect;
-export type NewToolIdentityMapping = typeof toolIdentityMappings.$inferInsert;
+export type IdentityMapping = typeof identityMappings.$inferSelect;
+export type NewIdentityMapping = typeof identityMappings.$inferInsert;
 export type UsageRecord = typeof usageRecords.$inferSelect;
 export type NewUsageRecord = typeof usageRecords.$inferInsert;
 export type SyncState = typeof syncState.$inferSelect;

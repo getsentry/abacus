@@ -130,7 +130,7 @@ function AdoptionPageContent() {
     : [];
 
   return (
-    <div className="min-h-screen bg-[#0a0a0f] text-white grid-bg">
+    <div className="min-h-screen bg-[#050507] text-white grid-bg">
       <LoadingBar isLoading={isRefreshing} />
 
       <AppHeader />
@@ -252,7 +252,7 @@ function AdoptionPageContent() {
               transition={{ delay: 0.1 }}
               className="rounded-lg border border-white/5 bg-white/[0.02] p-6"
             >
-              <p className="font-mono text-[10px] uppercase tracking-wider text-white/40 mb-4">
+              <p className="font-mono text-xs uppercase tracking-wider text-white/60 mb-4">
                 Adoption Funnel
               </p>
               <AdoptionFunnel
@@ -349,7 +349,7 @@ function AdoptionPageContent() {
 export default function AdoptionPage() {
   return (
     <Suspense fallback={
-      <div className="min-h-screen bg-[#0a0a0f] text-white grid-bg flex items-center justify-center">
+      <div className="min-h-screen bg-[#050507] text-white grid-bg flex items-center justify-center">
         <div className="font-mono text-sm text-white/40">Loading...</div>
       </div>
     }>

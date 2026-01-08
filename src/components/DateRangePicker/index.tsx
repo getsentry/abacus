@@ -212,7 +212,7 @@ export function DateRangePicker({
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -8, scale: 0.96 }}
             transition={{ duration: 0.2, ease: [0.4, 0, 0.2, 1] }}
-            className="fixed z-50 bg-[#0a0a0f] border border-white/10 rounded-lg shadow-2xl shadow-black/80"
+            className="fixed z-50 bg-[#050507] border border-white/10 rounded-lg shadow-2xl shadow-black/80"
             style={{ top: position.top, left: position.left }}
           >
             <div className="p-5">

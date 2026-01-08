@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { wrapRouteHandlerWithSentry } from '@sentry/nextjs';
-import { getToolIdentityMappings, setToolIdentityMapping, deleteToolIdentityMapping, getUnmappedToolRecords, getKnownEmails } from '@/lib/queries';
+import { getIdentityMappings, setIdentityMapping, deleteIdentityMapping, getUnmappedToolRecords, getKnownEmails } from '@/lib/queries';
 import { getSession } from '@/lib/auth';
 
 async function getHandler(request: Request) {
@@ -10,11 +10,11 @@ async function getHandler(request: Request) {
   }
 
   const { searchParams } = new URL(request.url);
-  const tool = searchParams.get('tool') || undefined;
+  const source = searchParams.get('source') || searchParams.get('tool') || undefined;
 
   const [mappings, unmapped, knownEmails] = await Promise.all([
-    getToolIdentityMappings(tool),
-    tool ? getUnmappedToolRecords(tool) : getUnmappedToolRecords('claude_code'),
+    getIdentityMappings(source),
+    source ? getUnmappedToolRecords(source) : getUnmappedToolRecords('claude_code'),
     getKnownEmails()
   ]);
 
@@ -25,7 +25,7 @@ async function getHandler(request: Request) {
   });
 }
 
-const VALID_TOOLS = ['claude_code', 'cursor'];
+const VALID_SOURCES = ['claude_code', 'cursor', 'github', 'gitlab'];
 
 async function postHandler(request: Request) {
   const session = await getSession();
@@ -33,24 +33,26 @@ async function postHandler(request: Request) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const { tool, externalId, email } = await request.json();
+  const body = await request.json();
+  const source = body.source || body.tool;
+  const { externalId, email } = body;
 
-  if (!tool || !externalId || !email) {
+  if (!source || !externalId || !email) {
     return NextResponse.json(
-      { error: 'tool, externalId, and email are required' },
+      { error: 'source, externalId, and email are required' },
       { status: 400 }
     );
   }
 
-  if (!VALID_TOOLS.includes(tool)) {
-    return NextResponse.json({ error: 'Invalid tool' }, { status: 400 });
+  if (!VALID_SOURCES.includes(source)) {
+    return NextResponse.json({ error: 'Invalid source' }, { status: 400 });
   }
 
   if (!email.includes('@')) {
     return NextResponse.json({ error: 'Invalid email format' }, { status: 400 });
   }
 
-  await setToolIdentityMapping(tool, externalId, email);
+  await setIdentityMapping(source, externalId, email);
   return NextResponse.json({ success: true });
 }
 
@@ -60,17 +62,19 @@ async function deleteHandler(request: Request) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const { tool, externalId } = await request.json();
+  const body = await request.json();
+  const source = body.source || body.tool;
+  const { externalId } = body;
 
-  if (!tool || !externalId) {
-    return NextResponse.json({ error: 'tool and externalId are required' }, { status: 400 });
+  if (!source || !externalId) {
+    return NextResponse.json({ error: 'source and externalId are required' }, { status: 400 });
   }
 
-  if (!VALID_TOOLS.includes(tool)) {
-    return NextResponse.json({ error: 'Invalid tool' }, { status: 400 });
+  if (!VALID_SOURCES.includes(source)) {
+    return NextResponse.json({ error: 'Invalid source' }, { status: 400 });
   }
 
-  await deleteToolIdentityMapping(tool, externalId);
+  await deleteIdentityMapping(source, externalId);
   return NextResponse.json({ success: true });
 }
 

@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { motion } from 'framer-motion';
-import { GitCommit, GitBranch, TrendingUp, Percent } from 'lucide-react';
+import { GitCommit, GitBranch, Percent } from 'lucide-react';
 import { InlineSearchInput } from '@/components/SearchInput';
 import { TimeRangeSelector } from '@/components/TimeRangeSelector';
 import { AppHeader } from '@/components/AppHeader';
@@ -179,7 +179,7 @@ function CommitsPageContent() {
   );
 
   return (
-    <div className="min-h-screen bg-[#0a0a0f] text-white grid-bg">
+    <div className="min-h-screen bg-[#050507] text-white grid-bg">
       <LoadingBar isLoading={isRefreshing} />
 
       <AppHeader
@@ -198,7 +198,7 @@ function CommitsPageContent() {
       {totals && (
         <div className="border-b border-white/5">
           <PageContainer className="py-6">
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
+            <div className="grid grid-cols-3 gap-3 sm:gap-4">
               <StatCard
                 label="Total Commits"
                 days={days}
@@ -232,28 +232,11 @@ function CommitsPageContent() {
                 value={formatNumber(totals.repositoryCount)}
                 icon={GitBranch}
                 accentColor="#06b6d4"
-                trend={totals.previousPeriod ? calculateDelta(totals.repositoryCount, totals.previousPeriod.repositoryCount) : undefined}
                 delay={0.2}
               >
                 <p className="font-mono text-xs text-white/50">
                   with commits in period
                 </p>
-              </StatCard>
-
-              <StatCard
-                label="AI Commits"
-                days={days}
-                value={formatNumber(totals.aiAssistedCommits)}
-                icon={TrendingUp}
-                accentColor="#8b5cf6"
-                trend={totals.previousPeriod ? calculateDelta(totals.aiAssistedCommits, totals.previousPeriod.aiAssistedCommits) : undefined}
-                delay={0.3}
-              >
-                {totals.toolBreakdown && totals.toolBreakdown.length > 0 && (
-                  <p className="font-mono text-xs text-white/50">
-                    {formatToolName(totals.toolBreakdown[0].tool)} leads
-                  </p>
-                )}
               </StatCard>
             </div>
 
@@ -265,8 +248,8 @@ function CommitsPageContent() {
                 transition={{ delay: 0.1 }}
                 className="mt-4 rounded-lg border border-white/5 bg-white/[0.02] p-4"
               >
-                <p className="font-mono text-[10px] uppercase tracking-wider text-white/40 mb-3">
-                  AI Commits by Tool
+                <p className="font-mono text-xs uppercase tracking-wider text-white/60 mb-3">
+                  Attributed Commits by Tool
                 </p>
                 <div className="flex items-center gap-4">
                   <div className="flex-1 h-2 rounded-full bg-white/5 overflow-hidden flex">
@@ -519,7 +502,7 @@ function CommitsPageContent() {
 export default function CommitsPage() {
   return (
     <Suspense fallback={
-      <div className="min-h-screen bg-[#0a0a0f] text-white grid-bg flex items-center justify-center">
+      <div className="min-h-screen bg-[#050507] text-white grid-bg flex items-center justify-center">
         <div className="font-mono text-sm text-white/40">Loading...</div>
       </div>
     }>

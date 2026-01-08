@@ -61,7 +61,7 @@ const TOOL_LABELS = {
 
 function TipsIndexContent() {
   return (
-    <div className="min-h-screen bg-[#0a0a0f] text-white">
+    <div className="min-h-screen bg-[#050507] text-white">
       {/* Gradient background */}
       <div className="fixed inset-0 bg-gradient-to-br from-amber-500/[0.02] via-transparent to-cyan-500/[0.02] pointer-events-none" />
 
@@ -175,7 +175,7 @@ function TipsIndexContent() {
 export default function TipsIndexPage() {
   return (
     <Suspense fallback={
-      <div className="min-h-screen bg-[#0a0a0f] text-white flex items-center justify-center">
+      <div className="min-h-screen bg-[#050507] text-white flex items-center justify-center">
         <div className="font-mono text-sm text-white/40">Loading...</div>
       </div>
     }>

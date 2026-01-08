@@ -15,7 +15,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className="antialiased noise-overlay min-h-screen flex flex-col bg-[#0a0a0f]">
+      <body className="antialiased noise-overlay min-h-screen flex flex-col bg-[#050507]">
         <Providers>
           <div className="flex-1">
             {children}

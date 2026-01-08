@@ -2,7 +2,7 @@
 @import "tailwindcss";
 
 :root {
-  --background: #0a0a0f;
+  --background: #050507;
   --foreground: #ffffff;
   --amber-500: #f59e0b;
   --cyan-500: #06b6d4;
@@ -51,12 +51,13 @@ body {
   font-family: 'JetBrains Mono', monospace;
 }
 
-/* Grid background */
+/* Grid background with vignette */
 .grid-bg {
   background-image:
-    linear-gradient(rgba(255,255,255,0.03) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px);
-  background-size: 40px 40px;
+    radial-gradient(ellipse at 50% 0%, transparent 0%, var(--background) 70%),
+    linear-gradient(rgba(255,255,255,0.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,0.025) 1px, transparent 1px);
+  background-size: 100% 100%, 40px 40px, 40px 40px;
 }
 
 /* Noise overlay */

@@ -183,7 +183,7 @@ export function MappingAssistant({
                         autoFocus
                       />
                       {showDropdown && filteredEmails.length > 0 && (
-                        <div className="absolute top-full left-0 right-0 mt-1 max-h-32 overflow-y-auto rounded border border-white/10 bg-[#0a0a0f] z-50">
+                        <div className="absolute top-full left-0 right-0 mt-1 max-h-32 overflow-y-auto rounded border border-white/10 bg-[#050507] z-50">
                           {filteredEmails.slice(0, 8).map(email => (
                             <button
                               key={email}

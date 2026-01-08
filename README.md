@@ -19,7 +19,7 @@ Track and analyze AI coding tool usage across your team. Supports multiple provi
 |----------|-------------|----------|
 | **Claude Code** | Anthropic Admin API | Token usage, costs, model breakdown, API key mapping |
 | **Cursor** | Cursor Admin API or CSV | Token usage, costs, model breakdown |
-| **GitHub Commits** | GitHub App webhook + API | AI-attributed commit tracking (Co-Authored-By detection) |
+| **GitHub Commits** | GitHub App webhook + API | AI Attributed commit tracking (Co-Authored-By detection) |
 
 Each provider is optional—configure only the ones you use.
 
@@ -163,7 +163,7 @@ npm run cli import:cursor-csv /path/to/export.csv
 
 ### GitHub Commits
 
-Track AI-attributed commits across your organization by detecting `Co-Authored-By` headers from Claude, Cursor, Copilot, and other AI tools.
+Track AI Attributed commits across your organization by detecting `Co-Authored-By` headers from Claude, Cursor, Copilot, and other AI tools.
 
 #### Creating a GitHub App
 

@@ -66,7 +66,7 @@ export function StatCard({
         {/* Label row with optional icon */}
         <div className={`flex items-center gap-2 ${Icon ? 'mb-3' : ''}`}>
           {Icon && <Icon className="w-4 h-4" style={{ color: accentColor }} />}
-          <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-white/40">
+          <p className="font-mono text-xs uppercase tracking-wider text-white/60">
             {label}
             {days !== undefined && <span className="text-white/20"> ({days}d)</span>}
           </p>

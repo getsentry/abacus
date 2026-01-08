@@ -82,8 +82,8 @@ export function ToolDistribution({
       className={`rounded-lg border border-white/5 bg-white/[0.02] p-4 ${className}`}
     >
       <div className="flex items-center justify-between mb-3">
-        <p className="font-mono text-[10px] uppercase tracking-wider text-white/40">
-          Tool Distribution {days && <span className="text-white/20">({days}d)</span>}
+        <p className="font-mono text-xs uppercase tracking-wider text-white/60">
+          Tool Distribution {days && <span className="text-white/30">({days}d)</span>}
         </p>
       </div>
 

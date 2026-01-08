@@ -37,7 +37,7 @@ function GuideContent() {
 
   if (!guide) {
     return (
-      <div className="min-h-screen bg-[#0a0a0f] text-white">
+      <div className="min-h-screen bg-[#050507] text-white">
         <AppHeader />
 
         <TipBar />
@@ -60,7 +60,7 @@ function GuideContent() {
   const Icon = GUIDE_ICONS[slug] || Compass;
 
   return (
-    <div className="min-h-screen bg-[#0a0a0f] text-white">
+    <div className="min-h-screen bg-[#050507] text-white">
       {/* Subtle gradient background */}
       <div className="fixed inset-0 bg-gradient-to-b from-amber-500/[0.02] via-transparent to-transparent pointer-events-none" />
 
@@ -231,7 +231,7 @@ function GuideContent() {
 export default function GuidePage() {
   return (
     <Suspense fallback={
-      <div className="min-h-screen bg-[#0a0a0f] text-white flex items-center justify-center">
+      <div className="min-h-screen bg-[#050507] text-white flex items-center justify-center">
         <div className="font-mono text-sm text-white/40">Loading...</div>
       </div>
     }>

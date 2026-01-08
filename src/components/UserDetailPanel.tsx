@@ -162,7 +162,7 @@ export function UserDetailPanel({ email, onClose }: UserDetailPanelProps) {
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: 300 }}
             transition={{ type: 'spring', damping: 30, stiffness: 300 }}
-            className="fixed right-0 top-0 z-40 h-full w-full sm:w-[480px] border-l border-white/10 bg-[#0a0a0f]/95 p-4 sm:p-6 backdrop-blur-xl overflow-y-auto"
+            className="fixed right-0 top-0 z-40 h-full w-full sm:w-[480px] border-l border-white/10 bg-[#050507]/95 p-4 sm:p-6 backdrop-blur-xl overflow-y-auto"
           >
             <button
               onClick={onClose}
@@ -204,7 +204,7 @@ export function UserDetailPanel({ email, onClose }: UserDetailPanelProps) {
               >
                   <div className="rounded-lg border border-white/5 bg-white/[0.02] p-4">
                     <div className="flex items-baseline justify-between">
-                      <p className="font-mono text-[10px] uppercase tracking-wider text-white/40">Total Tokens</p>
+                      <p className="font-mono text-xs uppercase tracking-wider text-white/60">Total Tokens</p>
                       <p className="font-mono text-[10px] text-white/30">{rangeLabel}</p>
                     </div>
                     <div className="mt-1 flex items-baseline gap-2">
@@ -293,7 +293,7 @@ export function UserDetailPanel({ email, onClose }: UserDetailPanelProps) {
                   {/* Tool Breakdown - Dynamic */}
                   {toolBreakdown.length > 0 && (
                     <div className="rounded-lg border border-white/5 bg-white/[0.02] p-4">
-                      <p className="mb-3 font-mono text-[10px] uppercase tracking-wider text-white/40">Tool Breakdown</p>
+                      <p className="mb-3 font-mono text-xs uppercase tracking-wider text-white/60">Tool Breakdown</p>
 
                       {/* Stacked bar */}
                       <div className="mb-4">
@@ -340,7 +340,7 @@ export function UserDetailPanel({ email, onClose }: UserDetailPanelProps) {
 
                   {details?.modelBreakdown && details.modelBreakdown.length > 0 && (
                     <div className="rounded-lg border border-white/5 bg-white/[0.02] p-4">
-                      <p className="mb-3 font-mono text-[10px] uppercase tracking-wider text-white/40">Models Used</p>
+                      <p className="mb-3 font-mono text-xs uppercase tracking-wider text-white/60">Models Used</p>
                       <div className="space-y-2">
                         {details.modelBreakdown.slice(0, 5).map(m => {
                           const config = getToolConfig(m.tool);
@@ -362,7 +362,7 @@ export function UserDetailPanel({ email, onClose }: UserDetailPanelProps) {
 
                   {details?.dailyUsage && details.dailyUsage.length > 0 && (
                     <div className="rounded-lg border border-white/5 bg-white/[0.02] p-4">
-                      <p className="mb-3 font-mono text-[10px] uppercase tracking-wider text-white/40">Daily Activity</p>
+                      <p className="mb-3 font-mono text-xs uppercase tracking-wider text-white/60">Daily Activity</p>
                       <div className="flex h-16 items-end gap-0.5">
                         {details.dailyUsage.map((d) => {
                           const total = Number(d.claudeCode) + Number(d.cursor);
@@ -386,11 +386,11 @@ export function UserDetailPanel({ email, onClose }: UserDetailPanelProps) {
 
                 <div className="rounded-lg border border-white/5 bg-white/[0.02] p-4">
                   <div className="flex justify-between">
-                    <span className="font-mono text-[10px] uppercase tracking-wider text-white/40">First Active</span>
+                    <span className="font-mono text-xs uppercase tracking-wider text-white/60">First Active</span>
                     <span className="font-mono text-xs text-white/60">{user.firstActive}</span>
                   </div>
                   <div className="flex justify-between mt-2">
-                    <span className="font-mono text-[10px] uppercase tracking-wider text-white/40">Last Active</span>
+                    <span className="font-mono text-xs uppercase tracking-wider text-white/60">Last Active</span>
                     <span className="font-mono text-xs text-white/60">{user.lastActive}</span>
                   </div>
                 </div>

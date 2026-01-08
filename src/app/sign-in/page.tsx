@@ -74,7 +74,7 @@ function SignInContent() {
   }, [callbackUrl]);
 
   return (
-    <div className="min-h-screen bg-[#0a0a0f] text-white grid-bg flex items-center justify-center p-4">
+    <div className="min-h-screen bg-[#050507] text-white grid-bg flex items-center justify-center p-4">
       {/* Subtle ambient glow */}
       <div
         className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] pointer-events-none opacity-[0.03]"
@@ -169,7 +169,7 @@ export default function SignInPage() {
   return (
     <Suspense
       fallback={
-        <div className="min-h-screen bg-[#0a0a0f] grid-bg flex items-center justify-center">
+        <div className="min-h-screen bg-[#050507] grid-bg flex items-center justify-center">
           <div className="font-mono text-white/40 text-sm">Loading...</div>
         </div>
       }

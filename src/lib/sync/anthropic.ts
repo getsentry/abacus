@@ -1,4 +1,4 @@
-import { insertUsageRecord, getToolIdentityMappings } from '../queries';
+import { insertUsageRecord, getIdentityMappings } from '../queries';
 import { calculateCost } from '../db';
 import { normalizeModelName } from '../utils';
 import { sql } from '@vercel/postgres';
@@ -131,7 +131,7 @@ export async function syncAnthropicUsage(
   };
 
   // Get existing mappings for claude_code
-  const mappingsArray = await getToolIdentityMappings('claude_code');
+  const mappingsArray = await getIdentityMappings('claude_code');
   const mappings = new Map<string, string>(
     mappingsArray.map(m => [m.external_id, m.email])
   );
