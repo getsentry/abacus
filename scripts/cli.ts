@@ -154,6 +154,8 @@ Commands:
   github:sync <repo> [--days N] [--dry-run]
                         Sync commits for a specific repo (e.g., getsentry/sentry)
                         Use --dry-run to test detection without database
+  github:commits <repo> [--limit N]
+                        Dump commits from database for debugging
   import:cursor-csv <file>
                         Import Cursor usage from CSV export
   stats                 Show database statistics
@@ -458,6 +460,62 @@ async function cmdGitHubBackfill(fromDate: string) {
   }
   if (result.errors.length > 0) {
     console.log(`  Errors: ${result.errors.slice(0, 5).join(', ')}`);
+  }
+}
+
+async function cmdGitHubCommits(repo: string, limit: number = 20) {
+  if (!repo) {
+    console.error('Error: Please specify a repo (e.g., getsentry/sentry-mcp)');
+    console.error('Usage: npm run cli github:commits <repo> [--limit N]');
+    return;
+  }
+
+  console.log(`📋 Commits for ${repo} (limit ${limit})\n`);
+
+  const result = await sql`
+    SELECT
+      c.commit_id,
+      c.author_email,
+      c.ai_tool,
+      c.ai_model,
+      c.additions,
+      c.deletions,
+      c.committed_at::date as date
+    FROM commits c
+    JOIN repositories r ON c.repo_id = r.id
+    WHERE r.full_name = ${repo}
+    ORDER BY c.committed_at DESC
+    LIMIT ${limit}
+  `;
+
+  if (result.rows.length === 0) {
+    console.log('No commits found for this repo.');
+    return;
+  }
+
+  // Summary stats
+  const stats = await sql`
+    SELECT
+      COUNT(*)::int as total,
+      COUNT(*) FILTER (WHERE ai_tool IS NOT NULL)::int as ai_count,
+      SUM(additions)::int as total_additions,
+      SUM(deletions)::int as total_deletions
+    FROM commits c
+    JOIN repositories r ON c.repo_id = r.id
+    WHERE r.full_name = ${repo}
+  `;
+  const s = stats.rows[0];
+  console.log(`Total: ${s.total} commits, ${s.ai_count} AI-attributed (${Math.round((s.ai_count / s.total) * 100)}%)`);
+  console.log(`Lines: +${s.total_additions || 0} / -${s.total_deletions || 0}\n`);
+
+  // Print commits
+  for (const row of result.rows) {
+    const sha = row.commit_id.slice(0, 7);
+    const tool = row.ai_tool ? `[${row.ai_tool}${row.ai_model ? ':' + row.ai_model : ''}]` : '[no-ai]';
+    const adds = row.additions > 0 ? `+${row.additions}` : '';
+    const dels = row.deletions > 0 ? `-${row.deletions}` : '';
+    const lines = adds || dels ? ` (${adds}${adds && dels ? '/' : ''}${dels})` : '';
+    console.log(`  ${sha} ${row.date.toISOString().split('T')[0]} ${tool.padEnd(20)} ${row.author_email}${lines}`);
   }
 }
 
@@ -815,6 +873,13 @@ async function main() {
         const days = daysIdx >= 0 ? parseInt(args[daysIdx + 1]) : 7;
         const dryRun = args.includes('--dry-run');
         await cmdGitHubSync(repo, days, dryRun);
+        break;
+      }
+      case 'github:commits': {
+        const repo = args[1];
+        const limitIdx = args.indexOf('--limit');
+        const limit = limitIdx >= 0 ? parseInt(args[limitIdx + 1]) : 20;
+        await cmdGitHubCommits(repo, limit);
         break;
       }
       case 'mappings':
