@@ -951,6 +951,175 @@ export async function getCommitStats(startDate?: string, endDate?: string): Prom
   };
 }
 
+// ============================================================================
+// Repository Stats (per-repo commit breakdown)
+// ============================================================================
+
+export interface RepositoryPivotData {
+  id: number;
+  source: string;
+  fullName: string;
+  totalCommits: number;
+  aiAssistedCommits: number;
+  aiAssistanceRate: number;
+  totalAdditions: number;
+  totalDeletions: number;
+  aiAdditions: number;
+  aiDeletions: number;
+  uniqueAuthors: number;
+  firstCommit: string | null;
+  lastCommit: string | null;
+  claudeCodeCommits: number;
+  cursorCommits: number;
+  copilotCommits: number;
+}
+
+export interface RepositoryPivotResult {
+  repositories: RepositoryPivotData[];
+  totalCount: number;
+}
+
+export async function getRepositoryPivot(
+  sortBy: string = 'totalCommits',
+  sortDir: 'asc' | 'desc' = 'desc',
+  search?: string,
+  startDate?: string,
+  endDate?: string,
+  limit: number = 500,
+  offset: number = 0
+): Promise<RepositoryPivotResult> {
+  const effectiveStartDate = startDate || '1970-01-01';
+  const effectiveEndDate = endDate || '9999-12-31';
+
+  const validSortColumns = [
+    'fullName', 'totalCommits', 'aiAssistedCommits', 'aiAssistanceRate',
+    'totalAdditions', 'totalDeletions', 'uniqueAuthors', 'lastCommit'
+  ];
+  const safeSortBy = validSortColumns.includes(sortBy) ? sortBy : 'totalCommits';
+  const searchPattern = search ? `%${escapeLikePattern(search)}%` : null;
+
+  const result = searchPattern
+    ? await sql`
+        SELECT
+          r.id,
+          r.source,
+          r.full_name as "fullName",
+          COUNT(c.id)::int as "totalCommits",
+          COUNT(c.id) FILTER (WHERE c.ai_tool IS NOT NULL)::int as "aiAssistedCommits",
+          COALESCE(SUM(c.additions), 0)::int as "totalAdditions",
+          COALESCE(SUM(c.deletions), 0)::int as "totalDeletions",
+          COALESCE(SUM(c.additions) FILTER (WHERE c.ai_tool IS NOT NULL), 0)::int as "aiAdditions",
+          COALESCE(SUM(c.deletions) FILTER (WHERE c.ai_tool IS NOT NULL), 0)::int as "aiDeletions",
+          COUNT(DISTINCT c.author_email)::int as "uniqueAuthors",
+          MIN(c.committed_at)::text as "firstCommit",
+          MAX(c.committed_at)::text as "lastCommit",
+          COUNT(c.id) FILTER (WHERE c.ai_tool = 'claude_code')::int as "claudeCodeCommits",
+          COUNT(c.id) FILTER (WHERE c.ai_tool = 'cursor')::int as "cursorCommits",
+          COUNT(c.id) FILTER (WHERE c.ai_tool = 'copilot')::int as "copilotCommits"
+        FROM repositories r
+        LEFT JOIN commits c ON c.repo_id = r.id
+          AND c.committed_at >= ${effectiveStartDate}::timestamp
+          AND c.committed_at < (${effectiveEndDate}::date + interval '1 day')
+        WHERE r.full_name ILIKE ${searchPattern}
+        GROUP BY r.id, r.source, r.full_name
+        HAVING COUNT(c.id) > 0
+        ORDER BY "totalCommits" DESC
+      `
+    : await sql`
+        SELECT
+          r.id,
+          r.source,
+          r.full_name as "fullName",
+          COUNT(c.id)::int as "totalCommits",
+          COUNT(c.id) FILTER (WHERE c.ai_tool IS NOT NULL)::int as "aiAssistedCommits",
+          COALESCE(SUM(c.additions), 0)::int as "totalAdditions",
+          COALESCE(SUM(c.deletions), 0)::int as "totalDeletions",
+          COALESCE(SUM(c.additions) FILTER (WHERE c.ai_tool IS NOT NULL), 0)::int as "aiAdditions",
+          COALESCE(SUM(c.deletions) FILTER (WHERE c.ai_tool IS NOT NULL), 0)::int as "aiDeletions",
+          COUNT(DISTINCT c.author_email)::int as "uniqueAuthors",
+          MIN(c.committed_at)::text as "firstCommit",
+          MAX(c.committed_at)::text as "lastCommit",
+          COUNT(c.id) FILTER (WHERE c.ai_tool = 'claude_code')::int as "claudeCodeCommits",
+          COUNT(c.id) FILTER (WHERE c.ai_tool = 'cursor')::int as "cursorCommits",
+          COUNT(c.id) FILTER (WHERE c.ai_tool = 'copilot')::int as "copilotCommits"
+        FROM repositories r
+        LEFT JOIN commits c ON c.repo_id = r.id
+          AND c.committed_at >= ${effectiveStartDate}::timestamp
+          AND c.committed_at < (${effectiveEndDate}::date + interval '1 day')
+        GROUP BY r.id, r.source, r.full_name
+        HAVING COUNT(c.id) > 0
+        ORDER BY "totalCommits" DESC
+      `;
+
+  // Calculate AI assistance rate and sort in JS (for dynamic sorting)
+  let repositories = result.rows.map(row => ({
+    ...row,
+    aiAssistanceRate: row.totalCommits > 0
+      ? Math.round((row.aiAssistedCommits / row.totalCommits) * 100)
+      : 0,
+  })) as RepositoryPivotData[];
+
+  // Apply custom sorting if needed
+  const stringColumns = new Set(['fullName', 'source', 'firstCommit', 'lastCommit']);
+  if (safeSortBy !== 'totalCommits' || sortDir !== 'desc') {
+    repositories = repositories.sort((a, b) => {
+      const aVal = a[safeSortBy as keyof RepositoryPivotData];
+      const bVal = b[safeSortBy as keyof RepositoryPivotData];
+      if (stringColumns.has(safeSortBy)) {
+        return sortDir === 'asc'
+          ? String(aVal ?? '').localeCompare(String(bVal ?? ''))
+          : String(bVal ?? '').localeCompare(String(aVal ?? ''));
+      }
+      return sortDir === 'asc'
+        ? Number(aVal) - Number(bVal)
+        : Number(bVal) - Number(aVal);
+    });
+  }
+
+  const totalCount = repositories.length;
+  const paginatedRepos = repositories.slice(offset, offset + limit);
+
+  return { repositories: paginatedRepos, totalCount };
+}
+
+/**
+ * Get daily commit trends for charts
+ */
+export interface DailyCommitStats {
+  date: string;
+  totalCommits: number;
+  aiAssistedCommits: number;
+  additions: number;
+  deletions: number;
+}
+
+export async function getDailyCommitStats(
+  startDate: string,
+  endDate: string
+): Promise<DailyCommitStats[]> {
+  const result = await sql`
+    WITH date_series AS (
+      SELECT generate_series(
+        ${startDate}::date,
+        ${endDate}::date,
+        '1 day'::interval
+      )::date as date
+    )
+    SELECT
+      ds.date::text,
+      COALESCE(COUNT(c.id), 0)::int as "totalCommits",
+      COALESCE(COUNT(c.id) FILTER (WHERE c.ai_tool IS NOT NULL), 0)::int as "aiAssistedCommits",
+      COALESCE(SUM(c.additions), 0)::int as additions,
+      COALESCE(SUM(c.deletions), 0)::int as deletions
+    FROM date_series ds
+    LEFT JOIN commits c ON c.committed_at::date = ds.date
+    GROUP BY ds.date
+    ORDER BY ds.date ASC
+  `;
+
+  return result.rows as DailyCommitStats[];
+}
+
 /**
  * Get a user's percentile rank based on avgTokensPerDay compared to all users
  * Returns a number 0-100 where higher = better (e.g., 85 means top 15%)
