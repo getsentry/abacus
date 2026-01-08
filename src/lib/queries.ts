@@ -1273,6 +1273,7 @@ export interface RepositoryCommit {
   id: number;
   commitId: string;
   authorEmail: string;
+  mappedEmail: string | null;
   committedAt: string;
   message: string | null;
   aiTool: string | null;
@@ -1415,6 +1416,7 @@ export async function getRepositoryDetailsWithComparison(
 
 export async function getRepositoryCommits(
   repoId: number,
+  source: string,
   startDate?: string,
   endDate?: string,
   limit: number = 100,
@@ -1446,6 +1448,7 @@ export async function getRepositoryCommits(
       c.id,
       c.commit_id as "commitId",
       c.author_email as "authorEmail",
+      im.email as "mappedEmail",
       c.committed_at::text as "committedAt",
       c.message,
       c.ai_tool as "aiTool",
@@ -1453,13 +1456,14 @@ export async function getRepositoryCommits(
       COALESCE(c.additions, 0)::int as additions,
       COALESCE(c.deletions, 0)::int as deletions
     FROM commits c
+    LEFT JOIN identity_mappings im ON im.source = $6 AND im.external_id = c.author_id
     WHERE c.repo_id = $1
       AND c.committed_at >= $2::timestamp
       AND c.committed_at < ($3::date + interval '1 day')
       ${aiCondition}
     ORDER BY c.committed_at DESC
     LIMIT $4 OFFSET $5
-  `, [repoId, effectiveStartDate, effectiveEndDate, limit, offset]);
+  `, [repoId, effectiveStartDate, effectiveEndDate, limit, offset, source]);
 
   // Fetch attributions for all commits in one query
   const commitIds = result.rows.map(r => r.id);

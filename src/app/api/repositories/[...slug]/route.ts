@@ -56,7 +56,7 @@ async function handler(
     includeComparison && startDate && endDate
       ? getRepositoryDetailsWithComparison(repo.id, startDate, endDate)
       : getRepositoryDetails(repo.id, startDate || undefined, endDate || undefined),
-    getRepositoryCommits(repo.id, startDate || undefined, endDate || undefined, commitsLimit, commitsOffset, aiFilter),
+    getRepositoryCommits(repo.id, source, startDate || undefined, endDate || undefined, commitsLimit, commitsOffset, aiFilter),
     getRepositoryAuthors(repo.id, startDate || undefined, endDate || undefined),
     startDate && endDate
       ? getRepositoryDailyStats(repo.id, startDate, endDate)

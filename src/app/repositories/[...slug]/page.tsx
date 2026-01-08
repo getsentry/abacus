@@ -62,6 +62,7 @@ interface CommitAttribution {
 interface RepositoryCommit {
   commitId: string;
   authorEmail: string;
+  mappedEmail: string | null;
   committedAt: string;
   message: string | null;
   aiTool: string | null;
@@ -192,7 +193,17 @@ function CommitRow({ commit, source, repoFullName }: { commit: RepositoryCommit;
           {/* Second line: author, date, stats, AI badges */}
           <div className="flex items-center justify-between gap-4 mt-1">
             <div className="flex items-center gap-3 text-xs font-mono text-white/50">
-              <span>{commit.authorEmail?.split('@')[0] || 'unknown'}</span>
+              {commit.mappedEmail ? (
+                <AppLink
+                  href={`/users/${encodeURIComponent(commit.mappedEmail)}`}
+                  className="hover:text-white/80 transition-colors"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  {commit.authorEmail?.split('@')[0] || 'unknown'}
+                </AppLink>
+              ) : (
+                <span>{commit.authorEmail?.split('@')[0] || 'unknown'}</span>
+              )}
               <span>{dateStr} {timeStr}</span>
               {(commit.additions > 0 || commit.deletions > 0) && (
                 <span>
