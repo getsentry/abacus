@@ -1,7 +1,7 @@
 'use client';
 
 import { useSearchParams } from 'next/navigation';
-import { Suspense, useState, useEffect, useCallback } from 'react';
+import { Suspense, useState, useEffect, useCallback, useRef } from 'react';
 import { authClient } from '@/lib/auth-client';
 import { AbacusLogo } from '@/components/AbacusLogo';
 
@@ -10,28 +10,43 @@ function SignInContent() {
   const callbackUrl = searchParams.get('callbackUrl') || '/';
   const error = searchParams.get('error');
   const [loading, setLoading] = useState(false);
+  const fallbackTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Reset loading state when page becomes visible again (user returned from OAuth flow)
+  // Reset loading state when user returns to page
+  // Handles: bfcache restore (back button), tab switching, app switching on mobile
   useEffect(() => {
-    if (!loading) return;
+    let visibilityTimeoutId: ReturnType<typeof setTimeout> | null = null;
 
-    let timeoutId: ReturnType<typeof setTimeout> | null = null;
-
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible') {
-        // Clear any existing timeout before setting a new one
-        if (timeoutId) clearTimeout(timeoutId);
-        // Small delay to allow redirect to complete if successful
-        timeoutId = setTimeout(() => {
-          setLoading(false);
-        }, 1000);
+    // Handle bfcache restore (back-forward cache)
+    // This is the PRIMARY fix for mobile back button navigation
+    const handlePageShow = (event: PageTransitionEvent) => {
+      if (event.persisted) {
+        // Page was restored from bfcache - reset loading state
+        setLoading(false);
+        if (fallbackTimeoutRef.current) {
+          clearTimeout(fallbackTimeoutRef.current);
+          fallbackTimeoutRef.current = null;
+        }
       }
     };
 
+    // Handle tab/app switching (works on most browsers, but NOT Safari navigation)
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible' && loading) {
+        // Clear any pending timeout
+        if (visibilityTimeoutId) clearTimeout(visibilityTimeoutId);
+        // Small delay to allow redirect to complete if successful
+        visibilityTimeoutId = setTimeout(() => setLoading(false), 1000);
+      }
+    };
+
+    window.addEventListener('pageshow', handlePageShow);
     document.addEventListener('visibilitychange', handleVisibilityChange);
+
     return () => {
+      window.removeEventListener('pageshow', handlePageShow);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
-      if (timeoutId) clearTimeout(timeoutId);
+      if (visibilityTimeoutId) clearTimeout(visibilityTimeoutId);
     };
   }, [loading]);
 
@@ -40,7 +55,7 @@ function SignInContent() {
 
     // Fallback timeout: reset loading if OAuth doesn't redirect within 10s
     // This handles cases where the redirect fails silently (popup blocked, etc.)
-    const fallbackTimeout = setTimeout(() => {
+    fallbackTimeoutRef.current = setTimeout(() => {
       setLoading(false);
     }, 10000);
 
@@ -50,7 +65,10 @@ function SignInContent() {
         callbackURL: callbackUrl,
       });
     } catch {
-      clearTimeout(fallbackTimeout);
+      if (fallbackTimeoutRef.current) {
+        clearTimeout(fallbackTimeoutRef.current);
+        fallbackTimeoutRef.current = null;
+      }
       setLoading(false);
     }
   }, [callbackUrl]);
