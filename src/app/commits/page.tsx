@@ -3,14 +3,13 @@
 import { useState, useEffect, useCallback, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { motion } from 'framer-motion';
-import { GitCommit, GitBranch, Users, TrendingUp } from 'lucide-react';
+import { GitCommit, GitBranch, TrendingUp } from 'lucide-react';
 import { InlineSearchInput } from '@/components/SearchInput';
 import { TimeRangeSelector } from '@/components/TimeRangeSelector';
 import { MainNav } from '@/components/MainNav';
 import { UserMenu } from '@/components/UserMenu';
 import { TipBar } from '@/components/TipBar';
 import { PageContainer } from '@/components/PageContainer';
-import { formatTokens } from '@/lib/utils';
 import { useTimeRange } from '@/contexts/TimeRangeContext';
 import { getToolConfig, formatToolName } from '@/lib/tools';
 
@@ -88,7 +87,7 @@ const columns: { key: ColumnKey; label: string; align: 'left' | 'right'; format?
 ];
 
 function CommitsPageContent() {
-  const { range, setRange, days, isPending, getDateParams, getDisplayLabel } = useTimeRange();
+  const { range, setRange, days, isPending, getDateParams } = useTimeRange();
   const searchParams = useSearchParams();
   const initialSearch = searchParams.get('search') || '';
 
@@ -128,6 +127,9 @@ function CommitsPageContent() {
 
       if (!repoRes.ok) {
         throw new Error(repoData.error || `API error: ${repoRes.status}`);
+      }
+      if (!trendsRes.ok) {
+        throw new Error(trendsData.error || `API error: ${trendsRes.status}`);
       }
 
       setRepositories(repoData.repositories || []);
