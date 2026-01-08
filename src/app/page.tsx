@@ -9,6 +9,7 @@ import { SearchInput } from '@/components/SearchInput';
 import { TipBar } from '@/components/TipBar';
 import { TimeRangeSelector } from '@/components/TimeRangeSelector';
 import { MainNav } from '@/components/MainNav';
+import { MobileNav } from '@/components/MobileNav';
 import { UserMenu } from '@/components/UserMenu';
 import { LifetimeStats } from '@/components/LifetimeStats';
 import { AdoptionDistribution } from '@/components/AdoptionDistribution';
@@ -199,6 +200,7 @@ function DashboardContent() {
                 <SearchInput days={days} placeholder="Search users..." />
               </div>
               <UserMenu />
+              <MobileNav days={days} />
             </div>
           </div>
         </PageContainer>

@@ -8,6 +8,7 @@ import { InlineSearchInput } from '@/components/SearchInput';
 import { TimeRangeSelector } from '@/components/TimeRangeSelector';
 import { MainNav } from '@/components/MainNav';
 import { UserMenu } from '@/components/UserMenu';
+import { MobileNav } from '@/components/MobileNav';
 import { TipBar } from '@/components/TipBar';
 import { PageContainer } from '@/components/PageContainer';
 import { useTimeRange } from '@/contexts/TimeRangeContext';
@@ -205,6 +206,7 @@ function CommitsPageContent() {
                 />
               </div>
               <UserMenu />
+              <MobileNav days={days} />
             </div>
           </div>
         </PageContainer>

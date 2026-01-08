@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { MainNav } from '@/components/MainNav';
 import { UserMenu } from '@/components/UserMenu';
+import { MobileNav } from '@/components/MobileNav';
 import { PageContainer } from '@/components/PageContainer';
 import { DEFAULT_DAYS } from '@/lib/constants';
 import { formatTokens, formatCurrency } from '@/lib/utils';
@@ -170,7 +171,10 @@ export default function StatusPage() {
         <PageContainer className="py-4">
           <div className="flex items-center justify-between">
             <MainNav days={DEFAULT_DAYS} />
-            <UserMenu />
+            <div className="flex items-center gap-3">
+              <UserMenu />
+              <MobileNav days={DEFAULT_DAYS} />
+            </div>
           </div>
         </PageContainer>
       </header>
