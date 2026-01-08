@@ -170,11 +170,11 @@ export default function StatusPage() {
       <header className="relative z-20 border-b border-white/5">
         <PageContainer className="py-4">
           <div className="flex items-center justify-between">
-            <MainNav days={DEFAULT_DAYS} />
             <div className="flex items-center gap-3">
-              <UserMenu />
               <MobileNav days={DEFAULT_DAYS} />
+              <MainNav days={DEFAULT_DAYS} />
             </div>
+            <UserMenu />
           </div>
         </PageContainer>
       </header>

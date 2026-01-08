@@ -150,11 +150,11 @@ function AdoptionPageContent() {
       <header className="relative z-20 border-b border-white/5">
         <PageContainer className="py-4">
           <div className="flex items-center justify-between gap-4">
-            <MainNav days={days} />
             <div className="flex items-center gap-3">
-              <UserMenu />
               <MobileNav days={days} />
+              <MainNav days={days} />
             </div>
+            <UserMenu />
           </div>
         </PageContainer>
       </header>
