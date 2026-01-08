@@ -253,31 +253,54 @@ async function cmdCursorStatus() {
 async function cmdGitHubStatus() {
   console.log('🔄 GitHub Commits Sync Status\n');
 
-  const { lastSyncedDate } = await getGitHubSyncState();
-  const { oldestDate, isComplete } = await getGitHubBackfillState();
-
-  console.log(`Last synced date: ${lastSyncedDate || 'Never'}`);
-  console.log(`Oldest commit date: ${oldestDate || 'None'}`);
-  console.log(`Backfill complete: ${isComplete}`);
-
-  // Get stats from database
-  const stats = await sql`
-    SELECT
-      COUNT(*)::int as total_commits,
-      COUNT(*) FILTER (WHERE ai_tool IS NOT NULL)::int as ai_commits,
-      COUNT(DISTINCT repo_id)::int as repos
-    FROM commits
-  `;
-
-  const row = stats.rows[0];
-  console.log(`\nDatabase stats:`);
-  console.log(`  Total commits: ${row.total_commits}`);
-  console.log(`  AI-attributed: ${row.ai_commits}`);
-  if (row.total_commits > 0) {
-    const pct = ((row.ai_commits / row.total_commits) * 100).toFixed(1);
-    console.log(`  AI percentage: ${pct}%`);
+  // Check if GitHub is configured
+  const hasGitHubApp = process.env.GITHUB_APP_ID && process.env.GITHUB_APP_PRIVATE_KEY && process.env.GITHUB_APP_INSTALLATION_ID;
+  const hasGitHubToken = process.env.GITHUB_TOKEN;
+  if (!hasGitHubApp && !hasGitHubToken) {
+    console.log('⚠️  GitHub not configured');
+    console.log('\nSet either:');
+    console.log('  - GITHUB_TOKEN (fine-grained personal access token)');
+    console.log('  - GITHUB_APP_ID + GITHUB_APP_PRIVATE_KEY + GITHUB_APP_INSTALLATION_ID');
+    return;
   }
-  console.log(`  Repositories: ${row.repos}`);
+
+  console.log(`Auth: ${hasGitHubApp ? 'GitHub App' : 'Personal Token'}`);
+
+  // Check if tables exist
+  try {
+    const { lastSyncedDate } = await getGitHubSyncState();
+    const { oldestDate, isComplete } = await getGitHubBackfillState();
+
+    console.log(`Last synced date: ${lastSyncedDate || 'Never'}`);
+    console.log(`Oldest commit date: ${oldestDate || 'None'}`);
+    console.log(`Backfill complete: ${isComplete}`);
+
+    // Get stats from database
+    const stats = await sql`
+      SELECT
+        COUNT(*)::int as total_commits,
+        COUNT(*) FILTER (WHERE ai_tool IS NOT NULL)::int as ai_commits,
+        COUNT(DISTINCT repo_id)::int as repos
+      FROM commits
+    `;
+
+    const row = stats.rows[0];
+    console.log(`\nDatabase stats:`);
+    console.log(`  Total commits: ${row.total_commits}`);
+    console.log(`  AI-attributed: ${row.ai_commits}`);
+    if (row.total_commits > 0) {
+      const pct = ((row.ai_commits / row.total_commits) * 100).toFixed(1);
+      console.log(`  AI percentage: ${pct}%`);
+    }
+    console.log(`  Repositories: ${row.repos}`);
+  } catch (err) {
+    if (err instanceof Error && err.message.includes('does not exist')) {
+      console.log('\n⚠️  Database tables not found. Run migration first:');
+      console.log('   npm run cli db:migrate');
+    } else {
+      throw err;
+    }
+  }
 }
 
 async function cmdGitHubSync(repo: string, days: number = 7, dryRun: boolean = false) {
@@ -287,10 +310,12 @@ async function cmdGitHubSync(repo: string, days: number = 7, dryRun: boolean = f
     return;
   }
 
+  // Check for either GitHub App or personal token
+  const hasGitHubApp = process.env.GITHUB_APP_ID && process.env.GITHUB_APP_PRIVATE_KEY && process.env.GITHUB_APP_INSTALLATION_ID;
   const token = process.env.GITHUB_TOKEN;
-  if (!token) {
-    console.error('❌ GITHUB_TOKEN not configured');
-    console.error('\nTo set up a fine-grained token:');
+  if (!hasGitHubApp && !token) {
+    console.error('❌ GitHub not configured');
+    console.error('\nTo set up a fine-grained token (recommended for local dev):');
     console.error('1. Go to GitHub → Settings → Developer settings → Fine-grained tokens');
     console.error('2. Create token with "Contents" read-only permission');
     console.error('3. Set GITHUB_TOKEN in .env.local');
@@ -301,6 +326,13 @@ async function cmdGitHubSync(repo: string, days: number = 7, dryRun: boolean = f
   const sinceDate = since.split('T')[0];
 
   if (dryRun) {
+    // Dry-run only supports personal token (simpler, no JWT generation needed)
+    if (!token) {
+      console.error('❌ --dry-run requires GITHUB_TOKEN (personal access token)');
+      console.error('   GitHub App auth is only supported for full sync.');
+      return;
+    }
+
     console.log(`🔍 Dry run: Scanning ${repo} for AI-attributed commits (last ${days} days)\n`);
     console.log('This does NOT write to the database - just shows what would be detected.\n');
 
@@ -405,8 +437,10 @@ async function cmdGitHubSync(repo: string, days: number = 7, dryRun: boolean = f
 }
 
 async function cmdGitHubBackfill(fromDate: string) {
-  if (!process.env.GITHUB_TOKEN) {
-    console.error('❌ GITHUB_TOKEN not configured');
+  const hasGitHubApp = process.env.GITHUB_APP_ID && process.env.GITHUB_APP_PRIVATE_KEY && process.env.GITHUB_APP_INSTALLATION_ID;
+  const hasGitHubToken = process.env.GITHUB_TOKEN;
+  if (!hasGitHubApp && !hasGitHubToken) {
+    console.error('❌ GitHub not configured');
     return;
   }
 

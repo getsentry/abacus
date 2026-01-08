@@ -25,14 +25,15 @@ async function handler(request: Request) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  // Check if GitHub is configured
-  const hasGitHubConfig = process.env.GITHUB_TOKEN;
-  if (!hasGitHubConfig) {
+  // Check if GitHub is configured (either App or personal token)
+  const hasGitHubApp = process.env.GITHUB_APP_ID && process.env.GITHUB_APP_PRIVATE_KEY && process.env.GITHUB_APP_INSTALLATION_ID;
+  const hasGitHubToken = process.env.GITHUB_TOKEN;
+  if (!hasGitHubApp && !hasGitHubToken) {
     return NextResponse.json({
       success: true,
       service: 'github',
       skipped: true,
-      reason: 'GITHUB_TOKEN not configured',
+      reason: 'GitHub not configured (set GITHUB_APP_* or GITHUB_TOKEN)',
     });
   }
 
