@@ -18,6 +18,7 @@ export function proxy(request: NextRequest) {
   const publicPaths = [
     '/api/auth', // Better-auth endpoints (login, callback, logout, etc.)
     '/api/cron', // Cron jobs use CRON_SECRET for auth
+    '/api/webhooks', // Webhooks use their own signature verification
     '/sign-in', // Sign-in page
   ];
 

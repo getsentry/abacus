@@ -27,6 +27,7 @@ Only these routes are accessible without authentication:
 - `/sign-in` - Login page
 - `/api/auth/*` - OAuth flow endpoints
 - `/api/cron/*` - Protected by `CRON_SECRET` instead
+- `/api/webhooks/*` - Protected by signature verification (e.g., `GITHUB_WEBHOOK_SECRET`)
 
 ### Adding New API Routes
 
