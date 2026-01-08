@@ -17,9 +17,9 @@ interface MainNavProps {
 
 const navItems: NavItem[] = [
   { label: 'Overview', href: '/', matchPaths: ['/'] },
-  { label: 'Users', href: '/users', matchPaths: ['/users'] },
+  { label: 'Team', href: '/team', matchPaths: ['/team', '/users', '/adoption'] },
+  { label: 'Usage', href: '/usage', matchPaths: ['/usage'] },
   { label: 'Commits', href: '/commits', matchPaths: ['/commits'] },
-  { label: 'Adoption', href: '/adoption', matchPaths: ['/adoption'] },
   { label: 'Tips', href: '/tips', matchPaths: ['/tips'] },
   { label: 'Status', href: '/status', matchPaths: ['/status'] },
 ];
@@ -36,7 +36,7 @@ export function MainNav({ days }: MainNavProps) {
 
   const getHref = (item: NavItem) => {
     // Preserve days param for routes that use it (not tips or status)
-    if (item.href === '/' || item.href === '/users' || item.href === '/commits' || item.href === '/adoption') {
+    if (item.href === '/' || item.href === '/team' || item.href === '/usage' || item.href === '/commits') {
       return `${item.href}?days=${days}`;
     }
     return item.href;

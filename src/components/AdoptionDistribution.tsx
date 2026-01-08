@@ -57,7 +57,7 @@ export function AdoptionDistribution({
         <SectionLabel days={days}>Adoption Distribution</SectionLabel>
         <AppLink
           href="/adoption"
-          className="font-mono text-xs text-amber-500 hover:text-amber-400 transition-colors"
+          className="font-mono text-sm text-amber-500 hover:text-amber-400 transition-colors"
         >
           View all →
         </AppLink>
@@ -118,11 +118,11 @@ export function AdoptionDistribution({
 
           return (
             <div key={stage} className="flex items-center gap-1.5">
-              <Icon className={`w-3 h-3 ${config.textColor}`} />
-              <span className="font-mono text-[10px] text-white/50">
+              <Icon className={`w-3.5 h-3.5 ${config.textColor}`} />
+              <span className="font-mono text-sm text-white/50">
                 {count}
               </span>
-              <span className="font-mono text-[10px] text-white/30">
+              <span className="font-mono text-sm text-white/30">
                 ({Math.round(pct)}%)
               </span>
             </div>

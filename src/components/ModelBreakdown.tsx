@@ -83,10 +83,10 @@ export function ModelBreakdown({ data, days }: ModelBreakdownProps) {
             className="group"
           >
             <div className="mb-1 flex items-center justify-between">
-              <span className="font-mono text-xs text-white/70 group-hover:text-white transition-colors truncate max-w-[140px]">
+              <span className="font-mono text-sm text-white/70 group-hover:text-white transition-colors truncate max-w-[140px]">
                 {formatModelName(m.model)}
               </span>
-              <span className="font-mono text-[10px] text-white/40">
+              <span className="font-mono text-sm text-white/40">
                 {formatTokens(m.totalTokens)}
               </span>
             </div>

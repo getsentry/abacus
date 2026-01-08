@@ -1598,3 +1598,105 @@ export async function getRepositoryDailyStats(
 
   return result.rows as DailyRepoCommitStats[];
 }
+
+// ============================================================================
+// Model Trends (for Usage page)
+// ============================================================================
+
+export interface ModelTrendData {
+  date: string;
+  model: string;
+  tokens: number;
+  inputTokens: number;
+  outputTokens: number;
+  cost: number;
+  tool: string;
+}
+
+export async function getModelTrends(
+  startDate: string,
+  endDate: string
+): Promise<ModelTrendData[]> {
+  const result = await sql`
+    WITH date_series AS (
+      SELECT generate_series(
+        ${startDate}::date,
+        ${endDate}::date,
+        '1 day'::interval
+      )::date as date
+    ),
+    model_data AS (
+      SELECT
+        date,
+        model,
+        tool,
+        SUM(input_tokens + cache_write_tokens + output_tokens)::bigint as tokens,
+        SUM(input_tokens)::bigint as "inputTokens",
+        SUM(output_tokens)::bigint as "outputTokens",
+        SUM(cost)::float as cost
+      FROM usage_records
+      WHERE date >= ${startDate} AND date <= ${endDate}
+      GROUP BY date, model, tool
+    )
+    SELECT
+      ds.date::text,
+      COALESCE(md.model, 'unknown') as model,
+      COALESCE(md.tool, 'unknown') as tool,
+      COALESCE(md.tokens, 0)::bigint as tokens,
+      COALESCE(md."inputTokens", 0)::bigint as "inputTokens",
+      COALESCE(md."outputTokens", 0)::bigint as "outputTokens",
+      COALESCE(md.cost, 0)::float as cost
+    FROM date_series ds
+    LEFT JOIN model_data md ON md.date = ds.date
+    WHERE md.model IS NOT NULL
+    ORDER BY ds.date ASC, md.tokens DESC
+  `;
+
+  return result.rows as ModelTrendData[];
+}
+
+export interface ToolTrendData {
+  date: string;
+  tool: string;
+  tokens: number;
+  cost: number;
+  users: number;
+}
+
+export async function getToolTrends(
+  startDate: string,
+  endDate: string
+): Promise<ToolTrendData[]> {
+  const result = await sql`
+    WITH date_series AS (
+      SELECT generate_series(
+        ${startDate}::date,
+        ${endDate}::date,
+        '1 day'::interval
+      )::date as date
+    ),
+    tool_data AS (
+      SELECT
+        date,
+        tool,
+        SUM(input_tokens + cache_write_tokens + output_tokens)::bigint as tokens,
+        SUM(cost)::float as cost,
+        COUNT(DISTINCT email)::int as users
+      FROM usage_records
+      WHERE date >= ${startDate} AND date <= ${endDate}
+      GROUP BY date, tool
+    )
+    SELECT
+      ds.date::text,
+      COALESCE(td.tool, 'unknown') as tool,
+      COALESCE(td.tokens, 0)::bigint as tokens,
+      COALESCE(td.cost, 0)::float as cost,
+      COALESCE(td.users, 0)::int as users
+    FROM date_series ds
+    LEFT JOIN tool_data td ON td.date = ds.date
+    WHERE td.tool IS NOT NULL
+    ORDER BY ds.date ASC, td.tokens DESC
+  `;
+
+  return result.rows as ToolTrendData[];
+}
