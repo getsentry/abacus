@@ -34,6 +34,7 @@ import * as path from 'path';
 import { sql } from '@vercel/postgres';
 import { syncAnthropicUsage, getAnthropicSyncState, backfillAnthropicUsage, resetAnthropicBackfillComplete } from '../src/lib/sync/anthropic';
 import { syncCursorUsage, backfillCursorUsage, getCursorSyncState, getPreviousCompleteHourEnd, resetCursorBackfillComplete } from '../src/lib/sync/cursor';
+import { syncGitHubRepo, backfillGitHubUsage, getGitHubSyncState, getGitHubBackfillState, resetGitHubBackfillComplete, detectAiAttribution } from '../src/lib/sync/github';
 import { syncApiKeyMappingsSmart, syncAnthropicApiKeyMappings } from '../src/lib/sync/anthropic-mappings';
 import { getToolIdentityMappings, setToolIdentityMapping, getUnmappedToolRecords, getKnownEmails, insertUsageRecord } from '../src/lib/queries';
 import { normalizeModelName } from '../src/lib/utils';
@@ -149,6 +150,10 @@ Commands:
   mappings:fix          Interactive fix for unmapped API keys
   anthropic:status      Show Anthropic sync state
   cursor:status         Show Cursor sync state
+  github:status         Show GitHub commits sync state
+  github:sync <repo> [--days N] [--dry-run]
+                        Sync commits for a specific repo (e.g., getsentry/sentry)
+                        Use --dry-run to test detection without database
   import:cursor-csv <file>
                         Import Cursor usage from CSV export
   stats                 Show database statistics
@@ -242,6 +247,217 @@ async function cmdCursorStatus() {
     console.log('Never synced');
     console.log(`Current complete hour: ${currentHourEnd.toISOString()}`);
     console.log('\nRun backfill to initialize: npm run cli backfill cursor --from YYYY-MM-DD --to YYYY-MM-DD');
+  }
+}
+
+async function cmdGitHubStatus() {
+  console.log('🔄 GitHub Commits Sync Status\n');
+
+  // Check if GitHub is configured
+  const hasGitHubApp = process.env.GITHUB_APP_ID && process.env.GITHUB_APP_PRIVATE_KEY && process.env.GITHUB_APP_INSTALLATION_ID;
+  const hasGitHubToken = process.env.GITHUB_TOKEN;
+  if (!hasGitHubApp && !hasGitHubToken) {
+    console.log('⚠️  GitHub not configured');
+    console.log('\nSet either:');
+    console.log('  - GITHUB_TOKEN (fine-grained personal access token)');
+    console.log('  - GITHUB_APP_ID + GITHUB_APP_PRIVATE_KEY + GITHUB_APP_INSTALLATION_ID');
+    return;
+  }
+
+  console.log(`Auth: ${hasGitHubApp ? 'GitHub App' : 'Personal Token'}`);
+
+  // Check if tables exist
+  try {
+    const { lastSyncedDate } = await getGitHubSyncState();
+    const { oldestDate, isComplete } = await getGitHubBackfillState();
+
+    console.log(`Last synced date: ${lastSyncedDate || 'Never'}`);
+    console.log(`Oldest commit date: ${oldestDate || 'None'}`);
+    console.log(`Backfill complete: ${isComplete}`);
+
+    // Get stats from database
+    const stats = await sql`
+      SELECT
+        COUNT(*)::int as total_commits,
+        COUNT(*) FILTER (WHERE ai_tool IS NOT NULL)::int as ai_commits,
+        COUNT(DISTINCT repo_id)::int as repos
+      FROM commits
+    `;
+
+    const row = stats.rows[0];
+    console.log(`\nDatabase stats:`);
+    console.log(`  Total commits: ${row.total_commits}`);
+    console.log(`  AI-attributed: ${row.ai_commits}`);
+    if (row.total_commits > 0) {
+      const pct = ((row.ai_commits / row.total_commits) * 100).toFixed(1);
+      console.log(`  AI percentage: ${pct}%`);
+    }
+    console.log(`  Repositories: ${row.repos}`);
+  } catch (err) {
+    if (err instanceof Error && err.message.includes('does not exist')) {
+      console.log('\n⚠️  Database tables not found. Run migration first:');
+      console.log('   npm run cli db:migrate');
+    } else {
+      throw err;
+    }
+  }
+}
+
+async function cmdGitHubSync(repo: string, days: number = 7, dryRun: boolean = false) {
+  if (!repo) {
+    console.error('Error: Please specify a repo (e.g., getsentry/sentry)');
+    console.error('Usage: npm run cli github:sync <repo> [--days N] [--dry-run]');
+    return;
+  }
+
+  // Check for either GitHub App or personal token
+  const hasGitHubApp = process.env.GITHUB_APP_ID && process.env.GITHUB_APP_PRIVATE_KEY && process.env.GITHUB_APP_INSTALLATION_ID;
+  const token = process.env.GITHUB_TOKEN;
+  if (!hasGitHubApp && !token) {
+    console.error('❌ GitHub not configured');
+    console.error('\nTo set up a fine-grained token (recommended for local dev):');
+    console.error('1. Go to GitHub → Settings → Developer settings → Fine-grained tokens');
+    console.error('2. Create token with "Contents" read-only permission');
+    console.error('3. Set GITHUB_TOKEN in .env.local');
+    return;
+  }
+
+  const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
+  const sinceDate = since.split('T')[0];
+
+  if (dryRun) {
+    // Dry-run only supports personal token (simpler, no JWT generation needed)
+    if (!token) {
+      console.error('❌ --dry-run requires GITHUB_TOKEN (personal access token)');
+      console.error('   GitHub App auth is only supported for full sync.');
+      return;
+    }
+
+    console.log(`🔍 Dry run: Scanning ${repo} for AI-attributed commits (last ${days} days)\n`);
+    console.log('This does NOT write to the database - just shows what would be detected.\n');
+
+    // Fetch commits directly from GitHub API
+    const url = `https://api.github.com/repos/${repo}/commits?since=${since}&per_page=100`;
+
+    const response = await fetch(url, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Accept': 'application/vnd.github+json',
+        'X-GitHub-Api-Version': '2022-11-28',
+      },
+    });
+
+    if (!response.ok) {
+      const error = await response.text();
+      console.error(`❌ GitHub API error: ${response.status} ${response.statusText}`);
+      console.error(error);
+      return;
+    }
+
+    interface CommitItem {
+      sha: string;
+      commit: {
+        message: string;
+        author: {
+          name: string;
+          email: string;
+          date: string;
+        };
+      };
+      author: { login: string } | null;
+    }
+
+    const commits: CommitItem[] = await response.json();
+    console.log(`Found ${commits.length} commits\n`);
+
+    let aiCount = 0;
+    const aiCommits: Array<{ sha: string; date: string; author: string; tool: string; model?: string; message: string }> = [];
+
+    for (const commit of commits) {
+      const attribution = detectAiAttribution(
+        commit.commit.message,
+        commit.commit.author.name,
+        commit.commit.author.email
+      );
+
+      if (attribution) {
+        aiCount++;
+        aiCommits.push({
+          sha: commit.sha.slice(0, 7),
+          date: commit.commit.author.date.split('T')[0],
+          author: commit.author?.login || commit.commit.author.email,
+          tool: attribution.tool,
+          model: attribution.model,
+          message: commit.commit.message.split('\n')[0].slice(0, 60),
+        });
+      }
+    }
+
+    if (aiCommits.length === 0) {
+      console.log('No AI-attributed commits found.');
+    } else {
+      console.log(`Found ${aiCount} AI-attributed commit(s):\n`);
+      for (const c of aiCommits) {
+        console.log(`  ${c.sha} ${c.date} [${c.tool}${c.model ? `:${c.model}` : ''}]`);
+        console.log(`    by ${c.author}: ${c.message}`);
+      }
+
+      // Summary by tool
+      const byTool = aiCommits.reduce((acc, c) => {
+        acc[c.tool] = (acc[c.tool] || 0) + 1;
+        return acc;
+      }, {} as Record<string, number>);
+
+      console.log('\nSummary:');
+      console.log(`  Total commits: ${commits.length}`);
+      console.log(`  AI-attributed: ${aiCount} (${((aiCount / commits.length) * 100).toFixed(1)}%)`);
+      console.log('  By tool:');
+      for (const [tool, count] of Object.entries(byTool)) {
+        console.log(`    ${tool}: ${count}`);
+      }
+    }
+
+    console.log('\n✓ Dry run complete (no data written)');
+    return;
+  }
+
+  // Normal sync (writes to database)
+  console.log(`🔄 Syncing ${repo} from ${sinceDate}...\n`);
+
+  const result = await syncGitHubRepo(repo, sinceDate, undefined, {
+    onProgress: (msg) => console.log(msg)
+  });
+
+  console.log(`\n✓ Sync complete`);
+  console.log(`  Commits processed: ${result.commitsProcessed}`);
+  console.log(`  AI-attributed: ${result.aiAttributedCommits}`);
+  if (result.errors.length > 0) {
+    console.log(`  Errors: ${result.errors.slice(0, 5).join(', ')}`);
+  }
+}
+
+async function cmdGitHubBackfill(fromDate: string) {
+  const hasGitHubApp = process.env.GITHUB_APP_ID && process.env.GITHUB_APP_PRIVATE_KEY && process.env.GITHUB_APP_INSTALLATION_ID;
+  const hasGitHubToken = process.env.GITHUB_TOKEN;
+  if (!hasGitHubApp && !hasGitHubToken) {
+    console.error('❌ GitHub not configured');
+    return;
+  }
+
+  console.log(`📥 Backfilling GitHub commits from ${fromDate}\n`);
+
+  const result = await backfillGitHubUsage(fromDate, {
+    onProgress: (msg) => console.log(msg)
+  });
+
+  console.log(`\n✓ Backfill complete`);
+  console.log(`  Commits processed: ${result.commitsProcessed}`);
+  console.log(`  AI-attributed: ${result.aiAttributedCommits}`);
+  if (result.rateLimited) {
+    console.log(`  ⚠️  Rate limited - will continue on next run`);
+  }
+  if (result.errors.length > 0) {
+    console.log(`  Errors: ${result.errors.slice(0, 5).join(', ')}`);
   }
 }
 
@@ -590,6 +806,17 @@ async function main() {
       case 'cursor:status':
         await cmdCursorStatus();
         break;
+      case 'github:status':
+        await cmdGitHubStatus();
+        break;
+      case 'github:sync': {
+        const repo = args[1];
+        const daysIdx = args.indexOf('--days');
+        const days = daysIdx >= 0 ? parseInt(args[daysIdx + 1]) : 7;
+        const dryRun = args.includes('--dry-run');
+        await cmdGitHubSync(repo, days, dryRun);
+        break;
+      }
       case 'mappings':
         await cmdMappings();
         break;
@@ -615,37 +842,51 @@ async function main() {
         break;
       }
       case 'backfill': {
-        const tool = args[1] as 'anthropic' | 'cursor';
-        if (!tool || !['anthropic', 'cursor'].includes(tool)) {
-          console.error('Error: Please specify tool (anthropic or cursor)');
-          console.error('Usage: npm run cli backfill <tool> --from YYYY-MM-DD --to YYYY-MM-DD');
+        const tool = args[1] as 'anthropic' | 'cursor' | 'github';
+        if (!tool || !['anthropic', 'cursor', 'github'].includes(tool)) {
+          console.error('Error: Please specify tool (anthropic, cursor, or github)');
+          console.error('Usage: npm run cli backfill <tool> --from YYYY-MM-DD [--to YYYY-MM-DD]');
           break;
         }
         const fromIdx = args.indexOf('--from');
-        const toIdx = args.indexOf('--to');
-        if (fromIdx < 0 || toIdx < 0) {
-          console.error('Error: Please specify --from and --to dates');
-          console.error('Usage: npm run cli backfill <tool> --from YYYY-MM-DD --to YYYY-MM-DD');
+        if (fromIdx < 0) {
+          console.error('Error: Please specify --from date');
+          console.error('Usage: npm run cli backfill <tool> --from YYYY-MM-DD [--to YYYY-MM-DD]');
           break;
         }
         const fromDate = args[fromIdx + 1];
-        const toDate = args[toIdx + 1];
-        if (!fromDate || !toDate) {
-          console.error('Error: Missing date values');
+        if (!fromDate) {
+          console.error('Error: Missing --from date value');
           break;
         }
         const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
-        if (!dateRegex.test(fromDate) || !dateRegex.test(toDate)) {
-          console.error('Error: Dates must be in YYYY-MM-DD format');
+        if (!dateRegex.test(fromDate)) {
+          console.error('Error: --from date must be in YYYY-MM-DD format');
           break;
         }
-        await cmdBackfill(tool, fromDate, toDate);
+        // GitHub backfill only needs --from, others need --to as well
+        if (tool === 'github') {
+          await cmdGitHubBackfill(fromDate);
+        } else {
+          const toIdx = args.indexOf('--to');
+          if (toIdx < 0) {
+            console.error('Error: Please specify --to date for anthropic/cursor backfill');
+            console.error('Usage: npm run cli backfill <tool> --from YYYY-MM-DD --to YYYY-MM-DD');
+            break;
+          }
+          const toDate = args[toIdx + 1];
+          if (!toDate || !dateRegex.test(toDate)) {
+            console.error('Error: --to date must be in YYYY-MM-DD format');
+            break;
+          }
+          await cmdBackfill(tool, fromDate, toDate);
+        }
         break;
       }
       case 'backfill:complete': {
-        const tool = args[1] as 'anthropic' | 'cursor';
-        if (!tool || !['anthropic', 'cursor'].includes(tool)) {
-          console.error('Error: Please specify tool (anthropic or cursor)');
+        const tool = args[1] as 'anthropic' | 'cursor' | 'github';
+        if (!tool || !['anthropic', 'cursor', 'github'].includes(tool)) {
+          console.error('Error: Please specify tool (anthropic, cursor, or github)');
           console.error('Usage: npm run cli backfill:complete <tool>');
           break;
         }
@@ -661,17 +902,19 @@ async function main() {
         break;
       }
       case 'backfill:reset': {
-        const tool = args[1] as 'anthropic' | 'cursor';
-        if (!tool || !['anthropic', 'cursor'].includes(tool)) {
-          console.error('Error: Please specify tool (anthropic or cursor)');
+        const tool = args[1] as 'anthropic' | 'cursor' | 'github';
+        if (!tool || !['anthropic', 'cursor', 'github'].includes(tool)) {
+          console.error('Error: Please specify tool (anthropic, cursor, or github)');
           console.error('Usage: npm run cli backfill:reset <tool>');
           break;
         }
         console.log(`Resetting ${tool} backfill status...`);
         if (tool === 'anthropic') {
           await resetAnthropicBackfillComplete();
-        } else {
+        } else if (tool === 'cursor') {
           await resetCursorBackfillComplete();
+        } else {
+          await resetGitHubBackfillComplete();
         }
         console.log(`✓ ${tool} backfill status reset (can now re-backfill)`);
         break;

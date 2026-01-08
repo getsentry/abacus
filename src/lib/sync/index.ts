@@ -1,6 +1,19 @@
 import { syncAnthropicUsage, syncAnthropicCron, backfillAnthropicUsage, getAnthropicSyncState, resetAnthropicBackfillComplete, SyncResult as AnthropicResult } from './anthropic';
 import { syncCursorCron, syncCursorUsage, backfillCursorUsage, getCursorSyncState, resetCursorBackfillComplete, SyncResult as CursorResult } from './cursor';
 import { syncAnthropicApiKeyMappings, syncApiKeyMappingsSmart, MappingResult } from './anthropic-mappings';
+import {
+  syncGitHubRepo,
+  syncGitHubCron,
+  backfillGitHubUsage,
+  getGitHubSyncState,
+  getGitHubBackfillState,
+  resetGitHubBackfillComplete,
+  processWebhookPush,
+  detectAiAttribution,
+  getOrCreateRepository,
+  SyncResult as GitHubResult,
+  GitHubPushEvent,
+} from './github';
 import { sql } from '@vercel/postgres';
 
 export interface FullSyncResult {
@@ -114,5 +127,17 @@ export {
   backfillCursorUsage,
   getCursorSyncState,
   resetCursorBackfillComplete,
-  syncAnthropicApiKeyMappings
+  syncAnthropicApiKeyMappings,
+  // GitHub exports
+  syncGitHubRepo,
+  syncGitHubCron,
+  backfillGitHubUsage,
+  getGitHubSyncState,
+  getGitHubBackfillState,
+  resetGitHubBackfillComplete,
+  processWebhookPush,
+  detectAiAttribution,
+  getOrCreateRepository,
 };
+
+export type { GitHubResult, GitHubPushEvent };
