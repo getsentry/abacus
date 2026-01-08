@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { motion } from 'framer-motion';
-import { GitCommit, GitBranch, Percent } from 'lucide-react';
+import { GitCommit, GitBranch, Percent, ExternalLink } from 'lucide-react';
 import { InlineSearchInput } from '@/components/SearchInput';
 import { TimeRangeSelector } from '@/components/TimeRangeSelector';
 import { AppHeader } from '@/components/AppHeader';
@@ -12,6 +12,7 @@ import { PageContainer } from '@/components/PageContainer';
 import { LoadingBar } from '@/components/LoadingBar';
 import { StatCard } from '@/components/StatCard';
 import { LoadingState, ErrorState, EmptyState } from '@/components/PageState';
+import { AppLink } from '@/components/AppLink';
 import { useTimeRange } from '@/contexts/TimeRangeContext';
 import { getToolConfig, formatToolName } from '@/lib/tools';
 import { calculateDelta } from '@/lib/comparison';
@@ -394,21 +395,32 @@ function CommitsPageContent() {
                             }`}
                           >
                             {col.key === 'fullName' ? (
-                              <a
-                                href={repo.source === 'github' ? `https://github.com/${repo.fullName}` : '#'}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="flex items-center gap-1.5 hover:text-amber-400 transition-colors group"
-                              >
-                                {repo.source === 'github' ? (
-                                  <svg className="w-3.5 h-3.5 text-white/30 group-hover:text-amber-400/60 flex-shrink-0 transition-colors" viewBox="0 0 16 16" fill="currentColor">
-                                    <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/>
-                                  </svg>
-                                ) : (
-                                  <span className="text-white/30 text-[10px] uppercase">{repo.source}</span>
+                              <div className="flex items-center gap-2">
+                                <AppLink
+                                  href={`/repositories/${repo.source}/${repo.fullName}`}
+                                  className="flex items-center gap-1.5 hover:text-amber-400 transition-colors group"
+                                >
+                                  {repo.source === 'github' ? (
+                                    <svg className="w-3.5 h-3.5 text-white/30 group-hover:text-amber-400/60 flex-shrink-0 transition-colors" viewBox="0 0 16 16" fill="currentColor">
+                                      <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/>
+                                    </svg>
+                                  ) : (
+                                    <span className="text-white/30 text-[10px] uppercase">{repo.source}</span>
+                                  )}
+                                  <span className="text-white group-hover:text-amber-400">{repo.fullName}</span>
+                                </AppLink>
+                                {repo.source === 'github' && (
+                                  <a
+                                    href={`https://github.com/${repo.fullName}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="text-white/20 hover:text-white/50 transition-colors"
+                                    onClick={(e) => e.stopPropagation()}
+                                  >
+                                    <ExternalLink className="w-3 h-3" />
+                                  </a>
                                 )}
-                                <span className="text-white group-hover:text-amber-400">{repo.fullName}</span>
-                              </a>
+                              </div>
                             ) : col.key === 'aiAssistanceRate' ? (
                               <span className={repo.aiAssistanceRate >= 50 ? 'text-emerald-400' : 'text-white/70'}>
                                 {col.format!(repo[col.key])}

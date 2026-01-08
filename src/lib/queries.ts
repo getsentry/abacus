@@ -1237,3 +1237,226 @@ export async function getUserPercentile(
 
   return Math.max(0, Math.min(100, percentile));
 }
+
+/**
+ * Repository Detail Queries
+ */
+
+export interface RepositoryDetails {
+  id: number;
+  source: string;
+  fullName: string;
+  totalCommits: number;
+  aiAssistedCommits: number;
+  aiAssistanceRate: number;
+  totalAdditions: number;
+  totalDeletions: number;
+  aiAdditions: number;
+  aiDeletions: number;
+  uniqueAuthors: number;
+  firstCommit: string | null;
+  lastCommit: string | null;
+  claudeCodeCommits: number;
+  cursorCommits: number;
+  copilotCommits: number;
+  windsurfCommits: number;
+}
+
+export interface RepositoryCommit {
+  commitId: string;
+  authorEmail: string;
+  committedAt: string;
+  aiTool: string | null;
+  aiModel: string | null;
+  additions: number;
+  deletions: number;
+  message: string | null;
+}
+
+export interface RepositoryAuthor {
+  authorEmail: string;
+  totalCommits: number;
+  aiAssistedCommits: number;
+  aiAssistanceRate: number;
+  lastCommit: string;
+}
+
+export interface DailyRepoCommitStats {
+  date: string;
+  totalCommits: number;
+  claudeCodeCommits: number;
+  cursorCommits: number;
+  copilotCommits: number;
+  windsurfCommits: number;
+}
+
+export async function getRepositoryByFullName(
+  source: string,
+  fullName: string
+): Promise<{ id: number; source: string; fullName: string } | null> {
+  const result = await sql`
+    SELECT id, source, full_name as "fullName"
+    FROM repositories
+    WHERE source = ${source} AND full_name = ${fullName}
+  `;
+  return result.rows[0] as { id: number; source: string; fullName: string } | null;
+}
+
+export async function getRepositoryDetails(
+  repoId: number,
+  startDate?: string,
+  endDate?: string
+): Promise<RepositoryDetails | null> {
+  const effectiveStartDate = startDate || '1970-01-01';
+  const effectiveEndDate = endDate || '9999-12-31';
+
+  const result = await sql`
+    SELECT
+      r.id,
+      r.source,
+      r.full_name as "fullName",
+      COUNT(c.id)::int as "totalCommits",
+      COUNT(c.id) FILTER (WHERE c.ai_tool IS NOT NULL)::int as "aiAssistedCommits",
+      COALESCE(SUM(c.additions), 0)::int as "totalAdditions",
+      COALESCE(SUM(c.deletions), 0)::int as "totalDeletions",
+      COALESCE(SUM(c.additions) FILTER (WHERE c.ai_tool IS NOT NULL), 0)::int as "aiAdditions",
+      COALESCE(SUM(c.deletions) FILTER (WHERE c.ai_tool IS NOT NULL), 0)::int as "aiDeletions",
+      COUNT(DISTINCT c.author_email)::int as "uniqueAuthors",
+      MIN(c.committed_at)::text as "firstCommit",
+      MAX(c.committed_at)::text as "lastCommit",
+      COUNT(c.id) FILTER (WHERE c.ai_tool = 'claude_code')::int as "claudeCodeCommits",
+      COUNT(c.id) FILTER (WHERE c.ai_tool = 'cursor')::int as "cursorCommits",
+      COUNT(c.id) FILTER (WHERE c.ai_tool = 'copilot')::int as "copilotCommits",
+      COUNT(c.id) FILTER (WHERE c.ai_tool = 'windsurf')::int as "windsurfCommits"
+    FROM repositories r
+    LEFT JOIN commits c ON c.repo_id = r.id
+      AND c.committed_at >= ${effectiveStartDate}::timestamp
+      AND c.committed_at < (${effectiveEndDate}::date + interval '1 day')
+    WHERE r.id = ${repoId}
+    GROUP BY r.id, r.source, r.full_name
+  `;
+
+  if (result.rows.length === 0) return null;
+
+  const row = result.rows[0];
+  return {
+    ...row,
+    aiAssistanceRate: row.totalCommits > 0
+      ? Math.round((row.aiAssistedCommits / row.totalCommits) * 100)
+      : 0,
+  } as RepositoryDetails;
+}
+
+export async function getRepositoryCommits(
+  repoId: number,
+  startDate?: string,
+  endDate?: string,
+  limit: number = 100,
+  offset: number = 0,
+  aiFilter?: 'all' | 'ai' | 'human'
+): Promise<{ commits: RepositoryCommit[]; totalCount: number }> {
+  const effectiveStartDate = startDate || '1970-01-01';
+  const effectiveEndDate = endDate || '9999-12-31';
+
+  // Build filter condition
+  let aiCondition = '';
+  if (aiFilter === 'ai') {
+    aiCondition = 'AND c.ai_tool IS NOT NULL';
+  } else if (aiFilter === 'human') {
+    aiCondition = 'AND c.ai_tool IS NULL';
+  }
+
+  const countResult = await sql.query(`
+    SELECT COUNT(*)::int as count
+    FROM commits c
+    WHERE c.repo_id = $1
+      AND c.committed_at >= $2::timestamp
+      AND c.committed_at < ($3::date + interval '1 day')
+      ${aiCondition}
+  `, [repoId, effectiveStartDate, effectiveEndDate]);
+
+  const result = await sql.query(`
+    SELECT
+      c.commit_id as "commitId",
+      c.author_email as "authorEmail",
+      c.committed_at::text as "committedAt",
+      c.ai_tool as "aiTool",
+      c.ai_model as "aiModel",
+      COALESCE(c.additions, 0)::int as additions,
+      COALESCE(c.deletions, 0)::int as deletions,
+      c.message
+    FROM commits c
+    WHERE c.repo_id = $1
+      AND c.committed_at >= $2::timestamp
+      AND c.committed_at < ($3::date + interval '1 day')
+      ${aiCondition}
+    ORDER BY c.committed_at DESC
+    LIMIT $4 OFFSET $5
+  `, [repoId, effectiveStartDate, effectiveEndDate, limit, offset]);
+
+  return {
+    commits: result.rows as RepositoryCommit[],
+    totalCount: countResult.rows[0].count,
+  };
+}
+
+export async function getRepositoryAuthors(
+  repoId: number,
+  startDate?: string,
+  endDate?: string,
+  limit: number = 20
+): Promise<RepositoryAuthor[]> {
+  const effectiveStartDate = startDate || '1970-01-01';
+  const effectiveEndDate = endDate || '9999-12-31';
+
+  const result = await sql`
+    SELECT
+      c.author_email as "authorEmail",
+      COUNT(*)::int as "totalCommits",
+      COUNT(*) FILTER (WHERE c.ai_tool IS NOT NULL)::int as "aiAssistedCommits",
+      MAX(c.committed_at)::text as "lastCommit"
+    FROM commits c
+    WHERE c.repo_id = ${repoId}
+      AND c.committed_at >= ${effectiveStartDate}::timestamp
+      AND c.committed_at < (${effectiveEndDate}::date + interval '1 day')
+    GROUP BY c.author_email
+    ORDER BY "totalCommits" DESC
+    LIMIT ${limit}
+  `;
+
+  return result.rows.map(row => ({
+    ...row,
+    aiAssistanceRate: row.totalCommits > 0
+      ? Math.round((row.aiAssistedCommits / row.totalCommits) * 100)
+      : 0,
+  })) as RepositoryAuthor[];
+}
+
+export async function getRepositoryDailyStats(
+  repoId: number,
+  startDate: string,
+  endDate: string
+): Promise<DailyRepoCommitStats[]> {
+  const result = await sql`
+    WITH date_series AS (
+      SELECT generate_series(
+        ${startDate}::date,
+        ${endDate}::date,
+        '1 day'::interval
+      )::date as date
+    )
+    SELECT
+      ds.date::text,
+      COALESCE(COUNT(c.id), 0)::int as "totalCommits",
+      COALESCE(COUNT(c.id) FILTER (WHERE c.ai_tool = 'claude_code'), 0)::int as "claudeCodeCommits",
+      COALESCE(COUNT(c.id) FILTER (WHERE c.ai_tool = 'cursor'), 0)::int as "cursorCommits",
+      COALESCE(COUNT(c.id) FILTER (WHERE c.ai_tool = 'copilot'), 0)::int as "copilotCommits",
+      COALESCE(COUNT(c.id) FILTER (WHERE c.ai_tool = 'windsurf'), 0)::int as "windsurfCommits"
+    FROM date_series ds
+    LEFT JOIN commits c ON c.committed_at::date = ds.date AND c.repo_id = ${repoId}
+    GROUP BY ds.date
+    ORDER BY ds.date ASC
+  `;
+
+  return result.rows as DailyRepoCommitStats[];
+}
