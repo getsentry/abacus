@@ -230,10 +230,8 @@ export async function syncAnthropicUsage(
 
 /**
  * Sync Anthropic usage for the cron job.
- * Tracks state to avoid re-fetching data we already have.
- * Syncs from (last_synced_date - 1 day) to yesterday to:
- * - Catch any late-arriving data from the previous day
- * - Not fetch today's incomplete data
+ * Runs hourly to provide same-day visibility into usage data.
+ * Syncs from yesterday to today - today's data will be partial until EOD.
  */
 export async function syncAnthropicCron(): Promise<SyncResult> {
   const adminKey = process.env.ANTHROPIC_ADMIN_KEY;
@@ -246,48 +244,21 @@ export async function syncAnthropicCron(): Promise<SyncResult> {
     };
   }
 
-  // Get yesterday's date (complete day)
+  // Get today's date
+  const today = new Date();
+  const todayStr = today.toISOString().split('T')[0];
+
+  // Start from yesterday to catch any late-arriving data
   const yesterday = new Date();
   yesterday.setDate(yesterday.getDate() - 1);
-  const yesterdayStr = yesterday.toISOString().split('T')[0];
+  const startDate = yesterday.toISOString().split('T')[0];
 
-  // Check what we've already synced
-  const { lastSyncedDate } = await getAnthropicSyncState();
+  // Sync yesterday through today (today's data will be partial)
+  const result = await syncAnthropicUsage(startDate, todayStr);
 
-  // If we've already synced yesterday, nothing to do
-  if (lastSyncedDate && lastSyncedDate >= yesterdayStr) {
-    return {
-      success: true,
-      recordsImported: 0,
-      recordsSkipped: 0,
-      errors: [],
-      syncedRange: undefined
-    };
-  }
-
-  // Determine start date
-  // If never synced, start from 7 days ago
-  // Otherwise, start from (last_synced_date - 1 day) to catch late data
-  let startDate: string;
-  if (!lastSyncedDate) {
-    const weekAgo = new Date();
-    weekAgo.setDate(weekAgo.getDate() - 7);
-    startDate = weekAgo.toISOString().split('T')[0];
-  } else {
-    const lastDate = new Date(lastSyncedDate);
-    lastDate.setDate(lastDate.getDate() - 1); // Go back 1 day to catch late data
-    startDate = lastDate.toISOString().split('T')[0];
-  }
-
-  // End date is yesterday (today's data is incomplete)
-  const endDate = yesterdayStr;
-
-  // Sync the range
-  const result = await syncAnthropicUsage(startDate, endDate);
-
-  // Update sync state to yesterday if successful
+  // Update sync state to today if successful
   if (result.success) {
-    await updateAnthropicSyncState(yesterdayStr);
+    await updateAnthropicSyncState(todayStr);
   }
 
   return result;
