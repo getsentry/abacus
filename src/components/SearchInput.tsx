@@ -20,10 +20,8 @@ function BaseSearchInput({
   placeholder = 'Search...',
   onSubmit,
 }: BaseSearchInputProps) {
-  const Wrapper = onSubmit ? 'form' : 'div';
-
-  return (
-    <Wrapper onSubmit={onSubmit} className="relative">
+  const content = (
+    <>
       <input
         type="text"
         value={value}
@@ -41,8 +39,18 @@ function BaseSearchInput({
           <X className="h-3.5 w-3.5" strokeWidth={1.5} />
         </button>
       )}
-    </Wrapper>
+    </>
   );
+
+  if (onSubmit) {
+    return (
+      <form onSubmit={onSubmit} className="relative">
+        {content}
+      </form>
+    );
+  }
+
+  return <div className="relative">{content}</div>;
 }
 
 // Search input that navigates to users page on submit
