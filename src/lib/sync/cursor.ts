@@ -122,6 +122,7 @@ function getCursorAuthHeader(): string | null {
 interface AggregatedRecord {
   email: string;
   model: string;
+  rawModel: string;
   inputTokens: number;
   outputTokens: number;
   cacheWriteTokens: number;
@@ -256,8 +257,10 @@ async function processAndInsertEvents(
     // Convert timestamp string to date
     const date = new Date(parseInt(event.timestamp)).toISOString().split('T')[0];
     const email = event.userEmail;
-    const model = normalizeModelName(event.model);
-    const key = makeKey(date, email, model);
+    const rawModel = event.model;
+    const model = normalizeModelName(rawModel);
+    // Use rawModel in key so different raw models stay as separate rows
+    const key = makeKey(date, email, rawModel);
 
     const existing = aggregated.get(key);
     if (existing) {
@@ -270,6 +273,7 @@ async function processAndInsertEvents(
       aggregated.set(key, {
         email,
         model,
+        rawModel,
         inputTokens: tokenUsage?.inputTokens || 0,
         outputTokens: tokenUsage?.outputTokens || 0,
         cacheWriteTokens: tokenUsage?.cacheWriteTokens || 0,
@@ -291,6 +295,7 @@ async function processAndInsertEvents(
         email: aggData.email,
         tool: 'cursor',
         model: aggData.model,
+        rawModel: aggData.rawModel,
         inputTokens: aggData.inputTokens,
         cacheWriteTokens: aggData.cacheWriteTokens,
         cacheReadTokens: aggData.cacheReadTokens,

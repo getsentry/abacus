@@ -207,6 +207,7 @@ export async function syncAnthropicUsage(
               email,
               tool: 'claude_code',
               model: normalizeModelName(item.model || 'unknown'),
+              rawModel: item.model || undefined,
               inputTokens,
               cacheWriteTokens,
               cacheReadTokens,

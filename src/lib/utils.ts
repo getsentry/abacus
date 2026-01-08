@@ -78,10 +78,13 @@ export function cn(...classes: (string | boolean | undefined | null)[]): string 
  * Normalize model name to canonical form at write-time.
  * Target format: "{family}-{version}" e.g., "sonnet-4", "haiku-3.5", "opus-4.5"
  *
+ * Thinking suffixes like (T) and (HT) are stripped so variants aggregate together.
+ * The raw model string should be preserved separately for auditing.
+ *
  * Handles:
  * - Full Anthropic names: "claude-3-5-haiku-20241022" → "haiku-3.5"
  * - Reversed short forms: "4-sonnet" → "sonnet-4"
- * - Suffixes: "4-sonnet (T)" → "sonnet-4 (T)"
+ * - Thinking variants: "claude-4-sonnet-thinking" → "sonnet-4"
  */
 export function normalizeModelName(model: string): string {
   if (!model) return model;
@@ -93,15 +96,10 @@ export function normalizeModelName(model: string): string {
     return MODEL_DEFAULT;
   }
 
-  // Extract suffix like (T) or (Thinking) if present
+  // Strip suffix like (T) or (Thinking) if present
   const suffixMatch = normalized.match(/\s*\(([^)]+)\)\s*$/);
-  let suffix = '';
   if (suffixMatch) {
-    suffix = suffixMatch[1];
     normalized = normalized.replace(suffixMatch[0], '').trim();
-    // Normalize suffix
-    if (suffix.toLowerCase() === 'thinking') suffix = 'T';
-    suffix = suffix.toUpperCase();
   }
 
   // Handle full Anthropic model names with dates
@@ -135,21 +133,19 @@ export function normalizeModelName(model: string): string {
     }
   }
 
-  // "claude-4-sonnet-high-thinking" → "sonnet-4" with suffix HT
+  // "claude-4-sonnet-high-thinking" → "sonnet-4"
   if (!match) {
     match = normalized.match(/^claude-(\d+(?:\.\d+)?)-([a-z]+)-high-thinking$/);
     if (match) {
       normalized = `${match[2]}-${match[1]}`;
-      suffix = 'HT';
     }
   }
 
-  // "claude-4-sonnet-thinking" → "sonnet-4" with suffix T
+  // "claude-4-sonnet-thinking" → "sonnet-4"
   if (!match) {
     match = normalized.match(/^claude-(\d+(?:\.\d+)?)-([a-z]+)-thinking$/);
     if (match) {
       normalized = `${match[2]}-${match[1]}`;
-      suffix = 'T';
     }
   }
 
@@ -174,10 +170,8 @@ export function normalizeModelName(model: string): string {
     normalized = `sonnet-${normalized}`;
   }
 
-  // Reconstruct with suffix if present
-  if (suffix) {
-    normalized = `${normalized} (${suffix})`;
-  }
+  // Note: suffixes like (T) and (HT) are intentionally stripped
+  // so that thinking variants aggregate with base models
 
   return normalized;
 }

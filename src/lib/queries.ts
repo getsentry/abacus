@@ -627,7 +627,7 @@ export async function getAllUsersPivot(
           la."lastActive",
           COUNT(DISTINCT r.date)::int as "daysActive",
           COUNT(DISTINCT r.tool)::int as "toolCount",
-          BOOL_OR(r.model LIKE '%(%T%)' OR r.model LIKE '%(%HT%)')::boolean as "hasThinkingModels"
+          BOOL_OR(r.raw_model LIKE '% (T)' OR r.raw_model LIKE '% (HT)' OR r.raw_model LIKE '%-thinking' OR r.raw_model LIKE '%-high-thinking')::boolean as "hasThinkingModels"
         FROM usage_records r
         JOIN (
           SELECT email, MAX(date)::text as "lastActive"
@@ -655,7 +655,7 @@ export async function getAllUsersPivot(
           la."lastActive",
           COUNT(DISTINCT r.date)::int as "daysActive",
           COUNT(DISTINCT r.tool)::int as "toolCount",
-          BOOL_OR(r.model LIKE '%(%T%)' OR r.model LIKE '%(%HT%)')::boolean as "hasThinkingModels"
+          BOOL_OR(r.raw_model LIKE '% (T)' OR r.raw_model LIKE '% (HT)' OR r.raw_model LIKE '%-thinking' OR r.raw_model LIKE '%-high-thinking')::boolean as "hasThinkingModels"
         FROM usage_records r
         JOIN (
           SELECT email, MAX(date)::text as "lastActive"
@@ -731,6 +731,7 @@ export async function insertUsageRecord(record: {
   email: string | null;
   tool: string;
   model: string;
+  rawModel?: string;
   inputTokens: number;
   cacheWriteTokens: number;
   cacheReadTokens: number;
@@ -739,10 +740,11 @@ export async function insertUsageRecord(record: {
   toolRecordId?: string;
 }): Promise<void> {
   await sql`
-    INSERT INTO usage_records (date, email, tool, model, input_tokens, cache_write_tokens, cache_read_tokens, output_tokens, cost, tool_record_id)
-    VALUES (${record.date}, ${record.email}, ${record.tool}, ${record.model}, ${record.inputTokens}, ${record.cacheWriteTokens}, ${record.cacheReadTokens}, ${record.outputTokens}, ${record.cost}, ${record.toolRecordId || null})
-    ON CONFLICT (date, COALESCE(email, ''), tool, model, COALESCE(tool_record_id, ''))
+    INSERT INTO usage_records (date, email, tool, model, raw_model, input_tokens, cache_write_tokens, cache_read_tokens, output_tokens, cost, tool_record_id)
+    VALUES (${record.date}, ${record.email}, ${record.tool}, ${record.model}, ${record.rawModel || null}, ${record.inputTokens}, ${record.cacheWriteTokens}, ${record.cacheReadTokens}, ${record.outputTokens}, ${record.cost}, ${record.toolRecordId || null})
+    ON CONFLICT (date, COALESCE(email, ''), tool, COALESCE(raw_model, ''), COALESCE(tool_record_id, ''))
     DO UPDATE SET
+      model = EXCLUDED.model,
       input_tokens = EXCLUDED.input_tokens,
       cache_write_tokens = EXCLUDED.cache_write_tokens,
       cache_read_tokens = EXCLUDED.cache_read_tokens,

@@ -48,6 +48,7 @@ export const usageRecords = pgTable('usage_records', {
   email: varchar('email', { length: 255 }).notNull(),
   tool: varchar('tool', { length: 64 }).notNull(),
   model: varchar('model', { length: 128 }).notNull(),
+  rawModel: varchar('raw_model', { length: 128 }),
   inputTokens: integer('input_tokens').default(0),
   cacheWriteTokens: integer('cache_write_tokens').default(0),
   cacheReadTokens: integer('cache_read_tokens').default(0),
@@ -61,12 +62,12 @@ export const usageRecords = pgTable('usage_records', {
   index('idx_usage_date_email').on(table.date, table.email),
   // Partial index for tool_record_id lookups (only where not null)
   index('idx_usage_tool_record_id').on(table.tool, table.toolRecordId),
-  // Unique index for deduplication (using raw SQL for COALESCE)
+  // Unique index for deduplication using raw_model (preserves original model strings)
   uniqueIndex('idx_usage_unique').on(
     table.date,
-    table.email,
+    sql`COALESCE(${table.email}, '')`,
     table.tool,
-    table.model,
+    sql`COALESCE(${table.rawModel}, '')`,
     sql`COALESCE(${table.toolRecordId}, '')`
   ),
 ]);
