@@ -1,7 +1,7 @@
 'use client';
 
 import { useSearchParams } from 'next/navigation';
-import { Suspense, useState } from 'react';
+import { Suspense, useState, useEffect, useCallback } from 'react';
 import { authClient } from '@/lib/auth-client';
 import { AbacusLogo } from '@/components/AbacusLogo';
 
@@ -11,17 +11,43 @@ function SignInContent() {
   const error = searchParams.get('error');
   const [loading, setLoading] = useState(false);
 
-  const handleGoogleSignIn = async () => {
+  // Reset loading state when page becomes visible again (user returned from OAuth flow)
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible' && loading) {
+        // Small delay to allow redirect to complete if successful
+        const timeout = setTimeout(() => {
+          setLoading(false);
+        }, 1000);
+        return () => clearTimeout(timeout);
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [loading]);
+
+  const handleGoogleSignIn = useCallback(async () => {
     setLoading(true);
+
+    // Fallback timeout: reset loading if OAuth doesn't redirect within 10s
+    // This handles cases where the redirect fails silently (popup blocked, etc.)
+    const fallbackTimeout = setTimeout(() => {
+      setLoading(false);
+    }, 10000);
+
     try {
       await authClient.signIn.social({
         provider: 'google',
         callbackURL: callbackUrl,
       });
     } catch {
+      clearTimeout(fallbackTimeout);
       setLoading(false);
     }
-  };
+  }, [callbackUrl]);
 
   return (
     <div className="min-h-screen bg-[#0a0a0f] text-white grid-bg flex items-center justify-center p-4">
