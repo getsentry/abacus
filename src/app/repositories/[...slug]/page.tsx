@@ -59,14 +59,6 @@ interface RepositoryCommit {
   attributions?: CommitAttribution[];
 }
 
-interface RepositoryAuthor {
-  authorEmail: string;
-  totalCommits: number;
-  aiAssistedCommits: number;
-  aiAssistanceRate: number;
-  lastCommit: string;
-}
-
 interface DailyStats {
   date: string;
   totalCommits: number;
@@ -80,7 +72,6 @@ interface RepositoryData {
   details: RepositoryDetails;
   commits: RepositoryCommit[];
   totalCommits: number;
-  authors: RepositoryAuthor[];
   dailyStats: DailyStats[];
 }
 
@@ -220,28 +211,9 @@ function CommitRow({ commit, source, repoFullName }: { commit: RepositoryCommit;
   );
 }
 
-function AuthorCard({ author }: { author: RepositoryAuthor }) {
-  const username = author.authorEmail.split('@')[0];
-
-  return (
-    <div className="flex items-center justify-between py-2 px-3 rounded bg-white/[0.02] border border-white/5">
-      <div className="min-w-0">
-        <div className="font-mono text-sm text-white/80 truncate">{username}</div>
-        <div className="font-mono text-[10px] text-white/40">
-          {author.totalCommits} commits
-        </div>
-      </div>
-      <div className="text-right">
-        <div className="font-mono text-sm text-white/60">{author.aiAssistanceRate}%</div>
-        <div className="font-mono text-[10px] text-white/30">AI</div>
-      </div>
-    </div>
-  );
-}
-
 export default function RepositoryDetailPage() {
   const params = useParams();
-  const { range, setRange, getDateParams, isPending } = useTimeRange();
+  const { days, range, setRange, getDateParams, isPending } = useTimeRange();
   const [data, setData] = useState<RepositoryData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -407,6 +379,7 @@ export default function RepositoryDetailPage() {
                 >
                   <h3 className="font-mono text-xs uppercase tracking-wider text-white/60 mb-4">
                     AI Tool Attribution
+                    <span className="text-white/20"> ({days}d)</span>
                   </h3>
 
                   {/* Stacked bar */}
@@ -496,13 +469,13 @@ export default function RepositoryDetailPage() {
                 </motion.div>
               )}
 
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+              <div>
                 {/* Commits List */}
                 <motion.div
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: 0.2 }}
-                  className="lg:col-span-2 bg-white/[0.02] border border-white/5 rounded-lg overflow-hidden"
+                  className="bg-white/[0.02] border border-white/5 rounded-lg overflow-hidden"
                 >
                   {/* Header with filter */}
                   <div className="flex items-center justify-between px-4 py-3 border-b border-white/5">
@@ -564,25 +537,6 @@ export default function RepositoryDetailPage() {
                       </button>
                     </div>
                   )}
-                </motion.div>
-
-                {/* Authors Sidebar */}
-                <motion.div
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.25 }}
-                  className="bg-white/[0.02] border border-white/5 rounded-lg overflow-hidden"
-                >
-                  <div className="px-4 py-3 border-b border-white/5">
-                    <h3 className="font-mono text-xs uppercase tracking-wider text-white/60">
-                      Top Contributors
-                    </h3>
-                  </div>
-                  <div className="p-3 space-y-2 max-h-[500px] overflow-y-auto">
-                    {data.authors.map((author) => (
-                      <AuthorCard key={author.authorEmail} author={author} />
-                    ))}
-                  </div>
                 </motion.div>
               </div>
 
