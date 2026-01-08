@@ -208,11 +208,20 @@ GITHUB_TOKEN=ghp_...
 
 - **Real-time**: Webhook receives push events instantly
 - **Backfill**: Cron job runs every 6 hours to fill gaps (90-day target)
-- **Detection**: Identifies commits with AI attribution patterns:
-  - `Co-Authored-By: Claude <*@anthropic.com>`
-  - `Co-Authored-By: Cursor <*>`
-  - `Co-Authored-By: GitHub Copilot <*>`
-  - `🤖 Generated with [Claude Code]`
+- **Detection**: Identifies commits with AI attribution patterns
+
+**Detected patterns:**
+| Pattern | Tool |
+|---------|------|
+| `Co-Authored-By: Claude <*@anthropic.com>` | Claude Code |
+| `🤖 Generated with [Claude Code]` | Claude Code |
+| `Co-Authored-By: Codex <*>` | Codex |
+| `Co-Authored-By: GitHub Copilot <*>` | GitHub Copilot |
+| `Co-Authored-By: Copilot <*>` | GitHub Copilot |
+| Author: `copilot-swe-agent[bot]` | GitHub Copilot |
+| `Co-Authored-By: Cursor <*>` | Cursor |
+| `Co-Authored-By: Windsurf <*>` | Windsurf |
+| `Co-Authored-By: Codeium <*>` | Windsurf |
 
 #### Manual Sync
 

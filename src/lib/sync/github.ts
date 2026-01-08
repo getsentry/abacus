@@ -74,7 +74,11 @@ const AI_PATTERNS: Array<{
   tool: string;
   modelExtractor?: (match: RegExpMatchArray) => string | undefined;
 }> = [
-  // Claude Code / Claude - matches "Co-Authored-By: Claude <name>" or with model info
+  // ===========================================
+  // Claude Code (Anthropic)
+  // ===========================================
+  // Co-Authored-By: Claude <noreply@anthropic.com>
+  // Co-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>
   {
     pattern: /Co-Authored-By:\s*Claude\s*([\w\s.-]*)\s*<[^>]*@anthropic\.com>/i,
     tool: 'claude_code',
@@ -87,43 +91,79 @@ const AI_PATTERNS: Array<{
       return undefined;
     }
   },
-  // Generated with Claude Code marker
+  // 🤖 Generated with [Claude Code](https://claude.com/claude-code)
   {
     pattern: /Generated with \[Claude Code\]/i,
     tool: 'claude_code',
   },
-  // Cursor AI
+
+  // ===========================================
+  // OpenAI Codex
+  // ===========================================
+  // Co-authored-by: Codex <*>
   {
-    pattern: /Co-Authored-By:\s*Cursor\s*<[^>]*>/i,
-    tool: 'cursor',
+    pattern: /Co-Authored-By:\s*Codex\b[^<]*<[^>]*>/i,
+    tool: 'codex',
   },
-  // GitHub Copilot (full name)
+
+  // ===========================================
+  // GitHub Copilot
+  // ===========================================
+  // Co-Authored-By: GitHub Copilot <*>
   {
     pattern: /Co-Authored-By:\s*GitHub\s*Copilot\s*<[^>]*>/i,
     tool: 'github_copilot',
   },
-  // Copilot (short name)
+  // Co-Authored-By: Copilot <*>
   {
     pattern: /Co-Authored-By:\s*Copilot\s*<[^>]*>/i,
-    tool: 'copilot',
+    tool: 'github_copilot',
   },
-  // Codeium
+
+  // ===========================================
+  // Cursor
+  // ===========================================
   {
-    pattern: /Co-Authored-By:\s*Codeium\s*<[^>]*>/i,
-    tool: 'codeium',
+    pattern: /Co-Authored-By:\s*Cursor\s*<[^>]*>/i,
+    tool: 'cursor',
   },
-  // Windsurf
+
+  // ===========================================
+  // Windsurf (Codeium)
+  // ===========================================
   {
     pattern: /Co-Authored-By:\s*Windsurf\s*<[^>]*>/i,
     tool: 'windsurf',
   },
+  {
+    pattern: /Co-Authored-By:\s*Codeium\s*<[^>]*>/i,
+    tool: 'windsurf',
+  },
+];
+
+// Author patterns - detected from commit author field, not message
+const AI_AUTHOR_PATTERNS: Array<{
+  pattern: RegExp;
+  tool: string;
+}> = [
+  // GitHub Copilot Coding Agent: copilot-swe-agent[bot]
+  { pattern: /copilot-swe-agent\[bot\]/i, tool: 'github_copilot' },
 ];
 
 /**
- * Detect AI attribution in a commit message.
+ * Detect AI attribution in a commit message and/or author field.
  * Returns the AI tool and optionally the model if detectable.
+ *
+ * @param commitMessage - The full commit message
+ * @param authorName - Optional author name (e.g., "John Doe (aider)")
+ * @param authorEmail - Optional author email (e.g., "copilot-swe-agent[bot]@users.noreply.github.com")
  */
-export function detectAiAttribution(commitMessage: string): AiAttribution | null {
+export function detectAiAttribution(
+  commitMessage: string,
+  authorName?: string,
+  authorEmail?: string
+): AiAttribution | null {
+  // First check commit message patterns
   for (const { pattern, tool, modelExtractor } of AI_PATTERNS) {
     const match = commitMessage.match(pattern);
     if (match) {
@@ -133,6 +173,15 @@ export function detectAiAttribution(commitMessage: string): AiAttribution | null
       };
     }
   }
+
+  // Then check author patterns (name and email)
+  const authorString = `${authorName || ''} ${authorEmail || ''}`;
+  for (const { pattern, tool } of AI_AUTHOR_PATTERNS) {
+    if (pattern.test(authorString)) {
+      return { tool };
+    }
+  }
+
   return null;
 }
 
@@ -414,7 +463,11 @@ export async function processWebhookPush(payload: GitHubPushEvent): Promise<Sync
 
     for (const commit of payload.commits) {
       try {
-        const aiAttribution = detectAiAttribution(commit.message);
+        const aiAttribution = detectAiAttribution(
+          commit.message,
+          commit.author.name,
+          commit.author.email
+        );
 
         // Webhook doesn't include stats, estimate from file changes
         const additions = commit.added.length + commit.modified.length;
@@ -527,7 +580,11 @@ export async function syncGitHubRepo(
 
       for (const commit of commits) {
         try {
-          const aiAttribution = detectAiAttribution(commit.commit.message);
+          const aiAttribution = detectAiAttribution(
+            commit.commit.message,
+            commit.commit.author.name,
+            commit.commit.author.email
+          );
 
           await insertCommit({
             repoId,
