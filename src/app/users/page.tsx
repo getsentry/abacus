@@ -175,7 +175,7 @@ function UsersPageContent() {
       <div className="border-b border-white/5">
         <PageContainer className="py-3">
           <div className="flex items-center justify-between">
-            <h2 className="font-mono text-[10px] uppercase tracking-[0.2em] text-white/40">
+            <h2 className="font-mono text-xs uppercase tracking-wider text-white/60">
               {loading ? '\u00A0' : totalCount > users.length
                 ? `${users.length} of ${totalCount} users (showing first ${users.length})`
                 : `${users.length} users`}

@@ -300,7 +300,7 @@ function CommitsPageContent() {
       <div className="border-b border-white/5">
         <PageContainer className="py-3">
           <div className="flex items-center justify-between">
-            <h2 className="font-mono text-[10px] uppercase tracking-[0.2em] text-white/40">
+            <h2 className="font-mono text-xs uppercase tracking-wider text-white/60">
               {loading ? '\u00A0' : totalCount > repositories.length
                 ? `${repositories.length} of ${totalCount} repositories (showing first ${repositories.length})`
                 : `${repositories.length} repositories`}

@@ -111,7 +111,7 @@ function ProviderCard({ provider, index }: { provider: ProviderStatus; index: nu
       {/* Forward Sync Section */}
       <div className="mb-6">
         <div className="flex items-center justify-between mb-2">
-          <span className="text-[10px] uppercase tracking-[0.2em] text-white/40 font-mono">
+          <span className="text-xs uppercase tracking-wider text-white/60 font-mono">
             Forward Sync
           </span>
           <StatusBadge status={provider.forwardSync.status} />
@@ -124,7 +124,7 @@ function ProviderCard({ provider, index }: { provider: ProviderStatus; index: nu
       {/* Backfill Section */}
       <div>
         <div className="flex items-center justify-between mb-2">
-          <span className="text-[10px] uppercase tracking-[0.2em] text-white/40 font-mono">
+          <span className="text-xs uppercase tracking-wider text-white/60 font-mono">
             Historical Data
           </span>
           <BackfillBadge status={provider.backfill.status} />
@@ -168,7 +168,7 @@ export default function StatusPage() {
       {/* Page Title */}
       <div className="border-b border-white/5">
         <PageContainer className="py-3">
-          <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-white/40">
+          <p className="font-mono text-xs uppercase tracking-wider text-white/60">
             Provider sync status
           </p>
         </PageContainer>
@@ -200,7 +200,7 @@ export default function StatusPage() {
                     </p>
                     <div className="flex items-center gap-6">
                       <div>
-                        <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-white/40 block mb-1">
+                        <span className="font-mono text-xs uppercase tracking-wider text-white/60 block mb-1">
                           Tokens
                         </span>
                         <span className="font-display text-xl text-white">
@@ -208,7 +208,7 @@ export default function StatusPage() {
                         </span>
                       </div>
                       <div>
-                        <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-white/40 block mb-1">
+                        <span className="font-mono text-xs uppercase tracking-wider text-white/60 block mb-1">
                           Estimated Cost
                         </span>
                         <span className="font-display text-xl text-white">
@@ -251,13 +251,13 @@ export default function StatusPage() {
                 <table className="w-full">
                   <thead>
                     <tr className="border-b border-white/5 bg-white/[0.02]">
-                      <th className="px-6 py-3 text-left text-[10px] uppercase tracking-[0.2em] text-white/40 font-mono">
+                      <th className="px-6 py-3 text-left text-xs uppercase tracking-wider text-white/60 font-mono">
                         Endpoint
                       </th>
-                      <th className="px-6 py-3 text-left text-[10px] uppercase tracking-[0.2em] text-white/40 font-mono">
+                      <th className="px-6 py-3 text-left text-xs uppercase tracking-wider text-white/60 font-mono">
                         Type
                       </th>
-                      <th className="px-6 py-3 text-left text-[10px] uppercase tracking-[0.2em] text-white/40 font-mono">
+                      <th className="px-6 py-3 text-left text-xs uppercase tracking-wider text-white/60 font-mono">
                         Schedule
                       </th>
                     </tr>

@@ -366,7 +366,7 @@ export default function RepositoryDetailPage() {
                   transition={{ delay: 0.1 }}
                   className="bg-white/[0.02] border border-white/5 rounded-lg p-6"
                 >
-                  <h3 className="font-mono text-[10px] uppercase tracking-[0.2em] text-white/40 mb-4">
+                  <h3 className="font-mono text-xs uppercase tracking-wider text-white/60 mb-4">
                     AI Tool Attribution
                   </h3>
 
@@ -414,7 +414,7 @@ export default function RepositoryDetailPage() {
                   transition={{ delay: 0.15 }}
                   className="bg-white/[0.02] border border-white/5 rounded-lg p-6"
                 >
-                  <h3 className="font-mono text-[10px] uppercase tracking-[0.2em] text-white/40 mb-4">
+                  <h3 className="font-mono text-xs uppercase tracking-wider text-white/60 mb-4">
                     Daily Commits
                   </h3>
                   <div className="flex items-end gap-1 h-32">
@@ -467,7 +467,7 @@ export default function RepositoryDetailPage() {
                 >
                   {/* Header with filter */}
                   <div className="flex items-center justify-between px-4 py-3 border-b border-white/5">
-                    <h3 className="font-mono text-[10px] uppercase tracking-[0.2em] text-white/40">
+                    <h3 className="font-mono text-xs uppercase tracking-wider text-white/60">
                       Commits ({data.totalCommits})
                     </h3>
                     <div className="flex items-center gap-2">
@@ -535,7 +535,7 @@ export default function RepositoryDetailPage() {
                   className="bg-white/[0.02] border border-white/5 rounded-lg overflow-hidden"
                 >
                   <div className="px-4 py-3 border-b border-white/5">
-                    <h3 className="font-mono text-[10px] uppercase tracking-[0.2em] text-white/40">
+                    <h3 className="font-mono text-xs uppercase tracking-wider text-white/60">
                       Top Contributors
                     </h3>
                   </div>
