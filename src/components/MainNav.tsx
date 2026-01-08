@@ -28,7 +28,7 @@ const navItems: NavItem[] = [
 export function MainNav({ days }: MainNavProps) {
   const pathname = usePathname();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const menuRef = useRef<HTMLDivElement>(null);
+  const menuRef = useRef<HTMLElement>(null);
 
   // Close menu when clicking outside
   useEffect(() => {
