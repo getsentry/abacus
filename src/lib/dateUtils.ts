@@ -182,14 +182,15 @@ export const quickRanges: Record<QuickRangeKey, () => { startDate: string; endDa
 
 /**
  * Convert a TimeRange to startDate/endDate for API calls
+ * For relative ranges, "N days" means today plus the previous N-1 days (N total days)
  */
 export function getDateRange(range: TimeRange): { startDate: string; endDate: string } {
   if (range.type === 'absolute') {
     return { startDate: range.startDate, endDate: range.endDate };
   }
-  // Relative: last N days
+  // Relative: last N days (today + previous N-1 days)
   const now = new Date();
-  const start = subDays(now, range.days);
+  const start = subDays(now, range.days - 1);
   return {
     startDate: formatDate(start),
     endDate: formatDate(now),
