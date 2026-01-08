@@ -64,6 +64,10 @@ Normalize at write-time via `normalizeModelName()`: `sonnet-4`, `opus-4.5 (T)`, 
 - Thresholds: Power User 3M+, In Flow 1M+, Building Momentum 250K+
 - See `src/lib/adoption.ts`
 
+## Frontend & UI
+
+Use `ui-design` skill when creating or modifying frontend components. Covers color palette, typography, shared components, and design patterns. See `.claude/skills/ui-design/SKILL.md`
+
 ## Tips & Guides
 
 Use `write-tip` skill when editing tips. Key files: `src/lib/tips.ts`, `.claude/skills/write-tip/SKILL.md`
