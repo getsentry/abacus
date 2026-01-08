@@ -1,7 +1,7 @@
 'use client';
 
 import { useSearchParams } from 'next/navigation';
-import { Suspense, useState } from 'react';
+import { Suspense, useState, useEffect, useCallback, useRef } from 'react';
 import { authClient } from '@/lib/auth-client';
 import { AbacusLogo } from '@/components/AbacusLogo';
 
@@ -10,18 +10,68 @@ function SignInContent() {
   const callbackUrl = searchParams.get('callbackUrl') || '/';
   const error = searchParams.get('error');
   const [loading, setLoading] = useState(false);
+  const fallbackTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const handleGoogleSignIn = async () => {
+  // Reset loading state when user returns to page
+  // Handles: bfcache restore (back button), tab switching, app switching on mobile
+  useEffect(() => {
+    let visibilityTimeoutId: ReturnType<typeof setTimeout> | null = null;
+
+    // Handle bfcache restore (back-forward cache)
+    // This is the PRIMARY fix for mobile back button navigation
+    const handlePageShow = (event: PageTransitionEvent) => {
+      if (event.persisted) {
+        // Page was restored from bfcache - reset loading state
+        setLoading(false);
+        if (fallbackTimeoutRef.current) {
+          clearTimeout(fallbackTimeoutRef.current);
+          fallbackTimeoutRef.current = null;
+        }
+      }
+    };
+
+    // Handle tab/app switching (works on most browsers, but NOT Safari navigation)
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible' && loading) {
+        // Clear any pending timeout
+        if (visibilityTimeoutId) clearTimeout(visibilityTimeoutId);
+        // Small delay to allow redirect to complete if successful
+        visibilityTimeoutId = setTimeout(() => setLoading(false), 1000);
+      }
+    };
+
+    window.addEventListener('pageshow', handlePageShow);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      window.removeEventListener('pageshow', handlePageShow);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      if (visibilityTimeoutId) clearTimeout(visibilityTimeoutId);
+    };
+  }, [loading]);
+
+  const handleGoogleSignIn = useCallback(async () => {
     setLoading(true);
+
+    // Fallback timeout: reset loading if OAuth doesn't redirect within 10s
+    // This handles cases where the redirect fails silently (popup blocked, etc.)
+    fallbackTimeoutRef.current = setTimeout(() => {
+      setLoading(false);
+    }, 10000);
+
     try {
       await authClient.signIn.social({
         provider: 'google',
         callbackURL: callbackUrl,
       });
     } catch {
+      if (fallbackTimeoutRef.current) {
+        clearTimeout(fallbackTimeoutRef.current);
+        fallbackTimeoutRef.current = null;
+      }
       setLoading(false);
     }
-  };
+  }, [callbackUrl]);
 
   return (
     <div className="min-h-screen bg-[#0a0a0f] text-white grid-bg flex items-center justify-center p-4">
