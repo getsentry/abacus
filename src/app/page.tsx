@@ -82,6 +82,12 @@ interface AdoptionData {
   inactive: { count: number; users: string[] };
   totalUsers: number;
   activeUsers: number;
+  previousPeriod?: {
+    avgScore: number;
+    activeUsers: number;
+    inFlowCount: number;
+    powerUserCount: number;
+  };
 }
 
 function DashboardContent() {
@@ -118,7 +124,7 @@ function DashboardContent() {
         fetch(`/api/users?limit=10&${params}`),
         fetch(`/api/trends?${params}`),
         fetch(`/api/models?${params}`),
-        fetch(`/api/adoption?${params}`),
+        fetch(`/api/adoption?${params}&comparison=true`),
       ]);
 
       const [statsData, usersData, trendsData, modelsData, adoptionDataRes] = await Promise.all([
@@ -262,6 +268,12 @@ function DashboardContent() {
                 const productivePercent = stats.activeUsers > 0
                   ? Math.round((productiveCount / stats.activeUsers) * 100)
                   : 0;
+                // Calculate previous period productive percentage for trend
+                const prev = adoptionData?.previousPeriod;
+                const prevProductiveCount = prev ? (prev.inFlowCount + prev.powerUserCount) : 0;
+                const prevProductivePercent = prev && prev.activeUsers > 0
+                  ? Math.round((prevProductiveCount / prev.activeUsers) * 100)
+                  : 0;
                 return (
                   <StatCard
                     label="Productive"
@@ -270,6 +282,7 @@ function DashboardContent() {
                     suffix="of active users"
                     icon={Target}
                     accentColor="#8b5cf6"
+                    trend={prev ? calculateDelta(productivePercent, prevProductivePercent) : undefined}
                     delay={0.3}
                   >
                     <p className="font-mono text-xs text-white/50">
