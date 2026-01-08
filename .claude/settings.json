@@ -62,7 +62,18 @@
       "Skill(sentry-skills:find-bugs)",
       "Skill(sentry-skills:deslop)",
       "Skill(sentry-skills:iterate-pr)",
-      "Skill(sentry-skills:claude-settings-audit)"
+      "Skill(sentry-skills:claude-settings-audit)",
+
+      "mcp__sentry__whoami",
+      "mcp__sentry__find_teams",
+      "mcp__sentry__find_releases",
+      "mcp__sentry__get_issue_details",
+      "mcp__sentry__get_trace_details",
+      "mcp__sentry__get_event_attachment",
+      "mcp__sentry__search_events",
+      "mcp__sentry__analyze_issue_with_seer",
+      "mcp__sentry__search_issues",
+      "mcp__sentry__search_issue_events"
     ],
     "deny": []
   }
