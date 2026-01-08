@@ -69,7 +69,7 @@ async function handler() {
     };
 
     crons.push(
-      { path: '/api/cron/sync-anthropic', schedule: 'Daily at 6 AM UTC', type: 'forward' },
+      { path: '/api/cron/sync-anthropic', schedule: 'Hourly', type: 'forward' },
       { path: '/api/cron/backfill-anthropic', schedule: 'Every 6 hours', type: 'backfill' }
     );
   }
