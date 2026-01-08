@@ -72,7 +72,7 @@ function TipsIndexContent() {
       {/* Header */}
       <header className="relative z-20 border-b border-white/5">
         <PageContainer className="py-4">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="flex items-center justify-between gap-4">
             <MainNav days={days} />
             <UserMenu />
           </div>
