@@ -29,6 +29,10 @@ export interface GitHubPushEvent {
     name: string;
     email: string;
   };
+  sender?: {
+    id: number;
+    login: string;
+  };
 }
 
 interface GitHubCommitResponse {
@@ -67,6 +71,27 @@ export interface SyncResult {
 }
 
 const SYNC_STATE_ID = 'github';
+
+// ============================================
+// GitHub User ID Extraction
+// ============================================
+
+/**
+ * Extract GitHub user ID from noreply email pattern.
+ * GitHub noreply emails follow the format: {id}+{username}@users.noreply.github.com
+ * Returns the numeric user ID if found, null otherwise.
+ */
+export function extractGitHubUserIdFromEmail(email: string | null | undefined): string | null {
+  if (!email) return null;
+
+  // Match pattern: {id}+{username}@users.noreply.github.com
+  const match = email.match(/^(\d+)\+[^@]+@users\.noreply\.github\.com$/i);
+  if (match) {
+    return match[1];
+  }
+
+  return null;
+}
 
 // ============================================
 // AI Attribution Detection
@@ -460,8 +485,8 @@ interface CommitInsert {
   message: string | null;
   aiTool: string | null;
   aiModel: string | null;
-  additions: number;
-  deletions: number;
+  additions: number | null;
+  deletions: number | null;
   // For multi-tool attribution support
   attributions?: AiAttribution[];
 }
@@ -532,8 +557,8 @@ async function insertCommit(commit: CommitInsert): Promise<void> {
       message = COALESCE(EXCLUDED.message, commits.message),
       ai_tool = EXCLUDED.ai_tool,
       ai_model = EXCLUDED.ai_model,
-      additions = EXCLUDED.additions,
-      deletions = EXCLUDED.deletions
+      additions = COALESCE(EXCLUDED.additions, commits.additions),
+      deletions = COALESCE(EXCLUDED.deletions, commits.deletions)
     RETURNING id
   `;
 
@@ -616,6 +641,14 @@ export async function resetGitHubBackfillComplete(): Promise<void> {
 /**
  * Process a GitHub push webhook event.
  * Extracts commits and stores them with AI attribution detection.
+ *
+ * Author ID resolution (no API calls):
+ * 1. Extract from noreply email pattern: {id}+{username}@users.noreply.github.com
+ * 2. Use sender.id if sender.login matches commit author username
+ * 3. Otherwise null - backfill will populate later
+ *
+ * Line stats (additions/deletions) are not available in webhook payload,
+ * they will be populated by the backfill process.
  */
 export async function processWebhookPush(payload: GitHubPushEvent): Promise<SyncResult> {
   const result: SyncResult = {
@@ -634,36 +667,20 @@ export async function processWebhookPush(payload: GitHubPushEvent): Promise<Sync
     return result;
   }
 
-  // Get token for fetching commit stats
-  let token: string | null = null;
-  try {
-    token = await getGitHubToken();
-  } catch {
-    // Continue without token - stats will be 0
-  }
-
   try {
     const repoId = await getOrCreateRepository('github', repoFullName);
 
     for (const commit of payload.commits) {
       try {
-        // Fetch commit details from API (webhook doesn't include line counts or parent info)
-        let additions = 0;
-        let deletions = 0;
-        if (token) {
-          const commitDetails = await fetchCommitDetails(repoFullName, commit.id, token);
+        // Try to extract author ID without API calls:
+        // 1. From noreply email pattern: {id}+{username}@users.noreply.github.com
+        // 2. From sender if sender.login matches commit author username
+        let authorId = extractGitHubUserIdFromEmail(commit.author.email);
 
-          // Skip merge commits (2+ parents) - they don't represent actual code changes
-          if (commitDetails?.isMerge) {
-            continue;
+        if (!authorId && payload.sender && commit.author.username) {
+          if (payload.sender.login === commit.author.username) {
+            authorId = payload.sender.id.toString();
           }
-
-          if (commitDetails) {
-            additions = commitDetails.additions;
-            deletions = commitDetails.deletions;
-          }
-          // Small delay to be nice to the API
-          await new Promise(resolve => setTimeout(resolve, 50));
         }
 
         const attributions = detectAllAiAttributions(
@@ -675,19 +692,18 @@ export async function processWebhookPush(payload: GitHubPushEvent): Promise<Sync
         // Use first attribution for backward-compatible ai_tool/ai_model fields
         const primaryAttribution = attributions[0] || null;
 
-        // Note: Webhook payload doesn't include author.id, will be null
-        // Author ID will be populated on next sync or backfill from API
+        // Line stats will be populated by backfill - webhook doesn't include them
         await insertCommit({
           repoId,
           commitId: commit.id,
           authorEmail: commit.author.email || null,
-          authorId: null,
+          authorId,
           committedAt: new Date(commit.timestamp),
           message: commit.message,
           aiTool: primaryAttribution?.tool || null,
           aiModel: primaryAttribution?.model || null,
-          additions,
-          deletions,
+          additions: null,
+          deletions: null,
           attributions,
         });
 
@@ -847,14 +863,14 @@ export async function syncGitHubRepo(
             continue;
           }
 
-          // Check if commit already exists in DB to avoid unnecessary API calls
+          // Check if commit already exists in DB with line stats populated
           const existing = await sql`
             SELECT id, additions, deletions FROM commits
             WHERE repo_id = ${repoId} AND commit_id = ${commit.sha}
           `;
 
-          // If commit exists and has line stats, skip it entirely
-          if (existing.rows.length > 0 && existing.rows[0].additions > 0) {
+          // If commit exists and has line stats (not null), skip it entirely
+          if (existing.rows.length > 0 && existing.rows[0].additions !== null) {
             continue;
           }
 
@@ -868,19 +884,12 @@ export async function syncGitHubRepo(
           const primaryAttribution = attributions[0] || null;
 
           // Fetch individual commit to get accurate line stats
-          // List commits endpoint doesn't include stats
-          // Only fetch if we don't already have the data
-          let additions = 0;
-          let deletions = 0;
+          const commitDetails = await fetchCommitDetails(repoFullName, commit.sha, token);
+          const additions = commitDetails?.additions ?? null;
+          const deletions = commitDetails?.deletions ?? null;
 
-          if (existing.rows.length === 0 || existing.rows[0].additions === 0) {
-            const commitDetails = await fetchCommitDetails(repoFullName, commit.sha, token);
-            additions = commitDetails?.additions || 0;
-            deletions = commitDetails?.deletions || 0;
-
-            // Rate limit: small delay between individual commit fetches
-            await new Promise(resolve => setTimeout(resolve, 50));
-          }
+          // Rate limit: small delay between individual commit fetches
+          await new Promise(resolve => setTimeout(resolve, 50));
 
           await insertCommit({
             repoId,
