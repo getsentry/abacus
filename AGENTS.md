@@ -1,5 +1,21 @@
 # Agent Instructions
 
+## Commit Attribution
+
+When committing code where an AI agent has generated a majority of the changes, you MUST include a `Co-Authored-By` trailer in the commit message:
+
+```
+Co-Authored-By: Claude <noreply@anthropic.com>
+```
+
+For model-specific attribution (preferred):
+```
+Co-Authored-By: Claude Sonnet 4 <noreply@anthropic.com>
+Co-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>
+```
+
+This is required for accurate AI attribution tracking in the commits dashboard.
+
 ## Authentication & Security
 
 This app uses better-auth with Google OAuth, restricted to the `DOMAIN` environment variable (e.g., `sentry.io`).
