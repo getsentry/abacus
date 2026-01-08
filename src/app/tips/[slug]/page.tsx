@@ -108,11 +108,11 @@ function GuideContent() {
 
             {/* Tool badges */}
             <div className="flex flex-wrap items-center gap-2">
-              <span className="font-mono text-[10px] text-white/30 uppercase tracking-wider">Works with:</span>
+              <span className="font-mono text-[11px] text-white/30 uppercase tracking-wider">Works with:</span>
               {guide.tools.map(tool => (
                 <span
                   key={tool}
-                  className={`inline-flex items-center px-2 py-0.5 rounded border font-mono text-[10px] ${TOOL_LABELS[tool].color}`}
+                  className={`inline-flex items-center px-2 py-0.5 rounded border font-mono text-[11px] ${TOOL_LABELS[tool].color}`}
                 >
                   {TOOL_LABELS[tool].label}
                 </span>

@@ -189,13 +189,13 @@ function UsersPageContent() {
       <div className="border-b border-white/5 overflow-x-auto">
         <PageContainer className="py-3">
           <div className="flex items-center gap-2 flex-nowrap sm:flex-wrap min-w-max sm:min-w-0">
-            <span className="font-mono text-[10px] uppercase tracking-wider text-white/40 mr-2">Columns:</span>
+            <span className="font-mono text-[11px] uppercase tracking-wider text-white/40 mr-2">Columns:</span>
             {columns.map(col => (
               <button
                 key={col.key}
                 onClick={() => toggleColumn(col.key)}
                 disabled={col.key === 'email'}
-                className={`px-2 py-1 rounded font-mono text-[10px] transition-colors whitespace-nowrap ${
+                className={`px-2 py-1 rounded font-mono text-[11px] transition-colors whitespace-nowrap ${
                   visibleColumns.has(col.key)
                     ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
                     : 'bg-white/5 text-white/40 border border-white/10 hover:bg-white/10'
@@ -229,7 +229,7 @@ function UsersPageContent() {
                         <th
                           key={col.key}
                           onClick={isSortable ? () => handleSort(col.key as SortKey) : undefined}
-                          className={`px-4 py-3 font-mono text-[10px] uppercase tracking-wider text-white/60 transition-colors ${
+                          className={`px-4 py-3 font-mono text-[11px] uppercase tracking-wider text-white/60 transition-colors ${
                             col.align === 'right' ? 'text-right' : 'text-left'
                           } ${isSortable ? 'cursor-pointer hover:text-white' : ''}`}
                         >

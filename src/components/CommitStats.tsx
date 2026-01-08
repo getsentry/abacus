@@ -48,9 +48,9 @@ export function CommitStats({
         </div>
         <AppLink
           href="/commits"
-          className="font-mono text-xs text-amber-500 hover:text-amber-400 transition-colors cursor-pointer"
+          className="font-mono text-xs text-amber-500 hover:text-amber-400 transition-colors"
         >
-          View details
+          View all →
         </AppLink>
       </div>
 
@@ -62,7 +62,7 @@ export function CommitStats({
           </span>
           <span className="font-mono text-xs text-white/40">AI Attributed</span>
         </div>
-        <p className="font-mono text-[10px] text-white/30 mt-1">
+        <p className="font-mono text-[11px] text-white/30 mt-1">
           {formatNumber(aiAssistedCommits)} of {formatNumber(totalCommits)} commits
         </p>
       </div>
@@ -95,7 +95,7 @@ export function CommitStats({
                       className={`h-full rounded-full ${config.bg}`}
                     />
                   </div>
-                  <span className="font-mono text-[10px] text-white/40 w-12 text-right">
+                  <span className="font-mono text-[11px] text-white/40 w-12 text-right">
                     {tool.commits}
                   </span>
                 </motion.div>

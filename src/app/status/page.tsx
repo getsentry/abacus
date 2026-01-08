@@ -79,11 +79,11 @@ function StatusBadge({ status }: { status: 'up_to_date' | 'behind' | 'never_sync
   const config = {
     up_to_date: { text: 'Up to date', className: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20' },
     behind: { text: 'Behind', className: 'text-amber-400 bg-amber-500/10 border-amber-500/20' },
-    never_synced: { text: 'Never synced', className: 'text-white/40 bg-white/5 border-white/10' }
+    never_synced: { text: 'Never synced', className: 'text-white/50 bg-white/5 border-white/10' }
   };
   const { text, className } = config[status];
   return (
-    <span className={`px-2 py-0.5 rounded text-[10px] uppercase tracking-wider font-mono border ${className}`}>
+    <span className={`px-2 py-0.5 rounded text-[11px] uppercase tracking-wider font-mono border ${className}`}>
       {text}
     </span>
   );
@@ -93,11 +93,11 @@ function BackfillBadge({ status }: { status: 'complete' | 'in_progress' | 'not_s
   const config = {
     complete: { text: 'Complete', className: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20' },
     in_progress: { text: 'In Progress', className: 'text-cyan-400 bg-cyan-500/10 border-cyan-500/20' },
-    not_started: { text: 'Not Started', className: 'text-white/40 bg-white/5 border-white/10' }
+    not_started: { text: 'Not Started', className: 'text-white/50 bg-white/5 border-white/10' }
   };
   const { text, className } = config[status];
   return (
-    <span className={`px-2 py-0.5 rounded text-[10px] uppercase tracking-wider font-mono border ${className}`}>
+    <span className={`px-2 py-0.5 rounded text-[11px] uppercase tracking-wider font-mono border ${className}`}>
       {text}
     </span>
   );
@@ -124,7 +124,7 @@ function ProviderCard({ provider, index }: { provider: ProviderStatus; index: nu
       {/* Forward Sync Section */}
       <div className="mb-5">
         <div className="flex items-center justify-between mb-1.5">
-          <span className="text-[10px] uppercase tracking-wider text-white/50 font-mono">
+          <span className="text-[11px] uppercase tracking-wider text-white/50 font-mono">
             Forward Sync
           </span>
           <StatusBadge status={provider.forwardSync.status} />
@@ -137,7 +137,7 @@ function ProviderCard({ provider, index }: { provider: ProviderStatus; index: nu
       {/* Backfill Section */}
       <div>
         <div className="flex items-center justify-between mb-1.5">
-          <span className="text-[10px] uppercase tracking-wider text-white/50 font-mono">
+          <span className="text-[11px] uppercase tracking-wider text-white/50 font-mono">
             Historical Data
           </span>
           <BackfillBadge status={provider.backfill.status} />
@@ -191,7 +191,7 @@ export default function StatusPage() {
       <main className="py-8">
         <PageContainer>
         {loading ? (
-          <div className="text-white/40 text-center py-12 font-mono">Loading...</div>
+          <div className="text-white/50 text-center py-12 font-mono">Loading...</div>
         ) : error ? (
           <div className="text-red-400 text-center py-12 font-mono">{error}</div>
         ) : data ? (
@@ -200,10 +200,10 @@ export default function StatusPage() {
             {data.lifetimeStats && (
               <AnimatedCard padding="lg">
                 <div className="flex items-center gap-2 mb-5">
-                  <Database className="w-4 h-4 text-white/40" />
+                  <Database className="w-4 h-4 text-white/50" />
                   <h2 className="font-display text-lg text-white">System Stats</h2>
                   {data.lifetimeStats.firstRecordDate && (
-                    <span className="font-mono text-[10px] text-white/30 ml-auto">
+                    <span className="font-mono text-[11px] text-white/30 ml-auto">
                       tracking since {formatDateShort(data.lifetimeStats.firstRecordDate)}
                     </span>
                   )}
@@ -214,7 +214,7 @@ export default function StatusPage() {
                     animate={{ opacity: 1 }}
                     transition={{ delay: 0.1 }}
                   >
-                    <span className="font-mono text-[10px] uppercase tracking-wider text-white/40 block mb-1">
+                    <span className="font-mono text-[11px] uppercase tracking-wider text-white/50 block mb-1">
                       Total Tokens
                     </span>
                     <span className="font-display text-2xl text-white">
@@ -229,7 +229,7 @@ export default function StatusPage() {
                     animate={{ opacity: 1 }}
                     transition={{ delay: 0.15 }}
                   >
-                    <span className="font-mono text-[10px] uppercase tracking-wider text-white/40 block mb-1">
+                    <span className="font-mono text-[11px] uppercase tracking-wider text-white/50 block mb-1">
                       Total Cost
                     </span>
                     <span className="font-display text-2xl text-white">
@@ -244,7 +244,7 @@ export default function StatusPage() {
                     animate={{ opacity: 1 }}
                     transition={{ delay: 0.2 }}
                   >
-                    <span className="font-mono text-[10px] uppercase tracking-wider text-white/40 block mb-1">
+                    <span className="font-mono text-[11px] uppercase tracking-wider text-white/50 block mb-1">
                       Users
                     </span>
                     <span className="font-display text-2xl text-white">
@@ -260,7 +260,7 @@ export default function StatusPage() {
                     transition={{ delay: 0.25 }}
                     className="hidden md:block"
                   >
-                    <span className="font-mono text-[10px] uppercase tracking-wider text-white/40 block mb-1">
+                    <span className="font-mono text-[11px] uppercase tracking-wider text-white/50 block mb-1">
                       Commits
                     </span>
                     <span className="font-display text-2xl text-white">
@@ -276,7 +276,7 @@ export default function StatusPage() {
                     transition={{ delay: 0.3 }}
                     className="hidden lg:block"
                   >
-                    <span className="font-mono text-[10px] uppercase tracking-wider text-white/40 block mb-1">
+                    <span className="font-mono text-[11px] uppercase tracking-wider text-white/50 block mb-1">
                       AI Commits
                     </span>
                     <span className="font-display text-2xl text-white">
@@ -306,7 +306,7 @@ export default function StatusPage() {
                     </p>
                     <div className="flex items-center gap-6">
                       <div>
-                        <span className="font-mono text-[10px] uppercase tracking-wider text-white/40 block mb-1">
+                        <span className="font-mono text-[11px] uppercase tracking-wider text-white/50 block mb-1">
                           Tokens
                         </span>
                         <span className="font-display text-xl text-amber-400">
@@ -315,7 +315,7 @@ export default function StatusPage() {
                       </div>
                       <div className="w-px h-8 bg-white/10" />
                       <div>
-                        <span className="font-mono text-[10px] uppercase tracking-wider text-white/40 block mb-1">
+                        <span className="font-mono text-[11px] uppercase tracking-wider text-white/50 block mb-1">
                           Estimated Cost
                         </span>
                         <span className="font-display text-xl text-amber-400">
@@ -339,7 +339,7 @@ export default function StatusPage() {
                 </div>
               ) : (
                 <Card padding="lg" className="text-center">
-                  <div className="text-white/40 font-mono text-sm mb-2">No providers configured</div>
+                  <div className="text-white/50 font-mono text-sm mb-2">No providers configured</div>
                   <div className="text-white/20 font-mono text-xs">
                     Set ANTHROPIC_ADMIN_KEY or CURSOR_ADMIN_KEY to enable tracking
                   </div>
@@ -355,13 +355,13 @@ export default function StatusPage() {
                   <table className="w-full">
                     <thead>
                       <tr className="border-b border-white/5">
-                        <th className="px-5 py-3 text-left text-[10px] uppercase tracking-wider text-white/40 font-mono">
+                        <th className="px-5 py-3 text-left text-[11px] uppercase tracking-wider text-white/50 font-mono">
                           Endpoint
                         </th>
-                        <th className="px-5 py-3 text-left text-[10px] uppercase tracking-wider text-white/40 font-mono">
+                        <th className="px-5 py-3 text-left text-[11px] uppercase tracking-wider text-white/50 font-mono">
                           Type
                         </th>
-                        <th className="px-5 py-3 text-left text-[10px] uppercase tracking-wider text-white/40 font-mono">
+                        <th className="px-5 py-3 text-left text-[11px] uppercase tracking-wider text-white/50 font-mono">
                           <div className="flex items-center gap-1.5">
                             <Clock className="w-3 h-3" />
                             Schedule
@@ -382,7 +382,7 @@ export default function StatusPage() {
                             {cron.path}
                           </td>
                           <td className="px-5 py-3">
-                            <span className={`text-[10px] uppercase tracking-wider font-mono px-2 py-0.5 rounded border ${
+                            <span className={`text-[11px] uppercase tracking-wider font-mono px-2 py-0.5 rounded border ${
                               cron.type === 'forward'
                                 ? 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20'
                                 : 'text-cyan-400 bg-cyan-500/10 border-cyan-500/20'

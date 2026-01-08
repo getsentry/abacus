@@ -56,9 +56,9 @@ export function AdoptionDistribution({
         <SectionLabel days={days}>Adoption Distribution</SectionLabel>
         <AppLink
           href="/adoption"
-          className="font-mono text-xs text-amber-500 hover:text-amber-400 transition-colors cursor-pointer"
+          className="font-mono text-xs text-amber-500 hover:text-amber-400 transition-colors"
         >
-          View details
+          View all →
         </AppLink>
       </div>
 

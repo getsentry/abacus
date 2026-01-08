@@ -268,19 +268,19 @@ function AdoptionPageContent() {
                 <table className="w-full">
                   <thead>
                     <tr className="border-b border-white/10 bg-white/[0.02]">
-                      <th className="px-4 py-3 text-left font-mono text-[10px] uppercase tracking-wider text-white/60">
+                      <th className="px-4 py-3 text-left font-mono text-[11px] uppercase tracking-wider text-white/60">
                         User
                       </th>
-                      <th className="px-4 py-3 text-left font-mono text-[10px] uppercase tracking-wider text-white/60 w-32">
+                      <th className="px-4 py-3 text-left font-mono text-[11px] uppercase tracking-wider text-white/60 w-32">
                         Stage
                       </th>
-                      <th className="px-4 py-3 text-right font-mono text-[10px] uppercase tracking-wider text-white/60 w-20">
+                      <th className="px-4 py-3 text-right font-mono text-[11px] uppercase tracking-wider text-white/60 w-20">
                         Score
                       </th>
-                      <th className="px-4 py-3 text-right font-mono text-[10px] uppercase tracking-wider text-white/60 w-24">
+                      <th className="px-4 py-3 text-right font-mono text-[11px] uppercase tracking-wider text-white/60 w-24">
                         Tokens
                       </th>
-                      <th className="px-4 py-3 text-right font-mono text-[10px] uppercase tracking-wider text-white/60 w-28">
+                      <th className="px-4 py-3 text-right font-mono text-[11px] uppercase tracking-wider text-white/60 w-28">
                         Last Active
                       </th>
                     </tr>

@@ -30,6 +30,7 @@
     "dotenv": "^17.2.3",
     "drizzle-orm": "^0.45.1",
     "framer-motion": "^12.24.7",
+    "geist": "^1.5.1",
     "lucide-react": "^0.562.0",
     "next": "16.1.1",
     "papaparse": "^5.5.3",

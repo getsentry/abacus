@@ -59,7 +59,7 @@ export function SectionLabel({
   as: Component = 'h3',
   divider = false,
 }: SectionLabelProps) {
-  const textClasses = 'font-mono text-[10px] uppercase tracking-wider text-white/40';
+  const textClasses = 'font-mono text-[11px] uppercase tracking-wider text-secondary';
   const containerClasses = `${marginClasses[margin]} ${className}`.trim();
 
   const formattedCount = typeof count === 'number' ? count.toLocaleString() : count;
@@ -68,10 +68,10 @@ export function SectionLabel({
     <>
       {children}
       {days !== undefined && (
-        <span className="text-white/20"> ({days}d)</span>
+        <span className="text-muted"> ({days}d)</span>
       )}
       {count !== undefined && (
-        <span className="text-white/30"> ({formattedCount})</span>
+        <span className="text-muted"> ({formattedCount})</span>
       )}
     </>
   );
