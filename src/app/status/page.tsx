@@ -14,8 +14,8 @@ interface ProviderStatus {
   name: string;
   color: 'amber' | 'cyan';
   syncType?: 'webhook' | 'polling';
-  forwardSync: {
-    label?: string;  // Custom label (e.g., "Mappings Sync" for GitHub)
+  forwardSync?: {
+    label?: string;
     lastSyncedDate: string | null;
     status: 'up_to_date' | 'behind' | 'never_synced';
   };
@@ -145,18 +145,37 @@ function ProviderCard({ provider, index }: { provider: ProviderStatus; index: nu
         <h2 className="font-display text-base text-white">{provider.name}</h2>
       </div>
 
-      {/* Forward Sync Section */}
-      <div className="mb-5">
-        <div className="flex items-center justify-between mb-1.5">
-          <span className="text-[11px] uppercase tracking-wider text-white/50 font-mono">
-            {provider.forwardSync.label || 'Forward Sync'}
-          </span>
-          <StatusBadge status={provider.forwardSync.status} />
+      {/* Forward Sync Section - only show if provider has forward sync */}
+      {provider.forwardSync && (
+        <div className="mb-5">
+          <div className="flex items-center justify-between mb-1.5">
+            <span className="text-[11px] uppercase tracking-wider text-white/50 font-mono">
+              {provider.forwardSync.label || 'Forward Sync'}
+            </span>
+            <StatusBadge status={provider.forwardSync.status} />
+          </div>
+          <div className="text-white/50 text-sm font-mono">
+            Last synced: {formatDate(provider.forwardSync.lastSyncedDate)}
+          </div>
         </div>
-        <div className="text-white/50 text-sm font-mono">
-          Last synced: {formatDate(provider.forwardSync.lastSyncedDate)}
+      )}
+
+      {/* Webhook indicator for providers that use webhooks instead of polling */}
+      {provider.syncType === 'webhook' && (
+        <div className="mb-5">
+          <div className="flex items-center justify-between mb-1.5">
+            <span className="text-[11px] uppercase tracking-wider text-white/50 font-mono">
+              Real-time Sync
+            </span>
+            <span className="px-2 py-0.5 rounded text-[11px] uppercase tracking-wider font-mono border text-emerald-400 bg-emerald-500/10 border-emerald-500/20">
+              Webhook
+            </span>
+          </div>
+          <div className="text-white/50 text-sm font-mono">
+            Data pushed via webhooks
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Backfill Section */}
       <div>
