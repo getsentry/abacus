@@ -204,13 +204,14 @@ describe('detectAiAttribution', () => {
     });
 
     it('handles repeated whitespace patterns', () => {
+      // The final "Co-Authored-By:   Claude <noreply@anthropic.com>" is valid
       const trickyMessage = 'Co-Authored-By:   '.repeat(100) + 'Claude <noreply@anthropic.com>';
       const start = Date.now();
       const result = detectAiAttribution(trickyMessage);
       const duration = Date.now() - start;
 
       expect(duration).toBeLessThan(100);
-      // May or may not match depending on pattern, but should not hang
+      expect(result?.tool).toBe('claude_code'); // Still matches the valid suffix
     });
   });
 });

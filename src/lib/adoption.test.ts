@@ -68,13 +68,13 @@ describe('adoption stages', () => {
       expect(getAdoptionStage(metrics)).toBe('power_user');
     });
 
-    it('requires minimum days for power_user even with high intensity', () => {
+    it('requires minimum days for higher stages even with high intensity', () => {
       const metrics: AdoptionMetrics = {
         totalTokens: 10_000_000, // 10M tokens over 2 days = 5M/day
-        daysActive: 2, // but only 2 days (need 3 for power_user)
+        daysActive: 2, // only 2 days (need 3 for power_user AND in_flow)
         daysSinceLastActive: 0,
       };
-      // Should be in_flow since not enough days for power_user
+      // Falls back to building_momentum (requires 2 days, which we meet)
       expect(getAdoptionStage(metrics)).toBe('building_momentum');
     });
 

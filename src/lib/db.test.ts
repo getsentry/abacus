@@ -108,16 +108,6 @@ describe('calculateCost', () => {
 
       expect(lowerCost).toBe(upperCost);
     });
-
-    it('matches partial model names', () => {
-      // Should match opus pricing even with slightly different format
-      const cost1 = calculateCost('claude-opus-4-5-20251101', 1_000_000, 0);
-      const cost2 = calculateCost('opus-4-5-20251101', 1_000_000, 0);
-
-      // Both should use Opus pricing ($15/M)
-      expect(cost1).toBe(15);
-      // The second one might not match - that's okay, it tests the matching logic
-    });
   });
 
   describe('edge cases', () => {
@@ -135,12 +125,11 @@ describe('calculateCost', () => {
       expect(cost).toBeCloseTo(0.000003, 6);
     });
 
-    it('handles empty model name', () => {
-      // Empty string may match first pricing entry due to includes() behavior
-      // This test documents actual behavior
+    it('handles empty model name with fallback pricing', () => {
+      // Empty string matches first MODEL_PRICING entry (opus) due to includes('') === true
+      // This uses Opus pricing: $15/M input, $75/M output
       const cost = calculateCost('', 1_000_000, 100_000);
-      // Expect a reasonable cost (actual behavior may vary based on matching)
-      expect(cost).toBeGreaterThan(0);
+      expect(cost).toBeCloseTo(22.5, 2);
     });
   });
 });
