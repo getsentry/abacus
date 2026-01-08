@@ -34,7 +34,7 @@ import * as path from 'path';
 import { sql } from '@vercel/postgres';
 import { syncAnthropicUsage, getAnthropicSyncState, backfillAnthropicUsage, resetAnthropicBackfillComplete } from '../src/lib/sync/anthropic';
 import { syncCursorUsage, backfillCursorUsage, getCursorSyncState, getPreviousCompleteHourEnd, resetCursorBackfillComplete } from '../src/lib/sync/cursor';
-import { syncGitHubRepo, backfillGitHubUsage, getGitHubSyncState, getGitHubBackfillState, resetGitHubBackfillComplete, detectAiAttribution } from '../src/lib/sync/github';
+import { syncGitHubRepo, backfillGitHubUsage, getGitHubSyncState, getGitHubBackfillState, resetGitHubBackfillComplete, detectAiAttribution, cleanupMergeCommits } from '../src/lib/sync/github';
 import { syncApiKeyMappingsSmart, syncAnthropicApiKeyMappings } from '../src/lib/sync/anthropic-mappings';
 import { getGitHubUsersWithMappingStatus, mapGitHubUser, getGitHubUser, syncGitHubMemberEmails } from '../src/lib/sync/github-mappings';
 import { getIdentityMappings, setIdentityMapping, getUnmappedToolRecords, getKnownEmails, insertUsageRecord } from '../src/lib/queries';
@@ -655,6 +655,32 @@ async function cmdGitHubUsersSync() {
   }
 }
 
+async function cmdGitHubCleanupMerges(dryRun: boolean = false) {
+  console.log(`🧹 Cleaning up merge commits from database${dryRun ? ' (DRY RUN)' : ''}\n`);
+
+  const hasGitHubApp = process.env.GITHUB_APP_ID && process.env.GITHUB_APP_PRIVATE_KEY && process.env.GITHUB_APP_INSTALLATION_ID;
+  const hasGitHubToken = process.env.GITHUB_TOKEN;
+  if (!hasGitHubApp && !hasGitHubToken) {
+    console.error('❌ GitHub not configured');
+    console.error('\nSet GITHUB_APP_ID + GITHUB_APP_PRIVATE_KEY + GITHUB_APP_INSTALLATION_ID');
+    console.error('or GITHUB_TOKEN');
+    return;
+  }
+
+  const result = await cleanupMergeCommits({
+    dryRun,
+    onProgress: (msg) => console.log(msg)
+  });
+
+  console.log(`\n✓ Cleanup complete`);
+  console.log(`  Commits checked: ${result.checked}`);
+  console.log(`  Merge commits ${dryRun ? 'found' : 'deleted'}: ${result.deleted}`);
+  if (result.errors.length > 0) {
+    console.log(`  Errors: ${result.errors.length}`);
+    result.errors.slice(0, 5).forEach(e => console.log(`    - ${e}`));
+  }
+}
+
 async function cmdSync(days: number = 7, tools: ('anthropic' | 'cursor')[] = ['anthropic', 'cursor'], skipMappings: boolean = false) {
   const endDate = new Date().toISOString().split('T')[0];
   const startDate = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
@@ -967,6 +993,11 @@ async function main() {
         const githubId = args[1];
         const email = args[2];
         await cmdGitHubUsersMap(githubId, email);
+        break;
+      }
+      case 'github:cleanup-merges': {
+        const dryRun = args.includes('--dry-run');
+        await cmdGitHubCleanupMerges(dryRun);
         break;
       }
       case 'mappings':

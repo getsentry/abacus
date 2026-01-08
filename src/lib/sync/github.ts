@@ -49,6 +49,7 @@ interface GitHubCommitResponse {
     additions: number;
     deletions: number;
   };
+  parents: Array<{ sha: string }>;
 }
 
 interface AiAttribution {
@@ -637,17 +638,17 @@ export async function processWebhookPush(payload: GitHubPushEvent): Promise<Sync
 
     for (const commit of payload.commits) {
       try {
-        const attributions = detectAllAiAttributions(
-          commit.message,
-          commit.author.name,
-          commit.author.email
-        );
-
-        // Fetch commit stats from API (webhook doesn't include line counts)
+        // Fetch commit details from API (webhook doesn't include line counts or parent info)
         let additions = 0;
         let deletions = 0;
         if (token) {
           const commitDetails = await fetchCommitDetails(repoFullName, commit.id, token);
+
+          // Skip merge commits (2+ parents) - they don't represent actual code changes
+          if (commitDetails?.isMerge) {
+            continue;
+          }
+
           if (commitDetails) {
             additions = commitDetails.additions;
             deletions = commitDetails.deletions;
@@ -655,6 +656,12 @@ export async function processWebhookPush(payload: GitHubPushEvent): Promise<Sync
           // Small delay to be nice to the API
           await new Promise(resolve => setTimeout(resolve, 50));
         }
+
+        const attributions = detectAllAiAttributions(
+          commit.message,
+          commit.author.name,
+          commit.author.email
+        );
 
         // Use first attribution for backward-compatible ai_tool/ai_model fields
         const primaryAttribution = attributions[0] || null;
@@ -696,14 +703,14 @@ export async function processWebhookPush(payload: GitHubPushEvent): Promise<Sync
 // ============================================
 
 /**
- * Fetch individual commit details including stats (additions/deletions).
+ * Fetch individual commit details including stats (additions/deletions) and merge status.
  * The list commits endpoint doesn't include stats, so we need to fetch each commit.
  */
 async function fetchCommitDetails(
   repoFullName: string,
   sha: string,
   token: string
-): Promise<{ additions: number; deletions: number } | null> {
+): Promise<{ additions: number; deletions: number; isMerge: boolean } | null> {
   const response = await githubFetch(
     `https://api.github.com/repos/${repoFullName}/commits/${sha}`,
     token
@@ -718,6 +725,7 @@ async function fetchCommitDetails(
   return {
     additions: data.stats?.additions || 0,
     deletions: data.stats?.deletions || 0,
+    isMerge: (data.parents?.length || 0) > 1,
   };
 }
 
@@ -797,6 +805,11 @@ export async function syncGitHubRepo(
 
       for (const commit of commits) {
         try {
+          // Skip merge commits (2+ parents) - they don't represent actual code changes
+          if (commit.parents && commit.parents.length > 1) {
+            continue;
+          }
+
           const attributions = detectAllAiAttributions(
             commit.commit.message,
             commit.commit.author.name,
@@ -1030,5 +1043,85 @@ export async function syncGitHubCron(
     await updateGitHubSyncState(today);
   }
 
+  return result;
+}
+
+// ============================================
+// Merge Commit Cleanup
+// ============================================
+
+export interface CleanupResult {
+  checked: number;
+  deleted: number;
+  errors: string[];
+}
+
+/**
+ * Remove existing merge commits from the database.
+ * Since we don't store parent count, we must query GitHub API to identify them.
+ */
+export async function cleanupMergeCommits(
+  options: { dryRun?: boolean; onProgress?: (msg: string) => void } = {}
+): Promise<CleanupResult> {
+  const log = options.onProgress || console.log;
+  const result: CleanupResult = { checked: 0, deleted: 0, errors: [] };
+
+  let token: string;
+  try {
+    token = await getGitHubToken();
+  } catch (err) {
+    result.errors.push(err instanceof Error ? err.message : 'Failed to get GitHub token');
+    return result;
+  }
+
+  // Get all commits grouped by repo
+  const commits = await sql`
+    SELECT c.id, c.commit_id, r.full_name
+    FROM commits c
+    JOIN repositories r ON r.id = c.repo_id
+    ORDER BY r.full_name, c.committed_at
+  `;
+
+  log(`Checking ${commits.rows.length} commits for merge status...`);
+
+  let lastRepo = '';
+  for (const commit of commits.rows) {
+    result.checked++;
+
+    // Log progress every repo change
+    if (commit.full_name !== lastRepo) {
+      log(`  Checking ${commit.full_name}...`);
+      lastRepo = commit.full_name;
+    }
+
+    try {
+      // Fetch commit details to check parent count
+      const details = await fetchCommitDetails(commit.full_name, commit.commit_id, token);
+
+      if (details?.isMerge) {
+        log(`  Found merge commit: ${commit.commit_id.slice(0, 7)} in ${commit.full_name}`);
+
+        if (!options.dryRun) {
+          // Delete commit (CASCADE will handle commit_attributions)
+          await sql`DELETE FROM commits WHERE id = ${commit.id}`;
+          result.deleted++;
+        } else {
+          result.deleted++; // Count as "would be deleted"
+        }
+      }
+
+      // Rate limit
+      await new Promise(resolve => setTimeout(resolve, 50));
+    } catch (err) {
+      result.errors.push(`${commit.commit_id}: ${err instanceof Error ? err.message : 'Unknown error'}`);
+    }
+
+    // Progress update every 100 commits
+    if (result.checked % 100 === 0) {
+      log(`  Progress: ${result.checked}/${commits.rows.length} checked, ${result.deleted} merge commits ${options.dryRun ? 'found' : 'deleted'}`);
+    }
+  }
+
+  log(`\nCleanup complete: ${result.checked} checked, ${result.deleted} merge commits ${options.dryRun ? 'would be deleted' : 'deleted'}`);
   return result;
 }
