@@ -41,6 +41,15 @@ Use `<AppLink>` for internal links (preserves `?days=N`). Use `useTimeRange()` h
 
 Migrations in `/drizzle/` run automatically on `pnpm build`. Manual: `pnpm cli db:migrate`
 
+### Schema Changes
+
+Use `db-migrate` skill when modifying database schema. Key rules:
+- NEVER edit `src/lib/schema.ts` without generating a corresponding migration
+- Use `pnpm drizzle-kit generate` to create migrations from schema changes
+- Both schema.ts and migration must be in the same commit
+
+See `.claude/skills/db-migrate/SKILL.md` for the full workflow.
+
 ## CLI
 
 ```bash

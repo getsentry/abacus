@@ -15,6 +15,69 @@
       "when": 1736216400000,
       "tag": "0001_normalize_model_names",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1736300400000,
+      "tag": "0002_add_better_auth_tables",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1736300500000,
+      "tag": "0003_modular_schema",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1736300600000,
+      "tag": "0004_schema_improvements",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1736300700000,
+      "tag": "0005_make_email_nullable",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1736300800000,
+      "tag": "0006_add_commits_tracking",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1736300900000,
+      "tag": "0007_unify_identity_mappings",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1736301000000,
+      "tag": "0008_multi_tool_attribution",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1736301100000,
+      "tag": "0009_normalize_copilot_tool_name",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1736301200000,
+      "tag": "0010_add_sync_state_columns",
+      "breakpoints": true
     }
   ]
 }
