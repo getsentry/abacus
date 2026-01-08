@@ -35,16 +35,15 @@
       "Bash(gh api:*)",
 
       "Bash(node --version:*)",
-      "Bash(npm list:*)",
-      "Bash(npm view:*)",
-      "Bash(npm outdated:*)",
+      "Bash(pnpm list:*)",
+      "Bash(pnpm why:*)",
       "Bash(tsc --version:*)",
 
-      "Bash(npx create-next-app@latest:*)",
-      "Bash(npm install:*)",
-      "Bash(npm run build:*)",
-      "Bash(pkill:*)",
-      "Bash(npm run dev:*)",
+      "Bash(docker --version:*)",
+      "Bash(docker ps:*)",
+      "Bash(docker images:*)",
+      "Bash(docker-compose ps:*)",
+      "Bash(docker-compose config:*)",
 
       "WebFetch(domain:docs.anthropic.com)",
       "WebFetch(domain:docs.sentry.io)",
@@ -55,7 +54,6 @@
       "WebFetch(domain:react.dev)",
       "WebFetch(domain:tailwindcss.com)",
       "WebFetch(domain:vercel.com)",
-      "WebFetch(domain:docs.cursor.com)",
       "WebFetch(domain:www.better-auth.com)",
 
       "Skill(sentry-skills:commit)",
