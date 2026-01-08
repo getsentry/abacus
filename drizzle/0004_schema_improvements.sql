@@ -17,12 +17,28 @@ ALTER TABLE usage_records ALTER COLUMN tool_record_id TYPE VARCHAR(255);
 -- ============================================
 ALTER TABLE sync_state ALTER COLUMN id TYPE VARCHAR(64);
 
--- Convert backfill_complete from text to boolean
--- First add new column, migrate data, then swap
-ALTER TABLE sync_state ADD COLUMN backfill_complete_bool BOOLEAN DEFAULT FALSE;
-UPDATE sync_state SET backfill_complete_bool = (backfill_complete = 'true');
-ALTER TABLE sync_state DROP COLUMN backfill_complete;
-ALTER TABLE sync_state RENAME COLUMN backfill_complete_bool TO backfill_complete;
+-- Add backfill_complete column if it doesn't exist (it was missing from initial schema)
+-- Using DO block to handle the case where column might already exist as text or boolean
+DO $$
+BEGIN
+  -- Check if backfill_complete column exists
+  IF EXISTS (SELECT 1 FROM information_schema.columns
+             WHERE table_name = 'sync_state' AND column_name = 'backfill_complete') THEN
+    -- Column exists - check if it's text type and needs conversion
+    IF EXISTS (SELECT 1 FROM information_schema.columns
+               WHERE table_name = 'sync_state' AND column_name = 'backfill_complete' AND data_type = 'text') THEN
+      -- Convert from text to boolean
+      ALTER TABLE sync_state ADD COLUMN backfill_complete_bool BOOLEAN DEFAULT FALSE;
+      UPDATE sync_state SET backfill_complete_bool = (backfill_complete = 'true');
+      ALTER TABLE sync_state DROP COLUMN backfill_complete;
+      ALTER TABLE sync_state RENAME COLUMN backfill_complete_bool TO backfill_complete;
+    END IF;
+    -- If it's already boolean, do nothing
+  ELSE
+    -- Column doesn't exist, create it as boolean
+    ALTER TABLE sync_state ADD COLUMN backfill_complete BOOLEAN DEFAULT FALSE;
+  END IF;
+END $$;
 
 -- ============================================
 -- 3. Add missing indexes
