@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { wrapRouteHandlerWithSentry } from '@sentry/nextjs';
 import { getAnthropicSyncState, getAnthropicBackfillState } from '@/lib/sync/anthropic';
 import { getCursorSyncState, getCursorBackfillState } from '@/lib/sync/cursor';
-import { getGitHubSyncState, getGitHubBackfillState } from '@/lib/sync/github';
+import { getGitHubBackfillState } from '@/lib/sync/github';
 import { getUnmappedGitHubUsers } from '@/lib/sync/github-mappings';
 import { getUnattributedStats, getLifetimeStats, getUnmappedToolRecords } from '@/lib/queries';
 import { getSession } from '@/lib/auth';
@@ -111,10 +111,7 @@ async function handler() {
   // GitHub
   const githubConfigured = !!(process.env.GITHUB_APP_ID && process.env.GITHUB_APP_PRIVATE_KEY && process.env.GITHUB_APP_INSTALLATION_ID) || !!process.env.GITHUB_TOKEN;
   if (githubConfigured) {
-    const [githubSync, githubBackfill] = await Promise.all([
-      getGitHubSyncState(),
-      getGitHubBackfillState()
-    ]);
+    const githubBackfill = await getGitHubBackfillState();
 
     providers.github = {
       id: 'github',
@@ -122,11 +119,6 @@ async function handler() {
       color: 'cyan',
       configured: true,
       syncType: 'webhook',  // Commits come via webhooks, not polling
-      forwardSync: {
-        label: 'Mappings Sync',  // Clarify this syncs email mappings, not commits
-        lastSyncedDate: githubSync.lastSyncedDate,
-        status: getForwardSyncStatus(githubSync.lastSyncedDate, false)
-      },
       backfill: {
         oldestDate: githubBackfill.oldestDate,
         status: getBackfillStatus(githubBackfill.oldestDate, githubBackfill.isComplete)
