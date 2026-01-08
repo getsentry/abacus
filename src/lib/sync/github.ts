@@ -54,6 +54,7 @@ interface GitHubCommitResponse {
 interface AiAttribution {
   tool: string;
   model?: string;
+  source?: 'co_author' | 'message_pattern' | 'author_field';
 }
 
 export interface SyncResult {
@@ -234,6 +235,51 @@ export function detectAiAttribution(
   return null;
 }
 
+/**
+ * Detect ALL AI attributions in a commit message and/or author field.
+ * Returns multiple attributions when a commit mentions multiple tools.
+ */
+export function detectAllAiAttributions(
+  commitMessage: string,
+  authorName?: string,
+  authorEmail?: string
+): AiAttribution[] {
+  const attributions: AiAttribution[] = [];
+  const seenTools = new Set<string>();
+
+  // Check all commit message patterns
+  for (const { pattern, tool, modelExtractor } of AI_PATTERNS) {
+    if (seenTools.has(tool)) continue;
+
+    const match = commitMessage.match(pattern);
+    if (match) {
+      seenTools.add(tool);
+      // Determine source based on pattern type
+      const source: AiAttribution['source'] = pattern.source.includes('Co-Authored-By')
+        ? 'co_author'
+        : 'message_pattern';
+      attributions.push({
+        tool,
+        model: modelExtractor?.(match),
+        source,
+      });
+    }
+  }
+
+  // Check author patterns (name and email)
+  const authorString = `${authorName || ''} ${authorEmail || ''}`;
+  for (const { pattern, tool } of AI_AUTHOR_PATTERNS) {
+    if (seenTools.has(tool)) continue;
+
+    if (pattern.test(authorString)) {
+      seenTools.add(tool);
+      attributions.push({ tool, source: 'author_field' });
+    }
+  }
+
+  return attributions;
+}
+
 // ============================================
 // GitHub API Client
 // ============================================
@@ -408,10 +454,13 @@ interface CommitInsert {
   authorEmail: string | null;
   authorId: string | null;
   committedAt: Date;
+  message: string | null;
   aiTool: string | null;
   aiModel: string | null;
   additions: number;
   deletions: number;
+  // For multi-tool attribution support
+  attributions?: AiAttribution[];
 }
 
 /**
@@ -462,24 +511,43 @@ async function insertCommit(commit: CommitInsert): Promise<void> {
     }
   }
 
-  await sql`
+  // Insert commit with message (ai_tool/ai_model still set for backward compatibility)
+  const result = await sql`
     INSERT INTO commits (
       repo_id, commit_id, author_email, author_id, committed_at,
-      ai_tool, ai_model, additions, deletions
+      message, ai_tool, ai_model, additions, deletions
     )
     VALUES (
       ${commit.repoId}, ${commit.commitId}, ${resolvedEmail},
-      ${commit.authorId}, ${commit.committedAt.toISOString()}, ${commit.aiTool},
-      ${commit.aiModel}, ${commit.additions}, ${commit.deletions}
+      ${commit.authorId}, ${commit.committedAt.toISOString()},
+      ${commit.message}, ${commit.aiTool}, ${commit.aiModel},
+      ${commit.additions}, ${commit.deletions}
     )
     ON CONFLICT (repo_id, commit_id) DO UPDATE SET
       author_email = EXCLUDED.author_email,
       author_id = COALESCE(EXCLUDED.author_id, commits.author_id),
+      message = COALESCE(EXCLUDED.message, commits.message),
       ai_tool = EXCLUDED.ai_tool,
       ai_model = EXCLUDED.ai_model,
       additions = EXCLUDED.additions,
       deletions = EXCLUDED.deletions
+    RETURNING id
   `;
+
+  const commitDbId = result.rows[0]?.id;
+
+  // Insert all attributions to junction table
+  if (commitDbId && commit.attributions && commit.attributions.length > 0) {
+    for (const attr of commit.attributions) {
+      await sql`
+        INSERT INTO commit_attributions (commit_id, ai_tool, ai_model, confidence, source)
+        VALUES (${commitDbId}, ${attr.tool}, ${attr.model || null}, 'detected', ${attr.source || null})
+        ON CONFLICT (commit_id, ai_tool) DO UPDATE SET
+          ai_model = COALESCE(EXCLUDED.ai_model, commit_attributions.ai_model),
+          source = COALESCE(EXCLUDED.source, commit_attributions.source)
+      `;
+    }
+  }
 }
 
 // ============================================
@@ -561,7 +629,7 @@ export async function processWebhookPush(payload: GitHubPushEvent): Promise<Sync
 
     for (const commit of payload.commits) {
       try {
-        const aiAttribution = detectAiAttribution(
+        const attributions = detectAllAiAttributions(
           commit.message,
           commit.author.name,
           commit.author.email
@@ -571,6 +639,9 @@ export async function processWebhookPush(payload: GitHubPushEvent): Promise<Sync
         const additions = commit.added.length + commit.modified.length;
         const deletions = commit.removed.length;
 
+        // Use first attribution for backward-compatible ai_tool/ai_model fields
+        const primaryAttribution = attributions[0] || null;
+
         // Note: Webhook payload doesn't include author.id, will be null
         // Author ID will be populated on next sync or backfill from API
         await insertCommit({
@@ -579,14 +650,16 @@ export async function processWebhookPush(payload: GitHubPushEvent): Promise<Sync
           authorEmail: commit.author.email || null,
           authorId: null,
           committedAt: new Date(commit.timestamp),
-          aiTool: aiAttribution?.tool || null,
-          aiModel: aiAttribution?.model || null,
+          message: commit.message,
+          aiTool: primaryAttribution?.tool || null,
+          aiModel: primaryAttribution?.model || null,
           additions,
           deletions,
+          attributions,
         });
 
         result.commitsProcessed++;
-        if (aiAttribution) {
+        if (attributions.length > 0) {
           result.aiAttributedCommits++;
         }
       } catch (err) {
@@ -681,11 +754,14 @@ export async function syncGitHubRepo(
 
       for (const commit of commits) {
         try {
-          const aiAttribution = detectAiAttribution(
+          const attributions = detectAllAiAttributions(
             commit.commit.message,
             commit.commit.author.name,
             commit.commit.author.email
           );
+
+          // Use first attribution for backward-compatible ai_tool/ai_model fields
+          const primaryAttribution = attributions[0] || null;
 
           await insertCommit({
             repoId,
@@ -693,14 +769,16 @@ export async function syncGitHubRepo(
             authorEmail: commit.commit.author.email || null,
             authorId: commit.author?.id?.toString() || null,
             committedAt: new Date(commit.commit.author.date),
-            aiTool: aiAttribution?.tool || null,
-            aiModel: aiAttribution?.model || null,
+            message: commit.commit.message,
+            aiTool: primaryAttribution?.tool || null,
+            aiModel: primaryAttribution?.model || null,
             additions: commit.stats?.additions || 0,
             deletions: commit.stats?.deletions || 0,
+            attributions,
           });
 
           result.commitsProcessed++;
-          if (aiAttribution) {
+          if (attributions.length > 0) {
             result.aiAttributedCommits++;
           }
         } catch (err) {

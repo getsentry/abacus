@@ -1262,14 +1262,24 @@ export interface RepositoryDetails {
   windsurfCommits: number;
 }
 
+export interface CommitAttributionData {
+  aiTool: string;
+  aiModel: string | null;
+  confidence: string;
+  source: string | null;
+}
+
 export interface RepositoryCommit {
+  id: number;
   commitId: string;
   authorEmail: string;
   committedAt: string;
+  message: string | null;
   aiTool: string | null;
   aiModel: string | null;
   additions: number;
   deletions: number;
+  attributions?: CommitAttributionData[];
 }
 
 export interface RepositoryAuthor {
@@ -1376,9 +1386,11 @@ export async function getRepositoryCommits(
 
   const result = await sql.query(`
     SELECT
+      c.id,
       c.commit_id as "commitId",
       c.author_email as "authorEmail",
       c.committed_at::text as "committedAt",
+      c.message,
       c.ai_tool as "aiTool",
       c.ai_model as "aiModel",
       COALESCE(c.additions, 0)::int as additions,
@@ -1392,8 +1404,42 @@ export async function getRepositoryCommits(
     LIMIT $4 OFFSET $5
   `, [repoId, effectiveStartDate, effectiveEndDate, limit, offset]);
 
+  // Fetch attributions for all commits in one query
+  const commitIds = result.rows.map(r => r.id);
+  let attributionsByCommitId: Map<number, CommitAttributionData[]> = new Map();
+
+  if (commitIds.length > 0) {
+    const attrResult = await sql.query(`
+      SELECT
+        commit_id as "commitId",
+        ai_tool as "aiTool",
+        ai_model as "aiModel",
+        confidence,
+        source
+      FROM commit_attributions
+      WHERE commit_id = ANY($1)
+      ORDER BY created_at ASC
+    `, [commitIds]);
+
+    for (const row of attrResult.rows) {
+      const existing = attributionsByCommitId.get(row.commitId) || [];
+      existing.push({
+        aiTool: row.aiTool,
+        aiModel: row.aiModel,
+        confidence: row.confidence,
+        source: row.source,
+      });
+      attributionsByCommitId.set(row.commitId, existing);
+    }
+  }
+
+  const commits: RepositoryCommit[] = result.rows.map(row => ({
+    ...row,
+    attributions: attributionsByCommitId.get(row.id) || [],
+  }));
+
   return {
-    commits: result.rows as RepositoryCommit[],
+    commits,
     totalCount: countResult.rows[0].count,
   };
 }

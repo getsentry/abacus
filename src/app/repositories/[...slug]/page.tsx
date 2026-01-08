@@ -40,14 +40,23 @@ interface RepositoryDetails {
   windsurfCommits: number;
 }
 
+interface CommitAttribution {
+  aiTool: string;
+  aiModel: string | null;
+  confidence: string;
+  source: string | null;
+}
+
 interface RepositoryCommit {
   commitId: string;
   authorEmail: string;
   committedAt: string;
+  message: string | null;
   aiTool: string | null;
   aiModel: string | null;
   additions: number;
   deletions: number;
+  attributions?: CommitAttribution[];
 }
 
 interface RepositoryAuthor {
@@ -95,6 +104,16 @@ function CommitRow({ commit, source, repoFullName }: { commit: RepositoryCommit;
     ? `https://github.com/${repoFullName}/commit/${commit.commitId}`
     : undefined;
 
+  // Use attributions array if available, otherwise fall back to single aiTool
+  const attributions = commit.attributions && commit.attributions.length > 0
+    ? commit.attributions
+    : commit.aiTool
+      ? [{ aiTool: commit.aiTool, aiModel: commit.aiModel, confidence: 'detected', source: null }]
+      : [];
+
+  const hasAttribution = attributions.length > 0;
+  const primaryTool = attributions[0]?.aiTool;
+
   return (
     <motion.div
       initial={{ opacity: 0 }}
@@ -103,8 +122,20 @@ function CommitRow({ commit, source, repoFullName }: { commit: RepositoryCommit;
     >
       {/* Commit indicator */}
       <div className="flex-shrink-0 mt-1">
-        {commit.aiTool ? (
-          <div className={`w-2 h-2 rounded-full ${getToolConfig(commit.aiTool).bg}`} />
+        {hasAttribution ? (
+          <div className="flex -space-x-1">
+            {attributions.length === 1 ? (
+              <div className={`w-2 h-2 rounded-full ${getToolConfig(primaryTool).bg}`} />
+            ) : (
+              attributions.map((attr, i) => (
+                <div
+                  key={attr.aiTool}
+                  className={`w-2 h-2 rounded-full ${getToolConfig(attr.aiTool).bg} ring-1 ring-[#050507]`}
+                  style={{ zIndex: attributions.length - i }}
+                />
+              ))
+            )}
+          </div>
         ) : (
           <div className="w-2 h-2 rounded-full bg-white/20" />
         )}
@@ -128,11 +159,11 @@ function CommitRow({ commit, source, repoFullName }: { commit: RepositoryCommit;
             </div>
           </div>
 
-          {/* Right side: AI badge and link */}
-          <div className="flex items-center gap-3 flex-shrink-0">
-            {commit.aiTool && (
-              <ToolBadge tool={commit.aiTool} model={commit.aiModel} />
-            )}
+          {/* Right side: AI badges and link */}
+          <div className="flex items-center gap-2 flex-shrink-0">
+            {attributions.map((attr) => (
+              <ToolBadge key={attr.aiTool} tool={attr.aiTool} model={attr.aiModel} />
+            ))}
             {commitUrl && (
               <a
                 href={commitUrl}

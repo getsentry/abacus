@@ -7,6 +7,7 @@ import {
   date,
   timestamp,
   boolean,
+  text,
   index,
   uniqueIndex,
   primaryKey,
@@ -112,6 +113,7 @@ export const commits = pgTable('commits', {
   authorEmail: varchar('author_email', { length: 255 }),
   authorId: varchar('author_id', { length: 64 }),
   committedAt: timestamp('committed_at').notNull(),
+  message: text('message'),
   aiTool: varchar('ai_tool', { length: 64 }),
   aiModel: varchar('ai_model', { length: 128 }),
   additions: integer('additions').default(0),
@@ -124,6 +126,24 @@ export const commits = pgTable('commits', {
   index('idx_commits_committed_at').on(table.committedAt),
 ]);
 
+/**
+ * Junction table for multiple AI tool attributions per commit.
+ * Allows a single commit to be attributed to multiple tools.
+ */
+export const commitAttributions = pgTable('commit_attributions', {
+  id: serial('id').primaryKey(),
+  commitId: integer('commit_id').notNull().references(() => commits.id, { onDelete: 'cascade' }),
+  aiTool: varchar('ai_tool', { length: 64 }).notNull(),
+  aiModel: varchar('ai_model', { length: 128 }),
+  confidence: varchar('confidence', { length: 20 }).default('detected'),
+  source: varchar('source', { length: 64 }),
+  createdAt: timestamp('created_at').defaultNow(),
+}, (table) => [
+  uniqueIndex('idx_commit_attributions_unique').on(table.commitId, table.aiTool),
+  index('idx_commit_attributions_commit').on(table.commitId),
+  index('idx_commit_attributions_tool').on(table.aiTool),
+]);
+
 // Type exports for use in queries
 export type IdentityMapping = typeof identityMappings.$inferSelect;
 export type NewIdentityMapping = typeof identityMappings.$inferInsert;
@@ -134,3 +154,5 @@ export type Repository = typeof repositories.$inferSelect;
 export type NewRepository = typeof repositories.$inferInsert;
 export type Commit = typeof commits.$inferSelect;
 export type NewCommit = typeof commits.$inferInsert;
+export type CommitAttribution = typeof commitAttributions.$inferSelect;
+export type NewCommitAttribution = typeof commitAttributions.$inferInsert;
