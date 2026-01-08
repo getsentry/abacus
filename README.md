@@ -198,11 +198,23 @@ GITHUB_APP_PRIVATE_KEY="-----BEGIN RSA PRIVATE KEY-----\n...\n-----END RSA PRIVA
 GITHUB_APP_INSTALLATION_ID=12345678
 GITHUB_WEBHOOK_SECRET=your-webhook-secret
 
-# Or for local development only (not recommended for production)
-GITHUB_TOKEN=ghp_...
+# Or for local development/testing (fine-grained token)
+GITHUB_TOKEN=github_pat_...
 ```
 
 **Note**: The private key must be the full PEM content. In Vercel, you can paste the entire key including newlines, or escape newlines as `\n`.
+
+#### Local Development Token
+
+For local development, use a **fine-grained personal access token** (not classic tokens):
+
+1. Go to **GitHub → Settings → Developer settings → Fine-grained tokens**
+2. Generate new token with:
+   - **Repository access**: Select specific repos or "All repositories"
+   - **Permissions**: Contents (read-only)
+3. Set `GITHUB_TOKEN` in `.env.local`
+
+Fine-grained tokens are scoped to exactly what's needed and don't require org-level access.
 
 #### Sync Behavior
 
@@ -226,6 +238,7 @@ GITHUB_TOKEN=ghp_...
 #### Manual Sync
 
 ```bash
+npm run cli github:sync getsentry/sentry --dry-run # Test detection (no database needed)
 npm run cli github:status                          # Check sync state
 npm run cli github:sync getsentry/sentry --days 30 # Sync specific repo
 npm run cli backfill github --from 2024-10-01      # Backfill all repos

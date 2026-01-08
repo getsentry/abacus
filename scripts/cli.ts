@@ -34,7 +34,7 @@ import * as path from 'path';
 import { sql } from '@vercel/postgres';
 import { syncAnthropicUsage, getAnthropicSyncState, backfillAnthropicUsage, resetAnthropicBackfillComplete } from '../src/lib/sync/anthropic';
 import { syncCursorUsage, backfillCursorUsage, getCursorSyncState, getPreviousCompleteHourEnd, resetCursorBackfillComplete } from '../src/lib/sync/cursor';
-import { syncGitHubRepo, backfillGitHubUsage, getGitHubSyncState, getGitHubBackfillState, resetGitHubBackfillComplete } from '../src/lib/sync/github';
+import { syncGitHubRepo, backfillGitHubUsage, getGitHubSyncState, getGitHubBackfillState, resetGitHubBackfillComplete, detectAiAttribution } from '../src/lib/sync/github';
 import { syncApiKeyMappingsSmart, syncAnthropicApiKeyMappings } from '../src/lib/sync/anthropic-mappings';
 import { getToolIdentityMappings, setToolIdentityMapping, getUnmappedToolRecords, getKnownEmails, insertUsageRecord } from '../src/lib/queries';
 import { normalizeModelName } from '../src/lib/utils';
@@ -151,8 +151,9 @@ Commands:
   anthropic:status      Show Anthropic sync state
   cursor:status         Show Cursor sync state
   github:status         Show GitHub commits sync state
-  github:sync <repo> [--days N]
+  github:sync <repo> [--days N] [--dry-run]
                         Sync commits for a specific repo (e.g., getsentry/sentry)
+                        Use --dry-run to test detection without database
   import:cursor-csv <file>
                         Import Cursor usage from CSV export
   stats                 Show database statistics
@@ -279,25 +280,119 @@ async function cmdGitHubStatus() {
   console.log(`  Repositories: ${row.repos}`);
 }
 
-async function cmdGitHubSync(repo: string, days: number = 7) {
+async function cmdGitHubSync(repo: string, days: number = 7, dryRun: boolean = false) {
   if (!repo) {
     console.error('Error: Please specify a repo (e.g., getsentry/sentry)');
-    console.error('Usage: npm run cli github:sync <repo> [--days N]');
+    console.error('Usage: npm run cli github:sync <repo> [--days N] [--dry-run]');
     return;
   }
 
-  if (!process.env.GITHUB_TOKEN) {
+  const token = process.env.GITHUB_TOKEN;
+  if (!token) {
     console.error('❌ GITHUB_TOKEN not configured');
+    console.error('\nTo set up a fine-grained token:');
+    console.error('1. Go to GitHub → Settings → Developer settings → Fine-grained tokens');
+    console.error('2. Create token with "Contents" read-only permission');
+    console.error('3. Set GITHUB_TOKEN in .env.local');
     return;
   }
 
-  const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000)
-    .toISOString()
-    .split('T')[0];
+  const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
+  const sinceDate = since.split('T')[0];
 
-  console.log(`🔄 Syncing ${repo} from ${since}...\n`);
+  if (dryRun) {
+    console.log(`🔍 Dry run: Scanning ${repo} for AI-attributed commits (last ${days} days)\n`);
+    console.log('This does NOT write to the database - just shows what would be detected.\n');
 
-  const result = await syncGitHubRepo(repo, since, undefined, {
+    // Fetch commits directly from GitHub API
+    const url = `https://api.github.com/repos/${repo}/commits?since=${since}&per_page=100`;
+
+    const response = await fetch(url, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Accept': 'application/vnd.github+json',
+        'X-GitHub-Api-Version': '2022-11-28',
+      },
+    });
+
+    if (!response.ok) {
+      const error = await response.text();
+      console.error(`❌ GitHub API error: ${response.status} ${response.statusText}`);
+      console.error(error);
+      return;
+    }
+
+    interface CommitItem {
+      sha: string;
+      commit: {
+        message: string;
+        author: {
+          name: string;
+          email: string;
+          date: string;
+        };
+      };
+      author: { login: string } | null;
+    }
+
+    const commits: CommitItem[] = await response.json();
+    console.log(`Found ${commits.length} commits\n`);
+
+    let aiCount = 0;
+    const aiCommits: Array<{ sha: string; date: string; author: string; tool: string; model?: string; message: string }> = [];
+
+    for (const commit of commits) {
+      const attribution = detectAiAttribution(
+        commit.commit.message,
+        commit.commit.author.name,
+        commit.commit.author.email
+      );
+
+      if (attribution) {
+        aiCount++;
+        aiCommits.push({
+          sha: commit.sha.slice(0, 7),
+          date: commit.commit.author.date.split('T')[0],
+          author: commit.author?.login || commit.commit.author.email,
+          tool: attribution.tool,
+          model: attribution.model,
+          message: commit.commit.message.split('\n')[0].slice(0, 60),
+        });
+      }
+    }
+
+    if (aiCommits.length === 0) {
+      console.log('No AI-attributed commits found.');
+    } else {
+      console.log(`Found ${aiCount} AI-attributed commit(s):\n`);
+      for (const c of aiCommits) {
+        console.log(`  ${c.sha} ${c.date} [${c.tool}${c.model ? `:${c.model}` : ''}]`);
+        console.log(`    by ${c.author}: ${c.message}`);
+      }
+
+      // Summary by tool
+      const byTool = aiCommits.reduce((acc, c) => {
+        acc[c.tool] = (acc[c.tool] || 0) + 1;
+        return acc;
+      }, {} as Record<string, number>);
+
+      console.log('\nSummary:');
+      console.log(`  Total commits: ${commits.length}`);
+      console.log(`  AI-attributed: ${aiCount} (${((aiCount / commits.length) * 100).toFixed(1)}%)`);
+      console.log('  By tool:');
+      for (const [tool, count] of Object.entries(byTool)) {
+        console.log(`    ${tool}: ${count}`);
+      }
+    }
+
+    console.log('\n✓ Dry run complete (no data written)');
+    return;
+  }
+
+  // Normal sync (writes to database)
+  console.log(`🔄 Syncing ${repo} from ${sinceDate}...\n`);
+
+  const result = await syncGitHubRepo(repo, sinceDate, undefined, {
     onProgress: (msg) => console.log(msg)
   });
 
@@ -684,7 +779,8 @@ async function main() {
         const repo = args[1];
         const daysIdx = args.indexOf('--days');
         const days = daysIdx >= 0 ? parseInt(args[daysIdx + 1]) : 7;
-        await cmdGitHubSync(repo, days);
+        const dryRun = args.includes('--dry-run');
+        await cmdGitHubSync(repo, days, dryRun);
         break;
       }
       case 'mappings':
