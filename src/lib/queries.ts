@@ -165,6 +165,9 @@ export async function getUserSummaries(
   startDate?: string,
   endDate?: string
 ): Promise<UserSummary[]> {
+  // Use extreme dates as defaults to avoid branching - query planner handles this efficiently
+  const effectiveStartDate = startDate || '1970-01-01';
+  const effectiveEndDate = endDate || '9999-12-31';
   const searchPattern = search ? `%${escapeLikePattern(search)}%` : null;
 
   // Single query with CTEs to avoid N+1 problem for favoriteModel
@@ -180,7 +183,7 @@ export async function getUserSummaries(
             MAX(date)::text as "lastActive"
           FROM usage_records
           WHERE email LIKE ${searchPattern} AND email IS NOT NULL
-            AND date >= ${startDate} AND date <= ${endDate}
+            AND date >= ${effectiveStartDate} AND date <= ${effectiveEndDate}
           GROUP BY email
         ),
         user_models AS (
@@ -194,7 +197,7 @@ export async function getUserSummaries(
               SUM(input_tokens + cache_write_tokens + output_tokens) as model_tokens
             FROM usage_records
             WHERE email LIKE ${searchPattern} AND email IS NOT NULL
-              AND date >= ${startDate} AND date <= ${endDate}
+              AND date >= ${effectiveStartDate} AND date <= ${effectiveEndDate}
             GROUP BY email, model
           ) m
           ORDER BY email, model_tokens DESC
@@ -218,7 +221,7 @@ export async function getUserSummaries(
             MAX(date)::text as "lastActive"
           FROM usage_records
           WHERE email IS NOT NULL
-            AND date >= ${startDate} AND date <= ${endDate}
+            AND date >= ${effectiveStartDate} AND date <= ${effectiveEndDate}
           GROUP BY email
         ),
         user_models AS (
@@ -232,7 +235,7 @@ export async function getUserSummaries(
               SUM(input_tokens + cache_write_tokens + output_tokens) as model_tokens
             FROM usage_records
             WHERE email IS NOT NULL
-              AND date >= ${startDate} AND date <= ${endDate}
+              AND date >= ${effectiveStartDate} AND date <= ${effectiveEndDate}
             GROUP BY email, model
           ) m
           ORDER BY email, model_tokens DESC
@@ -561,6 +564,9 @@ export async function getAllUsersPivot(
   limit: number = 500,
   offset: number = 0
 ): Promise<UserPivotResult> {
+  // Use extreme dates as defaults to avoid branching - query planner handles this efficiently
+  const effectiveStartDate = startDate || '1970-01-01';
+  const effectiveEndDate = endDate || '9999-12-31';
 
   const validSortColumns = [
     'email', 'totalTokens', 'totalCost', 'claudeCodeTokens', 'cursorTokens',
@@ -596,7 +602,7 @@ export async function getAllUsersPivot(
         ) la ON r.email = la.email
         WHERE r.email IS NOT NULL
           AND r.email LIKE ${searchPattern}
-          AND r.date >= ${startDate} AND r.date <= ${endDate}
+          AND r.date >= ${effectiveStartDate} AND r.date <= ${effectiveEndDate}
         GROUP BY r.email, la."lastActive"
         ORDER BY "totalTokens" DESC
       `
@@ -623,7 +629,7 @@ export async function getAllUsersPivot(
           GROUP BY email
         ) la ON r.email = la.email
         WHERE r.email IS NOT NULL
-          AND r.date >= ${startDate} AND r.date <= ${endDate}
+          AND r.date >= ${effectiveStartDate} AND r.date <= ${effectiveEndDate}
         GROUP BY r.email, la."lastActive"
         ORDER BY "totalTokens" DESC
       `;
