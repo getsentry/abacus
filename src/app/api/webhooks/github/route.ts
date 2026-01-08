@@ -92,13 +92,18 @@ async function handler(request: Request) {
   // Process push event
   const result = await processWebhookPush(data);
 
+  // Log errors server-side but don't expose details in response
+  if (result.errors.length > 0) {
+    console.error(`Webhook processing errors for ${data.repository?.full_name}:`, result.errors);
+  }
+
   return NextResponse.json({
     success: result.success,
     deliveryId,
     repo: data.repository?.full_name,
     commitsProcessed: result.commitsProcessed,
     aiAttributedCommits: result.aiAttributedCommits,
-    errors: result.errors.slice(0, 5),
+    errorCount: result.errors.length,
   });
 }
 

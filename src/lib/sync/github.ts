@@ -69,6 +69,8 @@ const SYNC_STATE_ID = 'github';
 // AI Attribution Detection
 // ============================================
 
+// ReDoS-safe patterns: avoid overlapping quantifiers like \s*(...\s...)*\s*
+// Use [^<]* to match content before <email> - no backtracking since only one quantifier
 const AI_PATTERNS: Array<{
   pattern: RegExp;
   tool: string;
@@ -80,7 +82,8 @@ const AI_PATTERNS: Array<{
   // Co-Authored-By: Claude <noreply@anthropic.com>
   // Co-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>
   {
-    pattern: /Co-Authored-By:\s*Claude\s*([\w\s.-]*)\s*<[^>]*@anthropic\.com>/i,
+    // [^<]* safely captures optional model name without backtracking
+    pattern: /Co-Authored-By:\s+Claude\b([^<]*)<[^>]+@anthropic\.com>/i,
     tool: 'claude_code',
     modelExtractor: (match) => {
       const modelPart = match[1]?.trim();
@@ -98,7 +101,7 @@ const AI_PATTERNS: Array<{
   },
   // "Generated with Claude", "Written using Claude", "Created with Claude"
   {
-    pattern: /(?:generated|written|created|assisted)\s+(?:with|using|by)\s+Claude\b/i,
+    pattern: /(?:generated|written|created|assisted) (?:with|using|by) Claude\b/i,
     tool: 'claude_code',
   },
 
@@ -107,16 +110,16 @@ const AI_PATTERNS: Array<{
   // ===========================================
   // Co-authored-by: Codex <*>
   {
-    pattern: /Co-Authored-By:\s*Codex\b[^<]*<[^>]*>/i,
+    pattern: /Co-Authored-By:\s+Codex\b[^<]*<[^>]+>/i,
     tool: 'codex',
   },
   // "Generated with Codex", "Codex assisted"
   {
-    pattern: /(?:generated|written|created|assisted)\s+(?:with|using|by)\s+Codex\b/i,
+    pattern: /(?:generated|written|created|assisted) (?:with|using|by) Codex\b/i,
     tool: 'codex',
   },
   {
-    pattern: /\bCodex\s+(?:assisted|generated|helped)/i,
+    pattern: /\bCodex (?:assisted|generated|helped)/i,
     tool: 'codex',
   },
 
@@ -125,25 +128,25 @@ const AI_PATTERNS: Array<{
   // ===========================================
   // Co-Authored-By: GitHub Copilot <*>
   {
-    pattern: /Co-Authored-By:\s*GitHub\s*Copilot\s*<[^>]*>/i,
+    pattern: /Co-Authored-By:\s+GitHub Copilot\b[^<]*<[^>]+>/i,
     tool: 'github_copilot',
   },
   // Co-Authored-By: Copilot <*>
   {
-    pattern: /Co-Authored-By:\s*Copilot\s*<[^>]*>/i,
+    pattern: /Co-Authored-By:\s+Copilot\b[^<]*<[^>]+>/i,
     tool: 'github_copilot',
   },
   // "Generated with Copilot", "Copilot assisted", "Accepted Copilot suggestion"
   {
-    pattern: /(?:generated|written|created|assisted)\s+(?:with|using|by)\s+(?:GitHub\s+)?Copilot\b/i,
+    pattern: /(?:generated|written|created|assisted) (?:with|using|by) (?:GitHub )?Copilot\b/i,
     tool: 'github_copilot',
   },
   {
-    pattern: /\b(?:GitHub\s+)?Copilot\s+(?:assisted|generated|helped|suggestion)/i,
+    pattern: /\b(?:GitHub )?Copilot (?:assisted|generated|helped|suggestion)/i,
     tool: 'github_copilot',
   },
   {
-    pattern: /\bAccepted\s+(?:GitHub\s+)?Copilot\s+suggestion/i,
+    pattern: /\bAccepted (?:GitHub )?Copilot suggestion/i,
     tool: 'github_copilot',
   },
 
@@ -151,16 +154,16 @@ const AI_PATTERNS: Array<{
   // Cursor
   // ===========================================
   {
-    pattern: /Co-Authored-By:\s*Cursor\s*<[^>]*>/i,
+    pattern: /Co-Authored-By:\s+Cursor\b[^<]*<[^>]+>/i,
     tool: 'cursor',
   },
   // "Generated with Cursor", "Cursor AI assisted", "Cursor AI completion"
   {
-    pattern: /(?:generated|written|created|assisted)\s+(?:with|using|by)\s+Cursor\b/i,
+    pattern: /(?:generated|written|created|assisted) (?:with|using|by) Cursor\b/i,
     tool: 'cursor',
   },
   {
-    pattern: /\bCursor\s+(?:AI\s+)?(?:assisted|generated|helped|completion)/i,
+    pattern: /\bCursor (?:AI )?(?:assisted|generated|helped|completion)/i,
     tool: 'cursor',
   },
 
@@ -168,20 +171,20 @@ const AI_PATTERNS: Array<{
   // Windsurf (Codeium)
   // ===========================================
   {
-    pattern: /Co-Authored-By:\s*Windsurf\s*<[^>]*>/i,
+    pattern: /Co-Authored-By:\s+Windsurf\b[^<]*<[^>]+>/i,
     tool: 'windsurf',
   },
   {
-    pattern: /Co-Authored-By:\s*Codeium\s*<[^>]*>/i,
+    pattern: /Co-Authored-By:\s+Codeium\b[^<]*<[^>]+>/i,
     tool: 'windsurf',
   },
   // "Generated with Windsurf/Codeium"
   {
-    pattern: /(?:generated|written|created|assisted)\s+(?:with|using|by)\s+(?:Windsurf|Codeium)\b/i,
+    pattern: /(?:generated|written|created|assisted) (?:with|using|by) (?:Windsurf|Codeium)\b/i,
     tool: 'windsurf',
   },
   {
-    pattern: /\b(?:Windsurf|Codeium)\s+(?:AI\s+)?(?:assisted|generated|helped)/i,
+    pattern: /\b(?:Windsurf|Codeium) (?:AI )?(?:assisted|generated|helped)/i,
     tool: 'windsurf',
   },
 ];

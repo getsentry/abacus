@@ -167,27 +167,38 @@ Track AI-attributed commits across your organization by detecting `Co-Authored-B
 
 #### Creating a GitHub App
 
-1. Go to **GitHub → Organization Settings → Developer settings → GitHub Apps → New GitHub App**
+1. Go to **GitHub → Your Organization → Settings → Developer settings → GitHub Apps → New GitHub App**
 
-2. Configure the app:
-   - **Name**: `Abacus Commit Tracker` (or your preference)
-   - **Homepage URL**: Your Abacus deployment URL
-   - **Webhook URL**: `https://your-app.vercel.app/api/webhooks/github`
-   - **Webhook secret**: Generate with `openssl rand -hex 32`
+2. Configure basic info:
+   - **GitHub App name**: `Abacus Commit Tracker` (must be unique across GitHub)
+   - **Homepage URL**: Your Abacus deployment URL (e.g., `https://abacus.yourcompany.com`)
 
-3. Set permissions:
+3. Configure webhook:
+   - **Webhook URL**: `https://your-app.vercel.app/api/webhooks/github` (replace with your actual domain)
+   - **Webhook secret**: Generate with `openssl rand -hex 32` and save it for later
+
+4. Set permissions (under "Permissions & events"):
    - **Repository permissions**:
-     - Contents: **Read-only** (to fetch commit history)
-     - Metadata: **Read-only** (required)
+     - **Contents**: Read-only (required to fetch commit history)
+     - **Metadata**: Read-only (automatically granted)
+   - **Subscribe to events**:
+     - Check **Push** (this is what triggers the webhook)
 
-4. Subscribe to events:
-   - Check **Push** events
+5. Configure installation access:
+   - **Where can this GitHub App be installed?**: Select **"Only on this account"**
+   - This restricts the app to your organization only (recommended for internal tools)
 
-5. Create the app, then:
-   - Note the **App ID** from the app settings page
-   - Generate a **Private Key** (downloads as `.pem` file)
-   - Install the app on your organization (grants access to repos)
-   - Note the **Installation ID** from the URL after installing (e.g., `github.com/organizations/ORG/settings/installations/12345678`)
+6. Click **Create GitHub App**
+
+7. After creation, on the app settings page:
+   - Note the **App ID** (shown near the top)
+   - Scroll down and click **Generate a private key** (downloads a `.pem` file)
+
+8. Install the app on your organization:
+   - Go to **Install App** in the left sidebar
+   - Click **Install** next to your organization
+   - Choose **All repositories** or select specific repos
+   - After installing, note the **Installation ID** from the URL: `github.com/organizations/ORG/settings/installations/INSTALLATION_ID`
 
 #### Environment Variables
 
