@@ -155,9 +155,10 @@ Commands:
   github:sync [repo] [options]
                         Sync GitHub commits (filters to default branch, skips merge commits)
                         Options:
-                          --days N      Sync last N days (default: 7)
+                          --days N      Sync last N days (default: 90)
                           --from DATE   Sync from date (backfill mode for all repos)
                           --reset       Delete existing commits first (clean slate)
+                          --full        Reset and sync from 2024-01-01 (shorthand for --reset --from 2024-01-01)
                           --dry-run     Show what would be synced without writing
   github:commits <repo> [--limit N]
                         Dump commits from database for debugging
@@ -320,12 +321,20 @@ interface GitHubSyncOptions {
   days?: number;
   fromDate?: string;
   reset?: boolean;
+  full?: boolean;
   dryRun?: boolean;
   org?: string;
 }
 
+// Default start date for --full sync (captures most relevant history)
+const FULL_SYNC_START_DATE = '2024-01-01';
+
 async function cmdGitHubSync(options: GitHubSyncOptions) {
-  const { repo, days = 7, fromDate, reset = false, dryRun = false, org = 'getsentry' } = options;
+  const { repo, days = 90, fromDate, reset = false, full = false, dryRun = false, org = 'getsentry' } = options;
+
+  // --full implies --reset and uses FULL_SYNC_START_DATE
+  const effectiveReset = reset || full;
+  const effectiveFromDate = full ? FULL_SYNC_START_DATE : fromDate;
 
   // Check for either GitHub App or personal token
   const hasGitHubApp = process.env.GITHUB_APP_ID && process.env.GITHUB_APP_PRIVATE_KEY && process.env.GITHUB_APP_INSTALLATION_ID;
@@ -340,8 +349,8 @@ async function cmdGitHubSync(options: GitHubSyncOptions) {
   }
 
   // Determine date range
-  const since = fromDate || new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-  const isBackfill = !!fromDate;
+  const since = effectiveFromDate || new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+  const isBackfill = !!effectiveFromDate;
 
   // Dry-run mode: just show what would be detected
   if (dryRun) {
@@ -438,7 +447,7 @@ async function cmdGitHubSync(options: GitHubSyncOptions) {
   }
 
   // Reset mode: delete existing commits before syncing
-  if (reset) {
+  if (effectiveReset) {
     if (repo) {
       console.log(`🗑️  Resetting commits for ${repo}...`);
       const repoResult = await sql`
@@ -467,7 +476,7 @@ async function cmdGitHubSync(options: GitHubSyncOptions) {
 
   // Single repo sync
   if (repo) {
-    console.log(`🔄 Syncing ${repo} from ${since}...${reset ? ' (after reset)' : ''}\n`);
+    console.log(`🔄 Syncing ${repo} from ${since}...${effectiveReset ? ' (after reset)' : ''}\n`);
 
     const result = await syncGitHubRepo(repo, since, undefined, {
       onProgress: (msg) => console.log(msg)
@@ -484,7 +493,7 @@ async function cmdGitHubSync(options: GitHubSyncOptions) {
 
   // Full org sync (backfill mode)
   if (isBackfill) {
-    console.log(`📥 ${reset ? 'Reset and backfilling' : 'Backfilling'} all ${org} repos from ${since}\n`);
+    console.log(`📥 ${effectiveReset ? 'Reset and backfilling' : 'Backfilling'} all ${org} repos from ${since}\n`);
 
     const result = await backfillGitHubUsage(since, {
       org,
@@ -1047,12 +1056,13 @@ async function main() {
         // Parse repo (first non-flag argument after command)
         const repo = args[1] && !args[1].startsWith('--') ? args[1] : undefined;
         const daysIdx = args.indexOf('--days');
-        const days = daysIdx >= 0 ? parseInt(args[daysIdx + 1]) : 7;
+        const days = daysIdx >= 0 ? parseInt(args[daysIdx + 1]) : 90;
         const fromIdx = args.indexOf('--from');
         const fromDate = fromIdx >= 0 ? args[fromIdx + 1] : undefined;
         const reset = args.includes('--reset');
+        const full = args.includes('--full');
         const dryRun = args.includes('--dry-run');
-        await cmdGitHubSync({ repo, days, fromDate, reset, dryRun });
+        await cmdGitHubSync({ repo, days, fromDate, reset, full, dryRun });
         break;
       }
       case 'github:commits': {

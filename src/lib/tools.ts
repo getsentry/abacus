@@ -1,9 +1,17 @@
 // Tool configuration - extensible for future tools
+// All color classes must be complete Tailwind classes (no string concatenation)
+// to ensure they're included in the production build.
 
 export interface ToolConfig {
+  /** Display name */
   name: string;
+  /** Solid background class (e.g., 'bg-amber-500') */
   bg: string;
+  /** Semi-transparent background for charts (e.g., 'bg-amber-500/80') */
+  bgChart: string;
+  /** Text color class (e.g., 'text-amber-400') */
   text: string;
+  /** Gradient classes for special effects */
   gradient: string;
 }
 
@@ -11,32 +19,45 @@ export const TOOL_CONFIGS: Record<string, ToolConfig> = {
   claude_code: {
     name: 'Claude Code',
     bg: 'bg-amber-500',
+    bgChart: 'bg-amber-500/80',
     text: 'text-amber-400',
     gradient: 'from-amber-500/80 to-amber-400/60',
   },
   cursor: {
     name: 'Cursor',
     bg: 'bg-cyan-500',
+    bgChart: 'bg-cyan-500/80',
     text: 'text-cyan-400',
     gradient: 'from-cyan-500/80 to-cyan-400/60',
   },
   windsurf: {
     name: 'Windsurf',
     bg: 'bg-emerald-500',
+    bgChart: 'bg-emerald-500/80',
     text: 'text-emerald-400',
     gradient: 'from-emerald-500/80 to-emerald-400/60',
   },
   copilot: {
     name: 'Copilot',
     bg: 'bg-violet-500',
+    bgChart: 'bg-violet-500/80',
     text: 'text-violet-400',
     gradient: 'from-violet-500/80 to-violet-400/60',
   },
 };
 
+/** Config for non-AI/human commits */
+export const HUMAN_CONFIG = {
+  name: 'Human',
+  bg: 'bg-white/20',
+  bgChart: 'bg-white/10',
+  text: 'text-white/50',
+} as const;
+
 const DEFAULT_CONFIG: ToolConfig = {
   name: 'Unknown',
   bg: 'bg-rose-500',
+  bgChart: 'bg-rose-500/80',
   text: 'text-rose-400',
   gradient: 'from-rose-500/80 to-rose-400/60',
 };

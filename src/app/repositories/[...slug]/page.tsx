@@ -475,11 +475,11 @@ export default function RepositoryDetailPage() {
                           setAiFilter(e.target.value as 'all' | 'ai' | 'human');
                           setCommitsPage(0);
                         }}
-                        className="bg-transparent border border-white/10 rounded px-2 py-1 font-mono text-[10px] text-white/60 focus:outline-none focus:border-white/30"
+                        className="bg-[#0a0a0c] border border-white/10 rounded px-2 py-1 font-mono text-[10px] text-white/60 focus:outline-none focus:border-white/30"
                       >
-                        <option value="all">All commits</option>
-                        <option value="ai">AI attributed</option>
-                        <option value="human">Human only</option>
+                        <option value="all" className="bg-[#0a0a0c]">All commits</option>
+                        <option value="ai" className="bg-[#0a0a0c]">AI attributed</option>
+                        <option value="human" className="bg-[#0a0a0c]">Human only</option>
                       </select>
                     </div>
                   </div>

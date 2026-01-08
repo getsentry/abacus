@@ -1,7 +1,7 @@
 'use client';
 
 import { BaseStackedBarChart, type StackedBarSegment, type StackedBarDataPoint } from './BaseStackedBarChart';
-import { formatTokens, formatCurrency } from '@/lib/utils';
+import { formatTokens } from '@/lib/utils';
 import { TOOL_CONFIGS } from '@/lib/tools';
 
 interface DailyUsage {
@@ -18,17 +18,18 @@ interface StackedBarChartProps {
 }
 
 // Define segments for the usage chart (rendered bottom to top in stack)
+// Uses centralized tool colors from lib/tools.ts
 const USAGE_SEGMENTS: StackedBarSegment[] = [
   {
     key: 'cursor',
     label: TOOL_CONFIGS.cursor.name,
-    color: `${TOOL_CONFIGS.cursor.bg}/80`,
+    color: TOOL_CONFIGS.cursor.bgChart,
     textColor: TOOL_CONFIGS.cursor.text,
   },
   {
     key: 'claudeCode',
     label: TOOL_CONFIGS.claude_code.name,
-    color: `${TOOL_CONFIGS.claude_code.bg}/80`,
+    color: TOOL_CONFIGS.claude_code.bgChart,
     textColor: TOOL_CONFIGS.claude_code.text,
   },
 ];

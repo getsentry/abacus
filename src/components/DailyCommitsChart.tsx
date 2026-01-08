@@ -1,7 +1,7 @@
 'use client';
 
 import { BaseStackedBarChart, type StackedBarSegment, type StackedBarDataPoint } from './BaseStackedBarChart';
-import { TOOL_CONFIGS } from '@/lib/tools';
+import { TOOL_CONFIGS, HUMAN_CONFIG } from '@/lib/tools';
 
 export interface DailyCommitData {
   date: string;
@@ -19,35 +19,36 @@ interface DailyCommitsChartProps {
 }
 
 // Define segments for the commit chart (rendered bottom to top in stack)
+// Uses centralized tool colors from lib/tools.ts
 const COMMIT_SEGMENTS: StackedBarSegment[] = [
   {
     key: 'human',
-    label: 'Human',
-    color: 'bg-white/10',
-    textColor: 'text-white/50',
+    label: HUMAN_CONFIG.name,
+    color: HUMAN_CONFIG.bgChart,
+    textColor: HUMAN_CONFIG.text,
   },
   {
     key: 'claudeCode',
     label: TOOL_CONFIGS.claude_code.name,
-    color: `${TOOL_CONFIGS.claude_code.bg}/80`,
+    color: TOOL_CONFIGS.claude_code.bgChart,
     textColor: TOOL_CONFIGS.claude_code.text,
   },
   {
     key: 'cursor',
     label: TOOL_CONFIGS.cursor.name,
-    color: `${TOOL_CONFIGS.cursor.bg}/80`,
+    color: TOOL_CONFIGS.cursor.bgChart,
     textColor: TOOL_CONFIGS.cursor.text,
   },
   {
     key: 'copilot',
     label: TOOL_CONFIGS.copilot.name,
-    color: `${TOOL_CONFIGS.copilot.bg}/80`,
+    color: TOOL_CONFIGS.copilot.bgChart,
     textColor: TOOL_CONFIGS.copilot.text,
   },
   {
     key: 'windsurf',
     label: TOOL_CONFIGS.windsurf.name,
-    color: `${TOOL_CONFIGS.windsurf.bg}/80`,
+    color: TOOL_CONFIGS.windsurf.bgChart,
     textColor: TOOL_CONFIGS.windsurf.text,
   },
 ];
