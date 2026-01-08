@@ -123,7 +123,7 @@ Claude Code usage is tracked via the Anthropic Admin API.
 
 ```bash
 npm run cli sync anthropic --days 7
-npm run cli backfill anthropic --from 2025-01-01 --to 2025-06-01
+npm run cli backfill anthropic -- --from 2025-01-01 --to 2025-06-01
 ```
 
 ---
