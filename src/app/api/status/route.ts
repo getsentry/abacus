@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { wrapRouteHandlerWithSentry } from '@sentry/nextjs';
 import { getAnthropicSyncState, getAnthropicBackfillState } from '@/lib/sync/anthropic';
 import { getCursorSyncState, getCursorBackfillState } from '@/lib/sync/cursor';
+import { getGitHubSyncState, getGitHubBackfillState } from '@/lib/sync/github';
 import { getUnattributedStats } from '@/lib/queries';
 import { getSession } from '@/lib/auth';
 
@@ -103,6 +104,35 @@ async function handler() {
     crons.push(
       { path: '/api/cron/sync-cursor', schedule: 'Hourly', type: 'forward' },
       { path: '/api/cron/backfill-cursor', schedule: 'Every 6 hours', type: 'backfill' }
+    );
+  }
+
+  // GitHub
+  const githubConfigured = !!(process.env.GITHUB_APP_ID && process.env.GITHUB_PRIVATE_KEY) || !!process.env.GITHUB_TOKEN;
+  if (githubConfigured) {
+    const [githubSync, githubBackfill] = await Promise.all([
+      getGitHubSyncState(),
+      getGitHubBackfillState()
+    ]);
+
+    providers.github = {
+      id: 'github',
+      name: 'GitHub Commits',
+      color: 'cyan',
+      configured: true,
+      forwardSync: {
+        lastSyncedDate: githubSync.lastSyncedDate,
+        status: getForwardSyncStatus(githubSync.lastSyncedDate, false)
+      },
+      backfill: {
+        oldestDate: githubBackfill.oldestDate,
+        status: getBackfillStatus(githubBackfill.oldestDate, githubBackfill.isComplete)
+      }
+    };
+
+    crons.push(
+      { path: '/api/cron/sync-github-mappings', schedule: 'Hourly', type: 'forward' },
+      { path: '/api/cron/backfill-github', schedule: 'Every 6 hours', type: 'backfill' }
     );
   }
 
