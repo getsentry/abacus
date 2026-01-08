@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useMemo, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { motion } from 'framer-motion';
-import { Compass, Flame, Zap, Star, Users, TrendingUp, Target } from 'lucide-react';
+import { Users, TrendingUp, Target } from 'lucide-react';
 import { StatCard } from '@/components/StatCard';
 import { AppHeader } from '@/components/AppHeader';
 import { TimeRangeSelector } from '@/components/TimeRangeSelector';
@@ -12,9 +12,11 @@ import { AdoptionBadge } from '@/components/AdoptionBadge';
 import { UserLink } from '@/components/UserLink';
 import { TipBar } from '@/components/TipBar';
 import { PageContainer } from '@/components/PageContainer';
+import { LoadingBar } from '@/components/LoadingBar';
+import { LoadingState, ErrorState } from '@/components/PageState';
 import { useTimeRange } from '@/contexts/TimeRangeContext';
 import { formatTokens } from '@/lib/utils';
-import { type AdoptionStage, STAGE_CONFIG, STAGE_ORDER, isInactive } from '@/lib/adoption';
+import { type AdoptionStage, STAGE_CONFIG, STAGE_ORDER, STAGE_ICONS, isInactive } from '@/lib/adoption';
 import { calculateDelta } from '@/lib/comparison';
 
 interface AdoptionSummary {
@@ -39,13 +41,6 @@ interface UserPivotData {
   adoptionScore: number;
   daysSinceLastActive: number;
 }
-
-const STAGE_ICONS = {
-  exploring: Compass,
-  building_momentum: Flame,
-  in_flow: Zap,
-  power_user: Star,
-} as const;
 
 function AdoptionPageContent() {
   const { range, setRange, days, isPending, getDateParams } = useTimeRange();
@@ -101,7 +96,6 @@ function AdoptionPageContent() {
       setUsers(usersData.users || []);
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to fetch data';
-      console.error('Failed to fetch adoption data:', err);
       setError(message);
     } finally {
       setLoading(false);
@@ -137,12 +131,7 @@ function AdoptionPageContent() {
 
   return (
     <div className="min-h-screen bg-[#0a0a0f] text-white grid-bg">
-      {/* Loading Progress Bar */}
-      {isRefreshing && (
-        <div className="fixed top-0 left-0 right-0 z-50 h-0.5 bg-emerald-500/20 overflow-hidden">
-          <div className="h-full bg-emerald-500 animate-progress" />
-        </div>
-      )}
+      <LoadingBar isLoading={isRefreshing} />
 
       <AppHeader />
 
@@ -169,16 +158,9 @@ function AdoptionPageContent() {
       }`}>
         <PageContainer>
         {loading && !summary ? (
-          <div className="flex h-64 items-center justify-center">
-            <div className="font-mono text-sm text-white/40">Loading adoption data...</div>
-          </div>
+          <LoadingState />
         ) : error ? (
-          <div className="flex h-64 items-center justify-center">
-            <div className="text-center">
-              <div className="font-mono text-sm text-red-400 mb-2">Error loading data</div>
-              <div className="font-mono text-xs text-white/40">{error}</div>
-            </div>
-          </div>
+          <ErrorState message={error} />
         ) : summary && (
           <div className="space-y-6">
             {/* Stats Cards */}

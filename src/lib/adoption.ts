@@ -9,7 +9,17 @@
 // Minimum activity thresholds prevent one-off heavy usage from inflating stage.
 // "Ready to Return" is a separate overlay for 14+ days inactive.
 
+import { Compass, Flame, Zap, Star, type LucideIcon } from 'lucide-react';
+
 export type AdoptionStage = 'exploring' | 'building_momentum' | 'in_flow' | 'power_user';
+
+// Stage icons - single source of truth for all adoption stage icons
+export const STAGE_ICONS: Record<AdoptionStage, LucideIcon> = {
+  exploring: Compass,
+  building_momentum: Flame,
+  in_flow: Zap,
+  power_user: Star,
+};
 
 export interface AdoptionMetrics {
   totalTokens: number;

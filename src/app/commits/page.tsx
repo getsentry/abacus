@@ -9,6 +9,8 @@ import { TimeRangeSelector } from '@/components/TimeRangeSelector';
 import { AppHeader } from '@/components/AppHeader';
 import { TipBar } from '@/components/TipBar';
 import { PageContainer } from '@/components/PageContainer';
+import { LoadingBar } from '@/components/LoadingBar';
+import { LoadingState, ErrorState, EmptyState } from '@/components/PageState';
 import { useTimeRange } from '@/contexts/TimeRangeContext';
 import { getToolConfig, formatToolName } from '@/lib/tools';
 
@@ -136,7 +138,6 @@ function CommitsPageContent() {
       setTotals(trendsData.overall || null);
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to fetch data';
-      console.error('Failed to fetch commits data:', err);
       setError(message);
       setRepositories([]);
     } finally {
@@ -183,12 +184,7 @@ function CommitsPageContent() {
 
   return (
     <div className="min-h-screen bg-[#0a0a0f] text-white grid-bg">
-      {/* Loading Progress Bar */}
-      {isRefreshing && (
-        <div className="fixed top-0 left-0 right-0 z-50 h-0.5 bg-amber-500/20 overflow-hidden">
-          <div className="h-full bg-amber-500 animate-progress" />
-        </div>
-      )}
+      <LoadingBar isLoading={isRefreshing} />
 
       <AppHeader
         search={
@@ -374,26 +370,15 @@ function CommitsPageContent() {
       }`}>
         <PageContainer>
           {loading && repositories.length === 0 ? (
-            <div className="flex h-64 items-center justify-center">
-              <div className="font-mono text-sm text-white/40">Loading...</div>
-            </div>
+            <LoadingState />
           ) : error ? (
-            <div className="flex h-64 items-center justify-center">
-              <div className="text-center">
-                <div className="font-mono text-sm text-red-400 mb-2">Error loading repositories</div>
-                <div className="font-mono text-xs text-white/40">{error}</div>
-              </div>
-            </div>
+            <ErrorState title="Error loading repositories" message={error} />
           ) : repositories.length === 0 ? (
-            <div className="flex h-64 items-center justify-center">
-              <div className="text-center">
-                <GitCommit className="w-8 h-8 text-white/20 mx-auto mb-3" />
-                <div className="font-mono text-sm text-white/40 mb-2">No commit data found</div>
-                <div className="font-mono text-xs text-white/30">
-                  Configure GitHub webhooks to start tracking commits
-                </div>
-              </div>
-            </div>
+            <EmptyState
+              icon={GitCommit}
+              title="No commit data found"
+              description="Configure GitHub webhooks to start tracking commits"
+            />
           ) : (
             <motion.div
               initial={{ opacity: 0, y: 20 }}

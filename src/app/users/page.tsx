@@ -10,6 +10,8 @@ import { AdoptionBadge } from '@/components/AdoptionBadge';
 import { UserLink } from '@/components/UserLink';
 import { TipBar } from '@/components/TipBar';
 import { PageContainer } from '@/components/PageContainer';
+import { LoadingBar } from '@/components/LoadingBar';
+import { LoadingState, ErrorState } from '@/components/PageState';
 import { formatTokens, formatCurrency } from '@/lib/utils';
 import { useTimeRange } from '@/contexts/TimeRangeContext';
 import { type AdoptionStage, isInactive } from '@/lib/adoption';
@@ -110,7 +112,6 @@ function UsersPageContent() {
       }
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to fetch users';
-      console.error('Failed to fetch users:', err);
       setError(message);
       setUsers([]);
     } finally {
@@ -156,12 +157,7 @@ function UsersPageContent() {
 
   return (
     <div className="min-h-screen bg-[#0a0a0f] text-white grid-bg">
-      {/* Loading Progress Bar */}
-      {isRefreshing && (
-        <div className="fixed top-0 left-0 right-0 z-50 h-0.5 bg-amber-500/20 overflow-hidden">
-          <div className="h-full bg-amber-500 animate-progress" />
-        </div>
-      )}
+      <LoadingBar isLoading={isRefreshing} />
 
       <AppHeader
         search={
@@ -218,16 +214,9 @@ function UsersPageContent() {
       }`}>
         <PageContainer>
         {loading && users.length === 0 ? (
-          <div className="flex h-64 items-center justify-center">
-            <div className="font-mono text-sm text-white/40">Loading...</div>
-          </div>
+          <LoadingState />
         ) : error ? (
-          <div className="flex h-64 items-center justify-center">
-            <div className="text-center">
-              <div className="font-mono text-sm text-red-400 mb-2">Error loading users</div>
-              <div className="font-mono text-xs text-white/40">{error}</div>
-            </div>
-          </div>
+          <ErrorState title="Error loading users" message={error} />
         ) : (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
