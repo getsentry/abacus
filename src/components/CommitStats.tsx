@@ -3,6 +3,7 @@
 import { motion } from 'framer-motion';
 import { GitCommit } from 'lucide-react';
 import { getToolConfig, formatToolName } from '@/lib/tools';
+import { AppLink } from '@/components/AppLink';
 
 interface ToolBreakdown {
   tool: string;
@@ -49,11 +50,19 @@ export function CommitStats({
       transition={{ delay: 0.4 }}
       className={`rounded-lg border border-white/5 bg-white/[0.02] p-4 ${className}`}
     >
-      <div className="flex items-center gap-2 mb-3">
-        <GitCommit className="w-3.5 h-3.5 text-white/40" />
-        <p className="font-mono text-[10px] uppercase tracking-wider text-white/40">
-          Commits {days && <span className="text-white/20">({days}d)</span>}
-        </p>
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center gap-2">
+          <GitCommit className="w-3.5 h-3.5 text-white/40" />
+          <p className="font-mono text-[10px] uppercase tracking-wider text-white/40">
+            Commits {days && <span className="text-white/20">({days}d)</span>}
+          </p>
+        </div>
+        <AppLink
+          href="/commits"
+          className="font-mono text-[10px] text-amber-500/70 hover:text-amber-400 transition-colors cursor-pointer"
+        >
+          View details
+        </AppLink>
       </div>
 
       {/* Main stat: AI Assistance Rate */}
