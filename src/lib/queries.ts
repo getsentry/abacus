@@ -870,10 +870,10 @@ export async function getAdoptionSummary(
 }
 
 // ============================================================================
-// GitHub Commit Stats
+// Commit Stats (VCS-agnostic)
 // ============================================================================
 
-export interface GitHubStats {
+export interface CommitStats {
   totalCommits: number;
   aiAssistedCommits: number;
   aiAssistanceRate: number;
@@ -887,12 +887,14 @@ export interface GitHubStats {
     additions: number;
     deletions: number;
   }[];
-  firstCommitDate: string | null;
-  lastCommitDate: string | null;
   repositoryCount: number;
 }
 
-export async function getGitHubStats(): Promise<GitHubStats> {
+export async function getCommitStats(startDate?: string, endDate?: string): Promise<CommitStats> {
+  // Use extreme dates as defaults - query planner handles this efficiently
+  const effectiveStartDate = startDate || '1970-01-01';
+  const effectiveEndDate = endDate || '9999-12-31';
+
   const [overallResult, toolBreakdownResult, repoCountResult] = await Promise.all([
     sql`
       SELECT
@@ -901,10 +903,10 @@ export async function getGitHubStats(): Promise<GitHubStats> {
         COALESCE(SUM(additions), 0)::int as "totalAdditions",
         COALESCE(SUM(deletions), 0)::int as "totalDeletions",
         COALESCE(SUM(additions) FILTER (WHERE ai_tool IS NOT NULL), 0)::int as "aiAdditions",
-        COALESCE(SUM(deletions) FILTER (WHERE ai_tool IS NOT NULL), 0)::int as "aiDeletions",
-        MIN(committed_at)::text as "firstCommitDate",
-        MAX(committed_at)::text as "lastCommitDate"
+        COALESCE(SUM(deletions) FILTER (WHERE ai_tool IS NOT NULL), 0)::int as "aiDeletions"
       FROM commits
+      WHERE committed_at >= ${effectiveStartDate}::timestamp
+        AND committed_at < (${effectiveEndDate}::date + interval '1 day')
     `,
     sql`
       SELECT
@@ -914,11 +916,16 @@ export async function getGitHubStats(): Promise<GitHubStats> {
         COALESCE(SUM(deletions), 0)::int as deletions
       FROM commits
       WHERE ai_tool IS NOT NULL
+        AND committed_at >= ${effectiveStartDate}::timestamp
+        AND committed_at < (${effectiveEndDate}::date + interval '1 day')
       GROUP BY ai_tool
       ORDER BY commits DESC
     `,
     sql`
-      SELECT COUNT(DISTINCT repo_id)::int as count FROM commits
+      SELECT COUNT(DISTINCT repo_id)::int as count
+      FROM commits
+      WHERE committed_at >= ${effectiveStartDate}::timestamp
+        AND committed_at < (${effectiveEndDate}::date + interval '1 day')
     `
   ]);
 
@@ -940,8 +947,6 @@ export async function getGitHubStats(): Promise<GitHubStats> {
       additions: Number(row.additions),
       deletions: Number(row.deletions),
     })),
-    firstCommitDate: overall.firstCommitDate,
-    lastCommitDate: overall.lastCommitDate,
     repositoryCount: Number(repoCountResult.rows[0].count),
   };
 }

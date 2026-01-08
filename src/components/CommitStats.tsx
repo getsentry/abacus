@@ -11,13 +11,14 @@ interface ToolBreakdown {
   deletions: number;
 }
 
-interface GitHubStatsProps {
+interface CommitStatsProps {
   totalCommits: number;
   aiAssistedCommits: number;
   aiAssistanceRate: number;
   aiAdditions: number;
   aiDeletions: number;
   toolBreakdown: ToolBreakdown[];
+  days?: number;
   className?: string;
 }
 
@@ -27,15 +28,16 @@ function formatNumber(n: number): string {
   return n.toLocaleString();
 }
 
-export function GitHubStats({
+export function CommitStats({
   totalCommits,
   aiAssistedCommits,
   aiAssistanceRate,
   aiAdditions,
   aiDeletions,
   toolBreakdown,
+  days,
   className = '',
-}: GitHubStatsProps) {
+}: CommitStatsProps) {
   if (totalCommits === 0) return null;
 
   const totalAiCommits = toolBreakdown.reduce((sum, t) => sum + t.commits, 0);
@@ -50,7 +52,7 @@ export function GitHubStats({
       <div className="flex items-center gap-2 mb-3">
         <GitCommit className="w-3.5 h-3.5 text-white/40" />
         <p className="font-mono text-[10px] uppercase tracking-wider text-white/40">
-          GitHub Commits
+          Commits {days && <span className="text-white/20">({days}d)</span>}
         </p>
       </div>
 

@@ -13,7 +13,7 @@ import { UserMenu } from '@/components/UserMenu';
 import { LifetimeStats } from '@/components/LifetimeStats';
 import { AdoptionDistribution } from '@/components/AdoptionDistribution';
 import { ToolDistribution } from '@/components/ToolDistribution';
-import { GitHubStats } from '@/components/GitHubStats';
+import { CommitStats } from '@/components/CommitStats';
 import { PageContainer } from '@/components/PageContainer';
 import { formatTokens, formatCurrency } from '@/lib/utils';
 import { useTimeRange } from '@/contexts/TimeRangeContext';
@@ -96,7 +96,7 @@ interface AdoptionData {
   };
 }
 
-interface GitHubStatsData {
+interface CommitStatsData {
   totalCommits: number;
   aiAssistedCommits: number;
   aiAssistanceRate: number;
@@ -110,8 +110,6 @@ interface GitHubStatsData {
     additions: number;
     deletions: number;
   }[];
-  firstCommitDate: string | null;
-  lastCommitDate: string | null;
   repositoryCount: number;
 }
 
@@ -125,27 +123,18 @@ function DashboardContent() {
   const [trends, setTrends] = useState<DailyUsage[]>([]);
   const [models, setModels] = useState<ModelData[]>([]);
   const [adoptionData, setAdoptionData] = useState<AdoptionData | null>(null);
-  const [githubStats, setGithubStats] = useState<GitHubStatsData | null>(null);
+  const [commitStats, setCommitStats] = useState<CommitStatsData | null>(null);
   const [loading, setLoading] = useState(true);
 
   // Show refreshing state when pending or loading with existing data
   const isRefreshing = isPending || (loading && stats !== null);
 
-  // Fetch lifetime stats and GitHub stats once on mount
+  // Fetch lifetime stats once on mount
   useEffect(() => {
     fetch('/api/stats/lifetime')
       .then(res => res.json())
       .then(data => setLifetimeStats(data))
       .catch(err => console.error('Failed to fetch lifetime stats:', err));
-
-    fetch('/api/stats/github')
-      .then(res => res.json())
-      .then(data => {
-        if (data.totalCommits > 0) {
-          setGithubStats(data);
-        }
-      })
-      .catch(err => console.error('Failed to fetch GitHub stats:', err));
   }, []);
 
   const fetchData = useCallback(async () => {
@@ -154,20 +143,22 @@ function DashboardContent() {
       const { startDate, endDate } = getDateParams();
       const params = new URLSearchParams({ startDate, endDate });
 
-      const [statsRes, usersRes, trendsRes, modelsRes, adoptionRes] = await Promise.all([
+      const [statsRes, usersRes, trendsRes, modelsRes, adoptionRes, commitsRes] = await Promise.all([
         fetch(`/api/stats?${params}&comparison=true`),
         fetch(`/api/users?limit=10&${params}`),
         fetch(`/api/trends?${params}`),
         fetch(`/api/models?${params}`),
         fetch(`/api/adoption?${params}&comparison=true`),
+        fetch(`/api/stats/commits?${params}`),
       ]);
 
-      const [statsData, usersData, trendsData, modelsData, adoptionDataRes] = await Promise.all([
+      const [statsData, usersData, trendsData, modelsData, adoptionDataRes, commitsData] = await Promise.all([
         statsRes.json(),
         usersRes.json(),
         trendsRes.json(),
         modelsRes.json(),
         adoptionRes.json(),
+        commitsRes.json(),
       ]);
 
       setStats(statsData);
@@ -175,6 +166,7 @@ function DashboardContent() {
       setTrends(trendsData);
       setModels(modelsData);
       setAdoptionData(adoptionDataRes);
+      setCommitStats(commitsData.totalCommits > 0 ? commitsData : null);
     } catch (error) {
       console.error('Failed to fetch data:', error);
     } finally {
@@ -362,14 +354,15 @@ function DashboardContent() {
                 />
               )}
 
-              {githubStats && (
-                <GitHubStats
-                  totalCommits={githubStats.totalCommits}
-                  aiAssistedCommits={githubStats.aiAssistedCommits}
-                  aiAssistanceRate={githubStats.aiAssistanceRate}
-                  aiAdditions={githubStats.aiAdditions}
-                  aiDeletions={githubStats.aiDeletions}
-                  toolBreakdown={githubStats.toolBreakdown}
+              {commitStats && (
+                <CommitStats
+                  totalCommits={commitStats.totalCommits}
+                  aiAssistedCommits={commitStats.aiAssistedCommits}
+                  aiAssistanceRate={commitStats.aiAssistanceRate}
+                  aiAdditions={commitStats.aiAdditions}
+                  aiDeletions={commitStats.aiDeletions}
+                  toolBreakdown={commitStats.toolBreakdown}
+                  days={days}
                 />
               )}
             </div>
