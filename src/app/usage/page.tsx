@@ -595,7 +595,13 @@ function UsagePageContent() {
                       <th className="px-6 py-3 text-right font-mono text-[11px] uppercase tracking-wider text-white/60">
                         Tokens
                       </th>
-                      <th className="px-6 py-3 text-left font-mono text-[11px] uppercase tracking-wider text-white/60 w-1/3">
+                      <th className="px-6 py-3 text-right font-mono text-[11px] uppercase tracking-wider text-white/60">
+                        Cost
+                      </th>
+                      <th className="px-6 py-3 text-right font-mono text-[11px] uppercase tracking-wider text-white/60 w-16">
+                        %
+                      </th>
+                      <th className="px-6 py-3 text-left font-mono text-[11px] uppercase tracking-wider text-white/60 w-1/4">
                         {viewMode === 'models' ? 'Tools' : 'Distribution'}
                       </th>
                     </tr>
@@ -606,6 +612,16 @@ function UsagePageContent() {
                         // Calculate percentage of total for bar width
                         const totalAllModels = aggregatedModels.reduce((sum, m) => sum + m.totalTokens, 0);
                         const pctOfTotal = totalAllModels > 0 ? (item.totalTokens / totalAllModels) * 100 : 0;
+                        // Estimate cost based on tool breakdown (rough approximation)
+                        const estimatedCost = modelBreakdown
+                          .filter(m => m.model === item.model)
+                          .reduce((sum, m) => {
+                            // Get cost from model trends if available
+                            const trendCost = modelTrends
+                              .filter(t => t.model === item.model)
+                              .reduce((s, t) => s + Number(t.cost), 0);
+                            return trendCost > 0 ? trendCost : sum;
+                          }, 0);
                         return (
                           <tr
                             key={item.model}
@@ -623,73 +639,86 @@ function UsagePageContent() {
                             <td className="px-6 py-3 text-right">
                               <span className="font-mono text-sm text-white/70">{formatTokens(item.totalTokens)}</span>
                             </td>
+                            <td className="px-6 py-3 text-right">
+                              <span className="font-mono text-sm text-white/70">{formatCurrency(estimatedCost)}</span>
+                            </td>
+                            <td className="px-6 py-3 text-right">
+                              <span className="font-mono text-sm text-white/50">{Math.round(pctOfTotal)}%</span>
+                            </td>
                             <td className="px-6 py-3">
-                              <div className="flex items-center gap-2">
-                                <div style={{ width: `${pctOfTotal}%`, minWidth: '20px' }}>
-                                  <ToolSplitBar
-                                    data={item.tools}
-                                    total={item.totalTokens}
-                                    valueType="tokens"
-                                  />
-                                </div>
-                                <span className="font-mono text-xs text-white/40 flex-shrink-0">
-                                  {Math.round(pctOfTotal)}%
-                                </span>
-                              </div>
+                              <ToolSplitBar
+                                data={item.tools}
+                                total={item.totalTokens}
+                                valueType="tokens"
+                              />
                             </td>
                           </tr>
                         );
                       })
                     ) : (
-                      // Tool breakdown
-                      <>
-                        <tr className="border-b border-white/5 hover:bg-white/[0.02] transition-colors">
-                          <td className="px-6 py-3">
-                            <span className={`font-mono text-sm ${TOOL_CONFIGS.claude_code.text}`}>Claude Code</span>
-                          </td>
-                          <td className="px-6 py-3 text-right">
-                            <span className="font-mono text-sm text-white/70">{formatTokens(stats.claudeCodeTokens)}</span>
-                          </td>
-                          <td className="px-6 py-3 text-right">
-                            <span className="font-mono text-sm text-white/50">
-                              {stats.totalTokens > 0 ? Math.round((stats.claudeCodeTokens / stats.totalTokens) * 100) : 0}%
-                            </span>
-                          </td>
-                          <td className="px-6 py-3">
-                            <div className="h-2 w-full rounded-full bg-white/5 overflow-hidden">
-                              <motion.div
-                                initial={{ width: 0 }}
-                                animate={{ width: `${stats.totalTokens > 0 ? (stats.claudeCodeTokens / stats.totalTokens) * 100 : 0}%` }}
-                                transition={{ duration: 0.6 }}
-                                className={`h-full rounded-full ${TOOL_CONFIGS.claude_code.bg}`}
-                              />
-                            </div>
-                          </td>
-                        </tr>
-                        <tr className="border-b border-white/5 hover:bg-white/[0.02] transition-colors">
-                          <td className="px-6 py-3">
-                            <span className={`font-mono text-sm ${TOOL_CONFIGS.cursor.text}`}>Cursor</span>
-                          </td>
-                          <td className="px-6 py-3 text-right">
-                            <span className="font-mono text-sm text-white/70">{formatTokens(stats.cursorTokens)}</span>
-                          </td>
-                          <td className="px-6 py-3 text-right">
-                            <span className="font-mono text-sm text-white/50">
-                              {stats.totalTokens > 0 ? Math.round((stats.cursorTokens / stats.totalTokens) * 100) : 0}%
-                            </span>
-                          </td>
-                          <td className="px-6 py-3">
-                            <div className="h-2 w-full rounded-full bg-white/5 overflow-hidden">
-                              <motion.div
-                                initial={{ width: 0 }}
-                                animate={{ width: `${stats.totalTokens > 0 ? (stats.cursorTokens / stats.totalTokens) * 100 : 0}%` }}
-                                transition={{ duration: 0.6, delay: 0.05 }}
-                                className={`h-full rounded-full ${TOOL_CONFIGS.cursor.bg}`}
-                              />
-                            </div>
-                          </td>
-                        </tr>
-                      </>
+                      // Tool breakdown - calculate costs from tool trends
+                      (() => {
+                        const claudeCodeCost = toolTrends
+                          .filter(t => t.tool === 'claude_code')
+                          .reduce((sum, t) => sum + Number(t.cost), 0);
+                        const cursorCost = toolTrends
+                          .filter(t => t.tool === 'cursor')
+                          .reduce((sum, t) => sum + Number(t.cost), 0);
+                        const claudePct = stats.totalTokens > 0 ? Math.round((stats.claudeCodeTokens / stats.totalTokens) * 100) : 0;
+                        const cursorPct = stats.totalTokens > 0 ? Math.round((stats.cursorTokens / stats.totalTokens) * 100) : 0;
+                        return (
+                          <>
+                            <tr className="border-b border-white/5 hover:bg-white/[0.02] transition-colors">
+                              <td className="px-6 py-3">
+                                <span className={`font-mono text-sm ${TOOL_CONFIGS.claude_code.text}`}>Claude Code</span>
+                              </td>
+                              <td className="px-6 py-3 text-right">
+                                <span className="font-mono text-sm text-white/70">{formatTokens(stats.claudeCodeTokens)}</span>
+                              </td>
+                              <td className="px-6 py-3 text-right">
+                                <span className="font-mono text-sm text-white/70">{formatCurrency(claudeCodeCost)}</span>
+                              </td>
+                              <td className="px-6 py-3 text-right">
+                                <span className="font-mono text-sm text-white/50">{claudePct}%</span>
+                              </td>
+                              <td className="px-6 py-3">
+                                <div className="h-2 rounded-full bg-white/5 overflow-hidden">
+                                  <motion.div
+                                    initial={{ width: 0 }}
+                                    animate={{ width: `${claudePct}%` }}
+                                    transition={{ duration: 0.6 }}
+                                    className={`h-full rounded-full ${TOOL_CONFIGS.claude_code.bg}`}
+                                  />
+                                </div>
+                              </td>
+                            </tr>
+                            <tr className="border-b border-white/5 hover:bg-white/[0.02] transition-colors">
+                              <td className="px-6 py-3">
+                                <span className={`font-mono text-sm ${TOOL_CONFIGS.cursor.text}`}>Cursor</span>
+                              </td>
+                              <td className="px-6 py-3 text-right">
+                                <span className="font-mono text-sm text-white/70">{formatTokens(stats.cursorTokens)}</span>
+                              </td>
+                              <td className="px-6 py-3 text-right">
+                                <span className="font-mono text-sm text-white/70">{formatCurrency(cursorCost)}</span>
+                              </td>
+                              <td className="px-6 py-3 text-right">
+                                <span className="font-mono text-sm text-white/50">{cursorPct}%</span>
+                              </td>
+                              <td className="px-6 py-3">
+                                <div className="h-2 rounded-full bg-white/5 overflow-hidden">
+                                  <motion.div
+                                    initial={{ width: 0 }}
+                                    animate={{ width: `${cursorPct}%` }}
+                                    transition={{ duration: 0.6, delay: 0.05 }}
+                                    className={`h-full rounded-full ${TOOL_CONFIGS.cursor.bg}`}
+                                  />
+                                </div>
+                              </td>
+                            </tr>
+                          </>
+                        );
+                      })()
                     )}
                   </tbody>
                 </table>
