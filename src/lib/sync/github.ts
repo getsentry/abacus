@@ -624,6 +624,14 @@ export async function processWebhookPush(payload: GitHubPushEvent): Promise<Sync
 
   const repoFullName = payload.repository.full_name;
 
+  // Get token for fetching commit stats
+  let token: string | null = null;
+  try {
+    token = await getGitHubToken();
+  } catch {
+    // Continue without token - stats will be 0
+  }
+
   try {
     const repoId = await getOrCreateRepository('github', repoFullName);
 
@@ -635,9 +643,18 @@ export async function processWebhookPush(payload: GitHubPushEvent): Promise<Sync
           commit.author.email
         );
 
-        // Webhook doesn't include stats, estimate from file changes
-        const additions = commit.added.length + commit.modified.length;
-        const deletions = commit.removed.length;
+        // Fetch commit stats from API (webhook doesn't include line counts)
+        let additions = 0;
+        let deletions = 0;
+        if (token) {
+          const commitDetails = await fetchCommitDetails(repoFullName, commit.id, token);
+          if (commitDetails) {
+            additions = commitDetails.additions;
+            deletions = commitDetails.deletions;
+          }
+          // Small delay to be nice to the API
+          await new Promise(resolve => setTimeout(resolve, 50));
+        }
 
         // Use first attribution for backward-compatible ai_tool/ai_model fields
         const primaryAttribution = attributions[0] || null;
@@ -677,6 +694,32 @@ export async function processWebhookPush(payload: GitHubPushEvent): Promise<Sync
 // ============================================
 // API-Based Sync
 // ============================================
+
+/**
+ * Fetch individual commit details including stats (additions/deletions).
+ * The list commits endpoint doesn't include stats, so we need to fetch each commit.
+ */
+async function fetchCommitDetails(
+  repoFullName: string,
+  sha: string,
+  token: string
+): Promise<{ additions: number; deletions: number } | null> {
+  const response = await githubFetch(
+    `https://api.github.com/repos/${repoFullName}/commits/${sha}`,
+    token
+  );
+
+  if (!response.ok) {
+    // Don't fail the whole sync for individual commit fetch failures
+    return null;
+  }
+
+  const data = await response.json();
+  return {
+    additions: data.stats?.additions || 0,
+    deletions: data.stats?.deletions || 0,
+  };
+}
 
 /**
  * Sync commits for a single repository from the GitHub API.
@@ -763,6 +806,13 @@ export async function syncGitHubRepo(
           // Use first attribution for backward-compatible ai_tool/ai_model fields
           const primaryAttribution = attributions[0] || null;
 
+          // Fetch individual commit to get accurate line stats
+          // List commits endpoint doesn't include stats
+          const commitDetails = await fetchCommitDetails(repoFullName, commit.sha, token);
+
+          // Rate limit: small delay between individual commit fetches
+          await new Promise(resolve => setTimeout(resolve, 50));
+
           await insertCommit({
             repoId,
             commitId: commit.sha,
@@ -772,8 +822,8 @@ export async function syncGitHubRepo(
             message: commit.commit.message,
             aiTool: primaryAttribution?.tool || null,
             aiModel: primaryAttribution?.model || null,
-            additions: commit.stats?.additions || 0,
-            deletions: commit.stats?.deletions || 0,
+            additions: commitDetails?.additions || 0,
+            deletions: commitDetails?.deletions || 0,
             attributions,
           });
 
