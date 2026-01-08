@@ -49,7 +49,7 @@ const positionClasses: Record<TooltipPosition, string> = {
  */
 export function TooltipBox({ children, className = '' }: { children: ReactNode; className?: string }) {
   return (
-    <div className={`rounded bg-[#0a0a0c] px-2 py-1.5 text-xs font-mono whitespace-nowrap border border-white/20 ${className}`}>
+    <div className={`rounded bg-[#0a0a0c] px-2.5 py-2 text-sm whitespace-nowrap border border-white/20 ${className}`}>
       {children}
     </div>
   );

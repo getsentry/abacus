@@ -113,7 +113,7 @@ export function MobileNav({ days }: MobileNavProps) {
                       : 'text-white/60 hover:text-white hover:bg-white/5'
                   }`}
                 >
-                  <span className="font-mono text-xs uppercase tracking-wider">
+                  <span className="text-xs font-medium uppercase tracking-wider">
                     {item.label}
                   </span>
                   {active && (

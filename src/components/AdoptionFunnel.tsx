@@ -132,7 +132,7 @@ export function AdoptionFunnel({
           {/* Empty state */}
           {totalUsers === 0 && (
             <div className="flex-1 flex items-center justify-center">
-              <span className="font-mono text-sm text-white/30">No data</span>
+              <span className="text-sm text-white/30">No data</span>
             </div>
           )}
         </div>
@@ -144,7 +144,7 @@ export function AdoptionFunnel({
         <button
           onClick={() => onStageClick?.('all')}
           className={`
-            flex items-center gap-1.5 px-2.5 py-1 rounded-md text-sm font-mono
+            flex items-center gap-1.5 px-2.5 py-1 rounded-md text-sm
             transition-colors duration-150 cursor-pointer
             ${isAllSelected
               ? 'bg-white/15 text-white'
@@ -154,7 +154,7 @@ export function AdoptionFunnel({
         >
           <Users className="w-3.5 h-3.5" strokeWidth={2} />
           <span>All</span>
-          <span className="text-white/40">{totalUsers}</span>
+          <span className="font-mono text-white/40">{totalUsers}</span>
         </button>
 
         <div className="w-px h-4 bg-white/10" />
@@ -170,14 +170,14 @@ export function AdoptionFunnel({
               key={item.stage}
               onClick={() => onStageClick?.(item.stage)}
               className={`
-                flex items-center gap-1.5 px-2.5 py-1 rounded-md text-sm font-mono
+                flex items-center gap-1.5 px-2.5 py-1 rounded-md text-sm
                 transition-colors duration-150 cursor-pointer
                 ${isSelected ? colors.pillActive : colors.pill}
               `}
             >
               <Icon className="w-3.5 h-3.5" strokeWidth={2} />
               <span className="hidden sm:inline">{STAGE_CONFIG[item.stage].label}</span>
-              <span className={isSelected ? 'text-white/70' : 'opacity-60'}>{item.count}</span>
+              <span className={`font-mono ${isSelected ? 'text-white/70' : 'opacity-60'}`}>{item.count}</span>
             </button>
           );
         })}

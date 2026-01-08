@@ -2,6 +2,7 @@
 
 import { useState, useMemo } from 'react';
 import { motion } from 'framer-motion';
+import { ArrowRight } from 'lucide-react';
 import { AppLink } from './AppLink';
 import { AnimatedCard } from './Card';
 import { SectionLabel } from './SectionLabel';
@@ -56,10 +57,11 @@ export function AdoptionDistribution({
       <div className="flex items-center justify-between mb-3">
         <SectionLabel days={days}>Adoption Distribution</SectionLabel>
         <AppLink
-          href="/adoption"
-          className="font-mono text-sm text-amber-500 hover:text-amber-400 transition-colors"
+          href="/team"
+          className="p-1 rounded hover:bg-white/5 text-white/40 hover:text-amber-400 transition-colors"
+          aria-label="View all"
         >
-          View all →
+          <ArrowRight className="w-4 h-4" />
         </AppLink>
       </div>
 

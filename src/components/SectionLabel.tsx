@@ -30,7 +30,7 @@ const marginClasses: Record<MarginSize, string> = {
 
 /**
  * SectionLabel component for consistent section headers across the app.
- * Uses the standard mono font, uppercase, tracking-wider style.
+ * Uses uppercase, tracking-wider style with medium weight.
  *
  * @example
  * // Basic label
@@ -59,7 +59,7 @@ export function SectionLabel({
   as: Component = 'h3',
   divider = false,
 }: SectionLabelProps) {
-  const textClasses = 'font-mono text-[11px] uppercase tracking-wider text-secondary';
+  const textClasses = 'text-xs font-medium uppercase tracking-wider text-secondary';
   const containerClasses = `${marginClasses[margin]} ${className}`.trim();
 
   const formattedCount = typeof count === 'number' ? count.toLocaleString() : count;

@@ -72,15 +72,15 @@ export function BaseStackedBarChart({
     <div className="w-full">
       {/* Header */}
       <div className="mb-4 flex items-center justify-between">
-        <h3 className="font-mono text-xs uppercase tracking-wider text-white/60">
+        <h3 className="text-xs font-medium uppercase tracking-wider text-white/60">
           {title}
           {subtitle && <span className="text-white/30"> {subtitle}</span>}
         </h3>
         {legendContent || (
           <div className="flex gap-4">
             {segmentTotals.filter(s => s.total > 0).map(seg => (
-              <span key={seg.key} className={`font-mono text-xs ${seg.textColor}`}>
-                {seg.label}: {formatValue(seg.total)}
+              <span key={seg.key} className={`text-sm ${seg.textColor}`}>
+                {seg.label}: <span className="font-mono">{formatValue(seg.total)}</span>
               </span>
             ))}
           </div>
@@ -126,7 +126,7 @@ export function BaseStackedBarChart({
 
               {/* Date label */}
               {showLabels && i % labelEvery === 0 && (
-                <span className="absolute -bottom-5 left-1/2 -translate-x-1/2 font-mono text-[8px] text-white/30 whitespace-nowrap">
+                <span className="absolute -bottom-5 left-1/2 -translate-x-1/2 text-xs text-white/30 whitespace-nowrap">
                   {formatDate(item.date)}
                 </span>
               )}

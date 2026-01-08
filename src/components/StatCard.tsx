@@ -84,7 +84,7 @@ export function StatCard({
         {(subValue || trend !== undefined) && (
           <div className="mt-2 flex items-center gap-3">
             {subValue && (
-              <span className="font-mono text-xs text-white/50">{subValue}</span>
+              <span className="text-xs text-white/50">{subValue}</span>
             )}
             {trend !== undefined && (
               <span className={`font-mono text-xs ${trend >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>

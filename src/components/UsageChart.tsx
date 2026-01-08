@@ -2,13 +2,14 @@
 
 import { useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
-import { TrendingUp } from 'lucide-react';
+import { TrendingUp, ArrowRight } from 'lucide-react';
 import { formatTokens, formatDate, formatCurrency } from '@/lib/utils';
 import { aggregateToWeekly } from '@/lib/dateUtils';
 import { Card } from '@/components/Card';
 import { SectionLabel } from '@/components/SectionLabel';
 import { TooltipContent } from '@/components/Tooltip';
 import { TrendLine } from '@/components/TrendLine';
+import { AppLink } from '@/components/AppLink';
 import { TOOL_CONFIGS } from '@/lib/tools';
 
 interface DailyUsage {
@@ -53,11 +54,20 @@ export function UsageChart({ data, days }: UsageChartProps) {
   return (
     <Card animate delay={0.4} padding="lg" className="h-full">
       <div className="mb-4 flex items-center justify-between">
-        <SectionLabel days={days}>{isWeekly ? 'Weekly Usage' : 'Daily Usage'}</SectionLabel>
+        <div className="flex items-center gap-4">
+          <SectionLabel days={days}>{isWeekly ? 'Weekly Usage' : 'Daily Usage'}</SectionLabel>
+          <AppLink
+            href="/usage"
+            className="p-1 rounded hover:bg-white/5 text-white/40 hover:text-amber-400 transition-colors"
+            aria-label="View more"
+          >
+            <ArrowRight className="w-4 h-4" />
+          </AppLink>
+        </div>
         <div className="flex items-center gap-4">
           <button
             onClick={() => setShowTrend(!showTrend)}
-            className={`flex items-center gap-1 px-2 py-1 rounded text-xs font-mono transition-colors cursor-pointer ${
+            className={`flex items-center gap-1 px-2 py-1 rounded text-sm transition-colors cursor-pointer ${
               showTrend
                 ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
                 : 'bg-white/5 text-white/40 border border-white/10 hover:bg-white/10'
@@ -66,11 +76,11 @@ export function UsageChart({ data, days }: UsageChartProps) {
             <TrendingUp className="w-3 h-3" />
             <span>Trend</span>
           </button>
-          <span className={`font-mono text-xs ${TOOL_CONFIGS.claude_code.text}`}>
-            {TOOL_CONFIGS.claude_code.name}: {formatTokens(claudeCodeTotal)}
+          <span className={`text-sm ${TOOL_CONFIGS.claude_code.text}`}>
+            {TOOL_CONFIGS.claude_code.name}: <span className="font-mono">{formatTokens(claudeCodeTotal)}</span>
           </span>
-          <span className={`font-mono text-xs ${TOOL_CONFIGS.cursor.text}`}>
-            {TOOL_CONFIGS.cursor.name}: {formatTokens(cursorTotal)}
+          <span className={`text-sm ${TOOL_CONFIGS.cursor.text}`}>
+            {TOOL_CONFIGS.cursor.name}: <span className="font-mono">{formatTokens(cursorTotal)}</span>
           </span>
         </div>
       </div>
@@ -107,7 +117,7 @@ export function UsageChart({ data, days }: UsageChartProps) {
 
               {/* Date label - only show every Nth label */}
               {i % labelEvery === 0 && (
-                <span className="absolute -bottom-5 left-1/2 -translate-x-1/2 font-mono text-[8px] text-white/30 whitespace-nowrap">
+                <span className="absolute -bottom-5 left-1/2 -translate-x-1/2 text-xs text-white/30 whitespace-nowrap">
                   {formatDate(item.date)}
                 </span>
               )}

@@ -109,7 +109,7 @@ export function ToolDistribution({
 
         {/* Tokens Bar */}
         <div className="flex items-center gap-2">
-          <span className="font-mono text-sm text-white/30 w-14 shrink-0">Tokens</span>
+          <span className="text-sm text-white/30 w-14 shrink-0">Tokens</span>
           <div className="h-2 rounded-full bg-white/5 overflow-hidden flex flex-1">
             {tools.map((tool, i) => {
               if (tool.tokens === 0) return null;
@@ -134,7 +134,7 @@ export function ToolDistribution({
 
         {/* Users Bar */}
         <div className="flex items-center gap-2">
-          <span className="font-mono text-sm text-white/30 w-14 shrink-0">Users</span>
+          <span className="text-sm text-white/30 w-14 shrink-0">Users</span>
           <div className="h-2 rounded-full bg-white/5 overflow-hidden flex flex-1">
             {tools.map((tool, i) => {
               if (tool.users === 0) return null;
@@ -166,7 +166,7 @@ export function ToolDistribution({
           return (
             <div key={tool.tool} className="flex items-center gap-1.5">
               <div className={`w-2 h-2 rounded-full ${config.bg}`} />
-              <span className={`font-mono text-sm ${config.text}`}>
+              <span className={`text-sm ${config.text}`}>
                 {formatToolName(tool.tool)}
               </span>
             </div>

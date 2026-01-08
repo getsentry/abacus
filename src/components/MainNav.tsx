@@ -66,7 +66,7 @@ export function MainNav({ days }: MainNavProps) {
               className="relative px-4 py-2 group"
             >
               <span
-                className={`font-mono text-[11px] uppercase tracking-[0.15em] transition-colors duration-200 ${
+                className={`text-xs font-medium uppercase tracking-wider transition-colors duration-200 ${
                   active
                     ? 'text-white'
                     : 'text-white/40 group-hover:text-white/70'

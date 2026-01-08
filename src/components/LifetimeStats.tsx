@@ -35,7 +35,7 @@ export function LifetimeStats({ totalCost, totalTokens, firstRecordDate, totalUs
     >
       <PageContainer className="flex items-center min-h-[48px]">
         <div className="flex items-center gap-6 sm:gap-8 flex-wrap">
-          <span className="font-mono text-[11px] tracking-wider text-muted leading-none">
+          <span className="text-xs font-medium uppercase tracking-wider text-muted leading-none">
             lifetime
           </span>
 
@@ -48,7 +48,7 @@ export function LifetimeStats({ totalCost, totalTokens, firstRecordDate, totalUs
             <span className="font-display text-lg sm:text-xl font-light text-primary leading-none">
               {formatTokens(totalTokens)}
             </span>
-            <span className="font-mono text-[11px] text-secondary leading-none">tokens</span>
+            <span className="text-xs text-secondary leading-none">tokens</span>
           </motion.div>
 
           <div className="w-px h-4 bg-white/10" />
@@ -62,7 +62,7 @@ export function LifetimeStats({ totalCost, totalTokens, firstRecordDate, totalUs
             <span className="font-display text-lg sm:text-xl font-light text-primary leading-none">
               {formatCurrency(totalCost)}
             </span>
-            <span className="font-mono text-[11px] text-secondary leading-none">total spend</span>
+            <span className="text-xs text-secondary leading-none">total spend</span>
           </motion.div>
 
           {totalUsers !== undefined && (
@@ -77,7 +77,7 @@ export function LifetimeStats({ totalCost, totalTokens, firstRecordDate, totalUs
                 <span className="font-display text-lg sm:text-xl font-light text-primary leading-none">
                   {totalUsers}
                 </span>
-                <span className="font-mono text-[11px] text-secondary leading-none">users</span>
+                <span className="text-xs text-secondary leading-none">users</span>
               </motion.div>
             </>
           )}
@@ -94,7 +94,7 @@ export function LifetimeStats({ totalCost, totalTokens, firstRecordDate, totalUs
                 <span className="font-display text-lg sm:text-xl font-light text-primary leading-none">
                   {aiAttributedCommits.toLocaleString()}
                 </span>
-                <span className="font-mono text-[11px] text-secondary leading-none">commits attributed to ai</span>
+                <span className="text-xs text-secondary leading-none">commits attributed to AI</span>
               </motion.div>
             </>
           )}
@@ -106,7 +106,7 @@ export function LifetimeStats({ totalCost, totalTokens, firstRecordDate, totalUs
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={{ delay: 0.3 }}
-                className="hidden md:block font-mono text-[11px] text-muted leading-none"
+                className="hidden md:block text-xs text-muted leading-none"
               >
                 {formatSinceDate(firstRecordDate)}
               </motion.span>

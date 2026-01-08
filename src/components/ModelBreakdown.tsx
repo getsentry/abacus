@@ -2,10 +2,12 @@
 
 import { useMemo } from 'react';
 import { motion } from 'framer-motion';
+import { ArrowRight } from 'lucide-react';
 import { formatTokens } from '@/lib/utils';
 import { getToolConfig } from '@/lib/tools';
 import { Card } from '@/components/Card';
 import { SectionLabel } from '@/components/SectionLabel';
+import { AppLink } from '@/components/AppLink';
 
 interface ModelData {
   model: string;
@@ -72,7 +74,16 @@ export function ModelBreakdown({ data, days }: ModelBreakdownProps) {
 
   return (
     <Card animate delay={0.5} padding="lg" className="h-full">
-      <SectionLabel days={days} margin="lg">Model Distribution</SectionLabel>
+      <div className="mb-4 flex items-center justify-between">
+        <SectionLabel days={days}>Model Distribution</SectionLabel>
+        <AppLink
+          href="/usage"
+          className="p-1 rounded hover:bg-white/5 text-white/40 hover:text-amber-400 transition-colors"
+          aria-label="View more"
+        >
+          <ArrowRight className="w-4 h-4" />
+        </AppLink>
+      </div>
       <div className="space-y-3">
         {aggregatedModels.slice(0, 6).map((m, i) => (
           <motion.div
@@ -83,7 +94,7 @@ export function ModelBreakdown({ data, days }: ModelBreakdownProps) {
             className="group"
           >
             <div className="mb-1 flex items-center justify-between">
-              <span className="font-mono text-sm text-white/70 group-hover:text-white transition-colors truncate max-w-[140px]">
+              <span className="text-sm text-white/70 group-hover:text-white transition-colors truncate max-w-[140px]">
                 {formatModelName(m.model)}
               </span>
               <span className="font-mono text-sm text-white/40">

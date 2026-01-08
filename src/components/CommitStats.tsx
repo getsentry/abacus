@@ -1,7 +1,7 @@
 'use client';
 
 import { motion } from 'framer-motion';
-import { GitCommit } from 'lucide-react';
+import { GitCommit, ArrowRight } from 'lucide-react';
 import { getToolConfig, formatToolName } from '@/lib/tools';
 import { AppLink } from '@/components/AppLink';
 import { Card } from '@/components/Card';
@@ -48,9 +48,10 @@ export function CommitStats({
         </div>
         <AppLink
           href="/commits"
-          className="font-mono text-xs text-amber-500 hover:text-amber-400 transition-colors"
+          className="p-1 rounded hover:bg-white/5 text-white/40 hover:text-amber-400 transition-colors"
+          aria-label="View all"
         >
-          View all →
+          <ArrowRight className="w-4 h-4" />
         </AppLink>
       </div>
 
@@ -60,10 +61,10 @@ export function CommitStats({
           <span className="font-display text-3xl font-light text-white">
             {aiAssistanceRate}%
           </span>
-          <span className="font-mono text-xs text-white/40">AI Attributed</span>
+          <span className="text-sm text-white/40">AI Attributed</span>
         </div>
-        <p className="font-mono text-[11px] text-white/30 mt-1">
-          {formatNumber(aiAssistedCommits)} of {formatNumber(totalCommits)} commits
+        <p className="text-xs text-white/30 mt-1">
+          <span className="font-mono">{formatNumber(aiAssistedCommits)}</span> of <span className="font-mono">{formatNumber(totalCommits)}</span> commits
         </p>
       </div>
 
@@ -84,7 +85,7 @@ export function CommitStats({
                   className="flex items-center gap-2"
                 >
                   <div className={`w-1.5 h-1.5 rounded-full ${config.bg}`} />
-                  <span className={`font-mono text-[11px] ${config.text} w-24`}>
+                  <span className={`text-xs ${config.text} w-24`}>
                     {formatToolName(tool.tool)}
                   </span>
                   <div className="flex-1 h-1 rounded-full bg-white/5 overflow-hidden">
@@ -95,7 +96,7 @@ export function CommitStats({
                       className={`h-full rounded-full ${config.bg}`}
                     />
                   </div>
-                  <span className="font-mono text-[11px] text-white/40 w-12 text-right">
+                  <span className="font-mono text-xs text-white/40 w-12 text-right">
                     {tool.commits}
                   </span>
                 </motion.div>
