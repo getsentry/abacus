@@ -14,6 +14,7 @@ import { PageContainer } from '@/components/PageContainer';
 import { formatTokens, formatCurrency } from '@/lib/utils';
 import { useTimeRange } from '@/contexts/TimeRangeContext';
 import { type AdoptionStage, isInactive } from '@/lib/adoption';
+import { getToolConfig, formatToolName } from '@/lib/tools';
 
 interface UserPivotData {
   email: string;
@@ -36,12 +37,26 @@ interface UserPivotData {
 }
 
 type SortKey = keyof UserPivotData;
+type ColumnKey = SortKey | 'split';
 
-const columns: { key: SortKey; label: string; align: 'left' | 'right'; format?: (v: number) => string; isAdoption?: boolean }[] = [
+// Build tool breakdown from user data
+function getToolBreakdownFromUser(user: UserPivotData) {
+  const tools = [];
+  if (user.claudeCodeTokens > 0) {
+    tools.push({ tool: 'claude_code', tokens: Number(user.claudeCodeTokens) });
+  }
+  if (user.cursorTokens > 0) {
+    tools.push({ tool: 'cursor', tokens: Number(user.cursorTokens) });
+  }
+  return tools.sort((a, b) => b.tokens - a.tokens);
+}
+
+const columns: { key: ColumnKey; label: string; align: 'left' | 'right'; format?: (v: number) => string; isAdoption?: boolean; sortable?: boolean }[] = [
   { key: 'email', label: 'User', align: 'left' },
   { key: 'adoptionStage', label: 'Stage', align: 'left', isAdoption: true },
   { key: 'totalTokens', label: 'Total Tokens', align: 'right', format: formatTokens },
   { key: 'totalCost', label: 'Cost', align: 'right', format: formatCurrency },
+  { key: 'split', label: 'Split', align: 'left', sortable: false },
   { key: 'claudeCodeTokens', label: 'Claude Code', align: 'right', format: formatTokens },
   { key: 'cursorTokens', label: 'Cursor', align: 'right', format: formatTokens },
   { key: 'daysActive', label: 'Days Active', align: 'right', format: (v) => v.toString() },
@@ -65,8 +80,8 @@ function UsersPageContent() {
   const [sortBy, setSortBy] = useState<SortKey>('totalTokens');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
   const [searchQuery, setSearchQuery] = useState(initialSearch);
-  const [visibleColumns, setVisibleColumns] = useState<Set<SortKey>>(
-    new Set(['email', 'adoptionStage', 'totalTokens', 'totalCost', 'claudeCodeTokens', 'cursorTokens', 'avgTokensPerDay', 'lastActive'])
+  const [visibleColumns, setVisibleColumns] = useState<Set<ColumnKey>>(
+    new Set(['email', 'adoptionStage', 'totalTokens', 'totalCost', 'split', 'avgTokensPerDay', 'lastActive'])
   );
 
   const fetchUsers = useCallback(async () => {
@@ -117,7 +132,7 @@ function UsersPageContent() {
     }
   };
 
-  const toggleColumn = (key: SortKey) => {
+  const toggleColumn = (key: ColumnKey) => {
     const newVisible = new Set(visibleColumns);
     if (newVisible.has(key)) {
       if (key !== 'email') newVisible.delete(key); // Always keep email
@@ -231,24 +246,27 @@ function UsersPageContent() {
               <table className="w-full">
                 <thead>
                   <tr className="border-b border-white/10 bg-white/[0.02]">
-                    {activeColumns.map(col => (
-                      <th
-                        key={col.key}
-                        onClick={() => handleSort(col.key)}
-                        className={`px-4 py-3 font-mono text-[10px] uppercase tracking-wider text-white/60 cursor-pointer hover:text-white transition-colors ${
-                          col.align === 'right' ? 'text-right' : 'text-left'
-                        }`}
-                      >
-                        <div className={`flex items-center gap-1 ${col.align === 'right' ? 'justify-end' : ''}`}>
-                          {col.label}
-                          {sortBy === col.key && (
-                            <span className="text-amber-400">
-                              {sortDir === 'asc' ? '↑' : '↓'}
-                            </span>
-                          )}
-                        </div>
-                      </th>
-                    ))}
+                    {activeColumns.map(col => {
+                      const isSortable = col.sortable !== false && col.key !== 'split';
+                      return (
+                        <th
+                          key={col.key}
+                          onClick={isSortable ? () => handleSort(col.key as SortKey) : undefined}
+                          className={`px-4 py-3 font-mono text-[10px] uppercase tracking-wider text-white/60 transition-colors ${
+                            col.align === 'right' ? 'text-right' : 'text-left'
+                          } ${isSortable ? 'cursor-pointer hover:text-white' : ''}`}
+                        >
+                          <div className={`flex items-center gap-1 ${col.align === 'right' ? 'justify-end' : ''}`}>
+                            {col.label}
+                            {sortBy === col.key && (
+                              <span className="text-amber-400">
+                                {sortDir === 'asc' ? '↑' : '↓'}
+                              </span>
+                            )}
+                          </div>
+                        </th>
+                      );
+                    })}
                   </tr>
                 </thead>
                 <tbody>
@@ -272,14 +290,50 @@ function UsersPageContent() {
                               size="sm"
                               isInactive={isInactive(user.daysSinceLastActive)}
                             />
+                          ) : col.key === 'split' ? (
+                            (() => {
+                              const tools = getToolBreakdownFromUser(user);
+                              const total = Number(user.totalTokens);
+                              if (total === 0 || tools.length === 0) return null;
+
+                              return (
+                                <div className="group/dist relative flex gap-0.5 w-full min-w-[80px]">
+                                  {tools.map((t, idx) => {
+                                    const config = getToolConfig(t.tool);
+                                    const pct = (t.tokens / total) * 100;
+                                    return (
+                                      <div
+                                        key={t.tool}
+                                        className={`h-1.5 sm:h-2 ${config.bg} ${idx === 0 ? 'rounded-l' : ''} ${idx === tools.length - 1 ? 'rounded-r' : ''}`}
+                                        style={{ width: `${pct}%` }}
+                                      />
+                                    );
+                                  })}
+                                  {/* Tooltip */}
+                                  <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover/dist:block z-20 pointer-events-none">
+                                    <div className="rounded bg-black/95 px-2 py-1.5 text-[10px] whitespace-nowrap border border-white/10 shadow-lg">
+                                      {tools.map(t => {
+                                        const config = getToolConfig(t.tool);
+                                        const pct = Math.round((t.tokens / total) * 100);
+                                        return (
+                                          <div key={t.tool} className={config.text}>
+                                            {formatToolName(t.tool)}: {formatTokens(t.tokens)} ({pct}%)
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            })()
                           ) : col.key === 'claudeCodeTokens' ? (
                             <span className="text-amber-400/80">{col.format!(user[col.key] as number)}</span>
                           ) : col.key === 'cursorTokens' ? (
                             <span className="text-cyan-400/80">{col.format!(user[col.key] as number)}</span>
                           ) : col.format ? (
-                            <span className="text-white/70">{col.format(user[col.key] as number)}</span>
+                            <span className="text-white/70">{col.format(user[col.key as SortKey] as number)}</span>
                           ) : (
-                            <span className="text-white/50">{user[col.key]}</span>
+                            <span className="text-white/50">{user[col.key as SortKey]}</span>
                           )}
                         </td>
                       ))}
