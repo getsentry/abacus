@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import { Providers } from "./providers";
-import { Footer } from "@/components/Footer";
 
 export const metadata: Metadata = {
   title: "Abacus",
@@ -20,7 +19,6 @@ export default function RootLayout({
           <div className="flex-1">
             {children}
           </div>
-          <Footer />
         </Providers>
       </body>
     </html>
