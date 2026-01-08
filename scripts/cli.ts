@@ -34,6 +34,7 @@ import * as path from 'path';
 import { sql } from '@vercel/postgres';
 import { syncAnthropicUsage, getAnthropicSyncState, backfillAnthropicUsage, resetAnthropicBackfillComplete } from '../src/lib/sync/anthropic';
 import { syncCursorUsage, backfillCursorUsage, getCursorSyncState, getPreviousCompleteHourEnd, resetCursorBackfillComplete } from '../src/lib/sync/cursor';
+import { syncGitHubRepo, backfillGitHubUsage, getGitHubSyncState, getGitHubBackfillState, resetGitHubBackfillComplete } from '../src/lib/sync/github';
 import { syncApiKeyMappingsSmart, syncAnthropicApiKeyMappings } from '../src/lib/sync/anthropic-mappings';
 import { getToolIdentityMappings, setToolIdentityMapping, getUnmappedToolRecords, getKnownEmails, insertUsageRecord } from '../src/lib/queries';
 import { normalizeModelName } from '../src/lib/utils';
@@ -149,6 +150,9 @@ Commands:
   mappings:fix          Interactive fix for unmapped API keys
   anthropic:status      Show Anthropic sync state
   cursor:status         Show Cursor sync state
+  github:status         Show GitHub commits sync state
+  github:sync <repo> [--days N]
+                        Sync commits for a specific repo (e.g., getsentry/sentry)
   import:cursor-csv <file>
                         Import Cursor usage from CSV export
   stats                 Show database statistics
@@ -242,6 +246,89 @@ async function cmdCursorStatus() {
     console.log('Never synced');
     console.log(`Current complete hour: ${currentHourEnd.toISOString()}`);
     console.log('\nRun backfill to initialize: npm run cli backfill cursor --from YYYY-MM-DD --to YYYY-MM-DD');
+  }
+}
+
+async function cmdGitHubStatus() {
+  console.log('🔄 GitHub Commits Sync Status\n');
+
+  const { lastSyncedDate } = await getGitHubSyncState();
+  const { oldestDate, isComplete } = await getGitHubBackfillState();
+
+  console.log(`Last synced date: ${lastSyncedDate || 'Never'}`);
+  console.log(`Oldest commit date: ${oldestDate || 'None'}`);
+  console.log(`Backfill complete: ${isComplete}`);
+
+  // Get stats from database
+  const stats = await sql`
+    SELECT
+      COUNT(*)::int as total_commits,
+      COUNT(*) FILTER (WHERE ai_tool IS NOT NULL)::int as ai_commits,
+      COUNT(DISTINCT repo_id)::int as repos
+    FROM commits
+  `;
+
+  const row = stats.rows[0];
+  console.log(`\nDatabase stats:`);
+  console.log(`  Total commits: ${row.total_commits}`);
+  console.log(`  AI-attributed: ${row.ai_commits}`);
+  if (row.total_commits > 0) {
+    const pct = ((row.ai_commits / row.total_commits) * 100).toFixed(1);
+    console.log(`  AI percentage: ${pct}%`);
+  }
+  console.log(`  Repositories: ${row.repos}`);
+}
+
+async function cmdGitHubSync(repo: string, days: number = 7) {
+  if (!repo) {
+    console.error('Error: Please specify a repo (e.g., getsentry/sentry)');
+    console.error('Usage: npm run cli github:sync <repo> [--days N]');
+    return;
+  }
+
+  if (!process.env.GITHUB_TOKEN) {
+    console.error('❌ GITHUB_TOKEN not configured');
+    return;
+  }
+
+  const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000)
+    .toISOString()
+    .split('T')[0];
+
+  console.log(`🔄 Syncing ${repo} from ${since}...\n`);
+
+  const result = await syncGitHubRepo(repo, since, undefined, {
+    onProgress: (msg) => console.log(msg)
+  });
+
+  console.log(`\n✓ Sync complete`);
+  console.log(`  Commits processed: ${result.commitsProcessed}`);
+  console.log(`  AI-attributed: ${result.aiAttributedCommits}`);
+  if (result.errors.length > 0) {
+    console.log(`  Errors: ${result.errors.slice(0, 5).join(', ')}`);
+  }
+}
+
+async function cmdGitHubBackfill(fromDate: string) {
+  if (!process.env.GITHUB_TOKEN) {
+    console.error('❌ GITHUB_TOKEN not configured');
+    return;
+  }
+
+  console.log(`📥 Backfilling GitHub commits from ${fromDate}\n`);
+
+  const result = await backfillGitHubUsage(fromDate, {
+    onProgress: (msg) => console.log(msg)
+  });
+
+  console.log(`\n✓ Backfill complete`);
+  console.log(`  Commits processed: ${result.commitsProcessed}`);
+  console.log(`  AI-attributed: ${result.aiAttributedCommits}`);
+  if (result.rateLimited) {
+    console.log(`  ⚠️  Rate limited - will continue on next run`);
+  }
+  if (result.errors.length > 0) {
+    console.log(`  Errors: ${result.errors.slice(0, 5).join(', ')}`);
   }
 }
 
@@ -590,6 +677,16 @@ async function main() {
       case 'cursor:status':
         await cmdCursorStatus();
         break;
+      case 'github:status':
+        await cmdGitHubStatus();
+        break;
+      case 'github:sync': {
+        const repo = args[1];
+        const daysIdx = args.indexOf('--days');
+        const days = daysIdx >= 0 ? parseInt(args[daysIdx + 1]) : 7;
+        await cmdGitHubSync(repo, days);
+        break;
+      }
       case 'mappings':
         await cmdMappings();
         break;
@@ -615,37 +712,51 @@ async function main() {
         break;
       }
       case 'backfill': {
-        const tool = args[1] as 'anthropic' | 'cursor';
-        if (!tool || !['anthropic', 'cursor'].includes(tool)) {
-          console.error('Error: Please specify tool (anthropic or cursor)');
-          console.error('Usage: npm run cli backfill <tool> --from YYYY-MM-DD --to YYYY-MM-DD');
+        const tool = args[1] as 'anthropic' | 'cursor' | 'github';
+        if (!tool || !['anthropic', 'cursor', 'github'].includes(tool)) {
+          console.error('Error: Please specify tool (anthropic, cursor, or github)');
+          console.error('Usage: npm run cli backfill <tool> --from YYYY-MM-DD [--to YYYY-MM-DD]');
           break;
         }
         const fromIdx = args.indexOf('--from');
-        const toIdx = args.indexOf('--to');
-        if (fromIdx < 0 || toIdx < 0) {
-          console.error('Error: Please specify --from and --to dates');
-          console.error('Usage: npm run cli backfill <tool> --from YYYY-MM-DD --to YYYY-MM-DD');
+        if (fromIdx < 0) {
+          console.error('Error: Please specify --from date');
+          console.error('Usage: npm run cli backfill <tool> --from YYYY-MM-DD [--to YYYY-MM-DD]');
           break;
         }
         const fromDate = args[fromIdx + 1];
-        const toDate = args[toIdx + 1];
-        if (!fromDate || !toDate) {
-          console.error('Error: Missing date values');
+        if (!fromDate) {
+          console.error('Error: Missing --from date value');
           break;
         }
         const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
-        if (!dateRegex.test(fromDate) || !dateRegex.test(toDate)) {
-          console.error('Error: Dates must be in YYYY-MM-DD format');
+        if (!dateRegex.test(fromDate)) {
+          console.error('Error: --from date must be in YYYY-MM-DD format');
           break;
         }
-        await cmdBackfill(tool, fromDate, toDate);
+        // GitHub backfill only needs --from, others need --to as well
+        if (tool === 'github') {
+          await cmdGitHubBackfill(fromDate);
+        } else {
+          const toIdx = args.indexOf('--to');
+          if (toIdx < 0) {
+            console.error('Error: Please specify --to date for anthropic/cursor backfill');
+            console.error('Usage: npm run cli backfill <tool> --from YYYY-MM-DD --to YYYY-MM-DD');
+            break;
+          }
+          const toDate = args[toIdx + 1];
+          if (!toDate || !dateRegex.test(toDate)) {
+            console.error('Error: --to date must be in YYYY-MM-DD format');
+            break;
+          }
+          await cmdBackfill(tool, fromDate, toDate);
+        }
         break;
       }
       case 'backfill:complete': {
-        const tool = args[1] as 'anthropic' | 'cursor';
-        if (!tool || !['anthropic', 'cursor'].includes(tool)) {
-          console.error('Error: Please specify tool (anthropic or cursor)');
+        const tool = args[1] as 'anthropic' | 'cursor' | 'github';
+        if (!tool || !['anthropic', 'cursor', 'github'].includes(tool)) {
+          console.error('Error: Please specify tool (anthropic, cursor, or github)');
           console.error('Usage: npm run cli backfill:complete <tool>');
           break;
         }
@@ -661,17 +772,19 @@ async function main() {
         break;
       }
       case 'backfill:reset': {
-        const tool = args[1] as 'anthropic' | 'cursor';
-        if (!tool || !['anthropic', 'cursor'].includes(tool)) {
-          console.error('Error: Please specify tool (anthropic or cursor)');
+        const tool = args[1] as 'anthropic' | 'cursor' | 'github';
+        if (!tool || !['anthropic', 'cursor', 'github'].includes(tool)) {
+          console.error('Error: Please specify tool (anthropic, cursor, or github)');
           console.error('Usage: npm run cli backfill:reset <tool>');
           break;
         }
         console.log(`Resetting ${tool} backfill status...`);
         if (tool === 'anthropic') {
           await resetAnthropicBackfillComplete();
-        } else {
+        } else if (tool === 'cursor') {
           await resetCursorBackfillComplete();
+        } else {
+          await resetGitHubBackfillComplete();
         }
         console.log(`✓ ${tool} backfill status reset (can now re-backfill)`);
         break;

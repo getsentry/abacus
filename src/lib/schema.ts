@@ -82,9 +82,47 @@ export const syncState = pgTable('sync_state', {
   backfillComplete: boolean('backfill_complete').default(false),
 });
 
+/**
+ * Normalized repositories table for commit tracking.
+ * Enables source-agnostic design (GitHub, GitLab, Bitbucket, etc.)
+ */
+export const repositories = pgTable('repositories', {
+  id: serial('id').primaryKey(),
+  source: varchar('source', { length: 64 }).notNull(),
+  fullName: varchar('full_name', { length: 255 }).notNull(),
+  createdAt: timestamp('created_at').defaultNow(),
+}, (table) => [
+  uniqueIndex('idx_repositories_unique').on(table.source, table.fullName),
+]);
+
+/**
+ * Commits table for tracking AI attribution in code commits.
+ * Stores all commits to enable percentage calculations.
+ */
+export const commits = pgTable('commits', {
+  id: serial('id').primaryKey(),
+  repoId: integer('repo_id').notNull().references(() => repositories.id),
+  commitId: varchar('commit_id', { length: 64 }).notNull(),
+  authorEmail: varchar('author_email', { length: 255 }),
+  committedAt: timestamp('committed_at').notNull(),
+  aiTool: varchar('ai_tool', { length: 64 }),
+  aiModel: varchar('ai_model', { length: 128 }),
+  additions: integer('additions').default(0),
+  deletions: integer('deletions').default(0),
+  createdAt: timestamp('created_at').defaultNow(),
+}, (table) => [
+  uniqueIndex('idx_commits_unique').on(table.repoId, table.commitId),
+  index('idx_commits_author').on(table.authorEmail),
+  index('idx_commits_committed_at').on(table.committedAt),
+]);
+
 // Type exports for use in queries
 export type ToolIdentityMapping = typeof toolIdentityMappings.$inferSelect;
 export type NewToolIdentityMapping = typeof toolIdentityMappings.$inferInsert;
 export type UsageRecord = typeof usageRecords.$inferSelect;
 export type NewUsageRecord = typeof usageRecords.$inferInsert;
 export type SyncState = typeof syncState.$inferSelect;
+export type Repository = typeof repositories.$inferSelect;
+export type NewRepository = typeof repositories.$inferInsert;
+export type Commit = typeof commits.$inferSelect;
+export type NewCommit = typeof commits.$inferInsert;

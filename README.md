@@ -19,6 +19,7 @@ Track and analyze AI coding tool usage across your team. Supports multiple provi
 |----------|-------------|----------|
 | **Claude Code** | Anthropic Admin API | Token usage, costs, model breakdown, API key mapping |
 | **Cursor** | Cursor Admin API or CSV | Token usage, costs, model breakdown |
+| **GitHub Commits** | GitHub App webhook + API | AI-attributed commit tracking (Co-Authored-By detection) |
 
 Each provider is optional—configure only the ones you use.
 
@@ -65,6 +66,7 @@ Add credentials for the providers you want to use:
 |----------|----------|
 | `ANTHROPIC_ADMIN_KEY` | Claude Code ([how to get](#claude-code)) |
 | `CURSOR_ADMIN_KEY` | Cursor ([how to get](#cursor)) |
+| `GITHUB_APP_ID`, `GITHUB_APP_PRIVATE_KEY`, `GITHUB_APP_INSTALLATION_ID`, `GITHUB_WEBHOOK_SECRET` | GitHub Commits ([how to get](#github-commits)) |
 
 ### 6. Deploy
 
@@ -159,6 +161,69 @@ npm run cli import:cursor-csv /path/to/export.csv
 
 ---
 
+### GitHub Commits
+
+Track AI-attributed commits across your organization by detecting `Co-Authored-By` headers from Claude, Cursor, Copilot, and other AI tools.
+
+#### Creating a GitHub App
+
+1. Go to **GitHub → Organization Settings → Developer settings → GitHub Apps → New GitHub App**
+
+2. Configure the app:
+   - **Name**: `Abacus Commit Tracker` (or your preference)
+   - **Homepage URL**: Your Abacus deployment URL
+   - **Webhook URL**: `https://your-app.vercel.app/api/webhooks/github`
+   - **Webhook secret**: Generate with `openssl rand -hex 32`
+
+3. Set permissions:
+   - **Repository permissions**:
+     - Contents: **Read-only** (to fetch commit history)
+     - Metadata: **Read-only** (required)
+
+4. Subscribe to events:
+   - Check **Push** events
+
+5. Create the app, then:
+   - Note the **App ID** from the app settings page
+   - Generate a **Private Key** (downloads as `.pem` file)
+   - Install the app on your organization (grants access to repos)
+   - Note the **Installation ID** from the URL after installing (e.g., `github.com/organizations/ORG/settings/installations/12345678`)
+
+#### Environment Variables
+
+```bash
+# GitHub App credentials (required for production)
+GITHUB_APP_ID=123456
+GITHUB_APP_PRIVATE_KEY="-----BEGIN RSA PRIVATE KEY-----\n...\n-----END RSA PRIVATE KEY-----"
+GITHUB_APP_INSTALLATION_ID=12345678
+GITHUB_WEBHOOK_SECRET=your-webhook-secret
+
+# Or for local development only (not recommended for production)
+GITHUB_TOKEN=ghp_...
+```
+
+**Note**: The private key must be the full PEM content. In Vercel, you can paste the entire key including newlines, or escape newlines as `\n`.
+
+#### Sync Behavior
+
+- **Real-time**: Webhook receives push events instantly
+- **Backfill**: Cron job runs every 6 hours to fill gaps (90-day target)
+- **Detection**: Identifies commits with AI attribution patterns:
+  - `Co-Authored-By: Claude <*@anthropic.com>`
+  - `Co-Authored-By: Cursor <*>`
+  - `Co-Authored-By: GitHub Copilot <*>`
+  - `🤖 Generated with [Claude Code]`
+
+#### Manual Sync
+
+```bash
+npm run cli github:status                          # Check sync state
+npm run cli github:sync getsentry/sentry --days 30 # Sync specific repo
+npm run cli backfill github --from 2024-10-01      # Backfill all repos
+```
+
+---
+
 ## CLI Reference
 
 ```bash
@@ -173,6 +238,7 @@ npm run cli sync cursor --days 7
 # Backfill (historical data)
 npm run cli backfill anthropic --from 2025-01-01 --to 2025-06-01
 npm run cli backfill cursor --from 2025-01-01 --to 2025-06-01
+npm run cli backfill github --from 2024-10-01   # GitHub only needs --from
 npm run cli backfill:complete anthropic  # Mark backfill as complete
 npm run cli backfill:reset cursor        # Reset backfill status
 
@@ -192,7 +258,11 @@ npm run cli gaps cursor
 # Status
 npm run cli anthropic:status       # Show Claude Code sync state
 npm run cli cursor:status          # Show Cursor sync state
+npm run cli github:status          # Show GitHub commits sync state
 npm run cli stats                  # Database statistics
+
+# GitHub-specific
+npm run cli github:sync <repo> [--days N]  # Sync a specific repo
 ```
 
 ---
@@ -207,6 +277,9 @@ Vercel cron jobs keep data current:
 | `/api/cron/sync-cursor` | Hourly | Sync recent Cursor usage |
 | `/api/cron/backfill-anthropic` | Every 6 hours | Backfill historical data |
 | `/api/cron/backfill-cursor` | Every 6 hours | Backfill historical data |
+| `/api/cron/backfill-github` | Every 6 hours | Backfill GitHub commits (90 days) |
+
+**Note**: GitHub commits are primarily synced via webhook (real-time). The backfill cron catches any missed events and fills historical data.
 
 Requires `CRON_SECRET` to be set.
 
@@ -228,6 +301,7 @@ src/
 │   ├── sync/                 # Provider sync modules
 │   │   ├── anthropic.ts
 │   │   ├── cursor.ts
+│   │   ├── github.ts         # GitHub commits tracking
 │   │   └── index.ts
 │   └── utils.ts
 └── scripts/
