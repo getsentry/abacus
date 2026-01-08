@@ -78,6 +78,20 @@
       "when": 1736301200000,
       "tag": "0010_add_sync_state_columns",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1736301300000,
+      "tag": "0011_nullable_line_stats",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1736301400000,
+      "tag": "0012_add_raw_model",
+      "breakpoints": true
     }
   ]
 }

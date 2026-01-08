@@ -117,8 +117,8 @@ export const commits = pgTable('commits', {
   message: text('message'),
   aiTool: varchar('ai_tool', { length: 64 }),
   aiModel: varchar('ai_model', { length: 128 }),
-  additions: integer('additions').default(0),
-  deletions: integer('deletions').default(0),
+  additions: integer('additions'),
+  deletions: integer('deletions'),
   createdAt: timestamp('created_at').defaultNow(),
 }, (table) => [
   uniqueIndex('idx_commits_unique').on(table.repoId, table.commitId),
