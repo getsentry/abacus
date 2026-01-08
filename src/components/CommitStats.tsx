@@ -84,7 +84,7 @@ export function CommitStats({
                   className="flex items-center gap-2"
                 >
                   <div className={`w-1.5 h-1.5 rounded-full ${config.bg}`} />
-                  <span className={`font-mono text-[11px] ${config.text} w-20`}>
+                  <span className={`font-mono text-[11px] ${config.text} w-24`}>
                     {formatToolName(tool.tool)}
                   </span>
                   <div className="flex-1 h-1 rounded-full bg-white/5 overflow-hidden">

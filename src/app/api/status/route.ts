@@ -3,7 +3,7 @@ import { wrapRouteHandlerWithSentry } from '@sentry/nextjs';
 import { getAnthropicSyncState, getAnthropicBackfillState } from '@/lib/sync/anthropic';
 import { getCursorSyncState, getCursorBackfillState } from '@/lib/sync/cursor';
 import { getGitHubSyncState, getGitHubBackfillState } from '@/lib/sync/github';
-import { getUnattributedStats } from '@/lib/queries';
+import { getUnattributedStats, getLifetimeStats } from '@/lib/queries';
 import { getSession } from '@/lib/auth';
 
 type SyncStatus = 'up_to_date' | 'behind' | 'never_synced';
@@ -136,13 +136,17 @@ async function handler() {
     );
   }
 
-  // Get unattributed usage stats
-  const unattributed = await getUnattributedStats();
+  // Get unattributed usage stats and lifetime stats in parallel
+  const [unattributed, lifetimeStats] = await Promise.all([
+    getUnattributedStats(),
+    getLifetimeStats(),
+  ]);
 
   return NextResponse.json({
     providers,
     crons,
     unattributed,
+    lifetimeStats,
     // For backwards compatibility, also include at top level
     anthropic: providers.anthropic || null,
     cursor: providers.cursor || null

@@ -17,6 +17,8 @@ interface SectionLabelProps {
   className?: string;
   /** HTML element to render. Default: h3 */
   as?: 'h2' | 'h3' | 'p' | 'span';
+  /** Show a horizontal line extending from the label. Default: false */
+  divider?: boolean;
 }
 
 const marginClasses: Record<MarginSize, string> = {
@@ -44,6 +46,9 @@ const marginClasses: Record<MarginSize, string> = {
  *
  * // With margin
  * <SectionLabel margin="lg">Model Distribution</SectionLabel>
+ *
+ * // With divider line
+ * <SectionLabel divider margin="lg">Data Sources</SectionLabel>
  */
 export function SectionLabel({
   children,
@@ -52,13 +57,15 @@ export function SectionLabel({
   margin = 'none',
   className = '',
   as: Component = 'h3',
+  divider = false,
 }: SectionLabelProps) {
-  const baseClasses = `font-mono text-xs uppercase tracking-wider text-white/60 ${marginClasses[margin]} ${className}`.trim();
+  const textClasses = 'font-mono text-[10px] uppercase tracking-wider text-white/40';
+  const containerClasses = `${marginClasses[margin]} ${className}`.trim();
 
   const formattedCount = typeof count === 'number' ? count.toLocaleString() : count;
 
-  return (
-    <Component className={baseClasses}>
+  const labelContent = (
+    <>
       {children}
       {days !== undefined && (
         <span className="text-white/20"> ({days}d)</span>
@@ -66,6 +73,23 @@ export function SectionLabel({
       {count !== undefined && (
         <span className="text-white/30"> ({formattedCount})</span>
       )}
+    </>
+  );
+
+  if (divider) {
+    return (
+      <div className={`flex items-center gap-2 ${containerClasses}`}>
+        <Component className={textClasses}>
+          {labelContent}
+        </Component>
+        <div className="flex-1 h-px bg-white/5" />
+      </div>
+    );
+  }
+
+  return (
+    <Component className={`${textClasses} ${containerClasses}`}>
+      {labelContent}
     </Component>
   );
 }
