@@ -1,6 +1,38 @@
 import { sql } from '@vercel/postgres';
 import { syncGitHubRepo, backfillGitHubUsage, getGitHubSyncState, getGitHubBackfillState, detectAiAttribution, cleanupMergeCommits } from '../../src/lib/sync/github';
-import { getGitHubUsersWithMappingStatus, mapGitHubUser, getGitHubUser, syncGitHubMemberEmails } from '../../src/lib/sync/github-mappings';
+import { getGitHubUsersWithMappingStatus, mapGitHubUser, getGitHubUser, syncGitHubMemberEmails, hasUnattributedCommits } from '../../src/lib/sync/github-mappings';
+
+/**
+ * Automatically sync email mappings if there are unattributed commits.
+ * Called after commit sync operations to ensure users with noreply emails get mapped.
+ */
+async function syncMappingsIfNeeded(): Promise<void> {
+  try {
+    const needsMapping = await hasUnattributedCommits();
+    if (!needsMapping) {
+      return;
+    }
+
+    console.log('\n📧 Found commits with unmapped authors, syncing email mappings...');
+
+    const result = await syncGitHubMemberEmails({
+      onProgress: (msg) => console.log(`  ${msg}`)
+    });
+
+    if (result.mappingsCreated > 0) {
+      console.log(`  ✓ Created ${result.mappingsCreated} new mappings`);
+    } else if (result.usersFound > 0) {
+      console.log(`  ℹ No new mappings needed (${result.usersFound} users checked)`);
+    }
+
+    if (result.errors.length > 0) {
+      console.log(`  ⚠ Errors: ${result.errors.slice(0, 3).join(', ')}`);
+    }
+  } catch (err) {
+    // Don't fail the main sync if mapping sync fails
+    console.log(`\n⚠ Could not sync email mappings: ${err instanceof Error ? err.message : 'Unknown error'}`);
+  }
+}
 
 export async function cmdGitHubStatus() {
   console.log('🔄 GitHub Commits Sync Status\n');
@@ -240,6 +272,9 @@ export async function cmdGitHubSync(options: GitHubSyncOptions) {
     }
 
     console.log(`✓ Fixed ${badRepos.rows.length} repo(s)`);
+
+    // Sync email mappings if needed
+    await syncMappingsIfNeeded();
     return;
   }
 
@@ -285,6 +320,9 @@ export async function cmdGitHubSync(options: GitHubSyncOptions) {
     if (result.errors.length > 0) {
       console.log(`  Errors: ${result.errors.slice(0, 5).join(', ')}`);
     }
+
+    // Sync email mappings if needed
+    await syncMappingsIfNeeded();
     return;
   }
 
@@ -305,6 +343,11 @@ export async function cmdGitHubSync(options: GitHubSyncOptions) {
     }
     if (result.errors.length > 0) {
       console.log(`  Errors: ${result.errors.slice(0, 5).join(', ')}`);
+    }
+
+    // Sync email mappings if needed (unless rate limited, to avoid hitting limits)
+    if (!result.rateLimited) {
+      await syncMappingsIfNeeded();
     }
     return;
   }
