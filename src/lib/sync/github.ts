@@ -845,6 +845,17 @@ export async function syncGitHubRepo(
             continue;
           }
 
+          // Check if commit already exists in DB to avoid unnecessary API calls
+          const existing = await sql`
+            SELECT id, additions, deletions FROM commits
+            WHERE repo_id = ${repoId} AND commit_id = ${commit.sha}
+          `;
+
+          // If commit exists and has line stats, skip it entirely
+          if (existing.rows.length > 0 && existing.rows[0].additions > 0) {
+            continue;
+          }
+
           const attributions = detectAllAiAttributions(
             commit.commit.message,
             commit.commit.author.name,
@@ -856,10 +867,18 @@ export async function syncGitHubRepo(
 
           // Fetch individual commit to get accurate line stats
           // List commits endpoint doesn't include stats
-          const commitDetails = await fetchCommitDetails(repoFullName, commit.sha, token);
+          // Only fetch if we don't already have the data
+          let additions = 0;
+          let deletions = 0;
 
-          // Rate limit: small delay between individual commit fetches
-          await new Promise(resolve => setTimeout(resolve, 50));
+          if (existing.rows.length === 0 || existing.rows[0].additions === 0) {
+            const commitDetails = await fetchCommitDetails(repoFullName, commit.sha, token);
+            additions = commitDetails?.additions || 0;
+            deletions = commitDetails?.deletions || 0;
+
+            // Rate limit: small delay between individual commit fetches
+            await new Promise(resolve => setTimeout(resolve, 50));
+          }
 
           await insertCommit({
             repoId,
@@ -870,8 +889,8 @@ export async function syncGitHubRepo(
             message: commit.commit.message,
             aiTool: primaryAttribution?.tool || null,
             aiModel: primaryAttribution?.model || null,
-            additions: commitDetails?.additions || 0,
-            deletions: commitDetails?.deletions || 0,
+            additions,
+            deletions,
             attributions,
           });
 

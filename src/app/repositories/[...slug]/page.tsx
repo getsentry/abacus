@@ -5,6 +5,7 @@ import { useParams } from 'next/navigation';
 import { useTimeRange } from '@/contexts/TimeRangeContext';
 import { motion } from 'framer-motion';
 import { StatCard } from '@/components/StatCard';
+import { DailyCommitsChart } from '@/components/DailyCommitsChart';
 import { TimeRangeSelector } from '@/components/TimeRangeSelector';
 import { AppHeader } from '@/components/AppHeader';
 import { TipBar } from '@/components/TipBar';
@@ -285,7 +286,7 @@ export default function RepositoryDetailPage() {
     { tool: 'windsurf', commits: data.details.windsurfCommits },
   ].filter(t => t.commits > 0) : [];
 
-  // Build chart data
+  // Build chart data for DailyCommitsChart (with tool breakdown)
   const chartData = data?.dailyStats?.map(day => ({
     date: day.date,
     claudeCode: day.claudeCodeCommits,
@@ -449,46 +450,7 @@ export default function RepositoryDetailPage() {
                   transition={{ delay: 0.15 }}
                   className="bg-white/[0.02] border border-white/5 rounded-lg p-6"
                 >
-                  <h3 className="font-mono text-xs uppercase tracking-wider text-white/60 mb-4">
-                    Daily Commits
-                  </h3>
-                  <div className="flex items-end gap-1 h-32">
-                    {chartData.map((day, i) => {
-                      const total = day.claudeCode + day.cursor + day.copilot + day.windsurf + day.human;
-                      const maxTotal = Math.max(...chartData.map(d => d.claudeCode + d.cursor + d.copilot + d.windsurf + d.human));
-                      const heightPct = maxTotal > 0 ? (total / maxTotal) * 100 : 0;
-                      const aiTotal = day.claudeCode + day.cursor + day.copilot + day.windsurf;
-                      const aiPct = total > 0 ? (aiTotal / total) * 100 : 0;
-
-                      return (
-                        <div key={day.date} className="flex-1 flex flex-col justify-end h-full group relative">
-                          <div
-                            className="w-full rounded-t transition-all relative overflow-hidden"
-                            style={{ height: `${heightPct}%`, minHeight: total > 0 ? '4px' : '0' }}
-                          >
-                            {/* AI portion */}
-                            <div
-                              className="absolute bottom-0 left-0 right-0 bg-amber-500/80"
-                              style={{ height: `${aiPct}%` }}
-                            />
-                            {/* Human portion */}
-                            <div
-                              className="absolute top-0 left-0 right-0 bg-white/10"
-                              style={{ height: `${100 - aiPct}%` }}
-                            />
-                          </div>
-                          {/* Tooltip */}
-                          <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block z-10">
-                            <div className="bg-black/95 border border-white/10 rounded px-2 py-1 text-[10px] font-mono whitespace-nowrap">
-                              <div className="text-white/60">{new Date(day.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</div>
-                              <div className="text-white">{total} commits</div>
-                              {aiTotal > 0 && <div className="text-amber-400">{aiTotal} AI</div>}
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
+                  <DailyCommitsChart data={chartData} />
                 </motion.div>
               )}
 
