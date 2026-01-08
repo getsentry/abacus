@@ -8,12 +8,15 @@ import { getToolConfig, formatToolName } from '@/lib/tools';
 interface ToolData {
   tool: string;
   tokens: number;
-  percentage: number;
+  tokenPercentage: number;
+  users: number;
+  userPercentage: number;
 }
 
 interface ToolDistributionProps {
   tools: ToolData[];
   totalTokens: number;
+  totalUsers: number;
   className?: string;
   days?: number;
 }
@@ -35,25 +38,41 @@ function getToolHoverColors(tool: string) {
 export function ToolDistribution({
   tools,
   totalTokens,
+  totalUsers,
   className = '',
   days,
 }: ToolDistributionProps) {
   const [hoveredTool, setHoveredTool] = useState<string | null>(null);
+  const [hoveredBar, setHoveredBar] = useState<'tokens' | 'users' | null>(null);
 
   // Calculate segment positions for tooltip placement
-  const segmentPositions = useMemo(() => {
+  const tokenPositions = useMemo(() => {
     const positions: Record<string, { left: number; width: number }> = {};
     let cumulative = 0;
     for (const tool of tools) {
-      if (tool.percentage > 0) {
-        positions[tool.tool] = { left: cumulative, width: tool.percentage };
-        cumulative += tool.percentage;
+      if (tool.tokenPercentage > 0) {
+        positions[tool.tool] = { left: cumulative, width: tool.tokenPercentage };
+        cumulative += tool.tokenPercentage;
+      }
+    }
+    return positions;
+  }, [tools]);
+
+  const userPositions = useMemo(() => {
+    const positions: Record<string, { left: number; width: number }> = {};
+    let cumulative = 0;
+    for (const tool of tools) {
+      if (tool.userPercentage > 0) {
+        positions[tool.tool] = { left: cumulative, width: tool.userPercentage };
+        cumulative += tool.userPercentage;
       }
     }
     return positions;
   }, [tools]);
 
   if (totalTokens === 0 || tools.length === 0) return null;
+
+  const positions = hoveredBar === 'users' ? userPositions : tokenPositions;
 
   return (
     <motion.div
@@ -68,46 +87,77 @@ export function ToolDistribution({
         </p>
       </div>
 
-      {/* Stacked bar with tooltips */}
-      <div className="relative mb-3">
+      {/* Dual stacked bars with tooltips */}
+      <div className="relative mb-3 space-y-2">
         {/* Tooltip */}
-        {hoveredTool && segmentPositions[hoveredTool] && (
+        {hoveredTool && positions[hoveredTool] && (
           <div
             className="absolute bottom-full mb-2 z-10 pointer-events-none"
             style={{
-              left: `${segmentPositions[hoveredTool].left + segmentPositions[hoveredTool].width / 2}%`,
+              left: `${positions[hoveredTool].left + positions[hoveredTool].width / 2}%`,
               transform: 'translateX(-50%)',
             }}
           >
             <div className="rounded bg-black/90 px-2 py-1.5 text-[10px] whitespace-nowrap border border-white/10">
               <div className="text-white/60 mb-1">{formatToolName(hoveredTool)}</div>
               <div className={getToolConfig(hoveredTool).text}>
-                {formatTokens(tools.find(t => t.tool === hoveredTool)?.tokens || 0)} ({Math.round(tools.find(t => t.tool === hoveredTool)?.percentage || 0)}%)
+                {hoveredBar === 'users'
+                  ? `${tools.find(t => t.tool === hoveredTool)?.users || 0} users (${Math.round(tools.find(t => t.tool === hoveredTool)?.userPercentage || 0)}%)`
+                  : `${formatTokens(tools.find(t => t.tool === hoveredTool)?.tokens || 0)} (${Math.round(tools.find(t => t.tool === hoveredTool)?.tokenPercentage || 0)}%)`
+                }
               </div>
             </div>
           </div>
         )}
 
-        {/* Bar */}
-        <div className="h-2 rounded-full bg-white/5 overflow-hidden flex">
-          {tools.map((tool, i) => {
-            if (tool.tokens === 0) return null;
-            const colors = getToolHoverColors(tool.tool);
-            const isHovered = hoveredTool === tool.tool;
+        {/* Tokens Bar */}
+        <div className="flex items-center gap-2">
+          <span className="font-mono text-[9px] text-white/30 w-12 shrink-0">Tokens</span>
+          <div className="h-2 rounded-full bg-white/5 overflow-hidden flex flex-1">
+            {tools.map((tool, i) => {
+              if (tool.tokens === 0) return null;
+              const colors = getToolHoverColors(tool.tool);
+              const isHovered = hoveredTool === tool.tool && hoveredBar === 'tokens';
 
-            return (
-              <motion.div
-                key={tool.tool}
-                initial={{ width: 0 }}
-                animate={{ width: `${tool.percentage}%` }}
-                transition={{ duration: 0.6, delay: 0.45 + i * 0.1 }}
-                onMouseEnter={() => setHoveredTool(tool.tool)}
-                onMouseLeave={() => setHoveredTool(null)}
-                className={`h-full transition-colors cursor-default ${isHovered ? colors.barHover : colors.bar} ${i === 0 ? 'rounded-l-full' : ''} ${i === tools.length - 1 ? 'rounded-r-full' : ''}`}
-                style={{ minWidth: tool.percentage > 0 ? '4px' : 0 }}
-              />
-            );
-          })}
+              return (
+                <motion.div
+                  key={tool.tool}
+                  initial={{ width: 0 }}
+                  animate={{ width: `${tool.tokenPercentage}%` }}
+                  transition={{ duration: 0.6, delay: 0.45 + i * 0.1 }}
+                  onMouseEnter={() => { setHoveredTool(tool.tool); setHoveredBar('tokens'); }}
+                  onMouseLeave={() => { setHoveredTool(null); setHoveredBar(null); }}
+                  className={`h-full transition-colors cursor-default ${isHovered ? colors.barHover : colors.bar} ${i === 0 ? 'rounded-l-full' : ''} ${i === tools.length - 1 ? 'rounded-r-full' : ''}`}
+                  style={{ minWidth: tool.tokenPercentage > 0 ? '4px' : 0 }}
+                />
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Users Bar */}
+        <div className="flex items-center gap-2">
+          <span className="font-mono text-[9px] text-white/30 w-12 shrink-0">Users</span>
+          <div className="h-2 rounded-full bg-white/5 overflow-hidden flex flex-1">
+            {tools.map((tool, i) => {
+              if (tool.users === 0) return null;
+              const colors = getToolHoverColors(tool.tool);
+              const isHovered = hoveredTool === tool.tool && hoveredBar === 'users';
+
+              return (
+                <motion.div
+                  key={tool.tool}
+                  initial={{ width: 0 }}
+                  animate={{ width: `${tool.userPercentage}%` }}
+                  transition={{ duration: 0.6, delay: 0.55 + i * 0.1 }}
+                  onMouseEnter={() => { setHoveredTool(tool.tool); setHoveredBar('users'); }}
+                  onMouseLeave={() => { setHoveredTool(null); setHoveredBar(null); }}
+                  className={`h-full transition-colors cursor-default ${isHovered ? colors.barHover : colors.bar} ${i === 0 ? 'rounded-l-full' : ''} ${i === tools.length - 1 ? 'rounded-r-full' : ''}`}
+                  style={{ minWidth: tool.userPercentage > 0 ? '4px' : 0 }}
+                />
+              );
+            })}
+          </div>
         </div>
       </div>
 
@@ -121,12 +171,6 @@ export function ToolDistribution({
               <div className={`w-2 h-2 rounded-full ${config.bg}`} />
               <span className={`font-mono text-[10px] ${config.text}`}>
                 {formatToolName(tool.tool)}
-              </span>
-              <span className="font-mono text-[10px] text-white/50">
-                {formatTokens(tool.tokens)}
-              </span>
-              <span className="font-mono text-[10px] text-white/30">
-                ({Math.round(tool.percentage)}%)
               </span>
             </div>
           );

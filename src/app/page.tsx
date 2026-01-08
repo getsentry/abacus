@@ -33,6 +33,8 @@ interface Stats {
   activeUsers: number;
   claudeCodeTokens: number;
   cursorTokens: number;
+  claudeCodeUsers: number;
+  cursorUsers: number;
   unattributed?: {
     totalTokens: number;
     totalCost: number;
@@ -43,6 +45,8 @@ interface Stats {
     activeUsers: number;
     claudeCodeTokens: number;
     cursorTokens: number;
+    claudeCodeUsers: number;
+    cursorUsers: number;
   };
 }
 
@@ -294,34 +298,40 @@ function DashboardContent() {
               })()}
             </div>
 
-            {/* Adoption Distribution */}
-            {adoptionData && (
-              <AdoptionDistribution
-                stages={adoptionData.stages}
-                totalUsers={adoptionData.totalUsers}
-                days={days}
-              />
-            )}
+            {/* Adoption & Tool Distribution - Side by Side */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              {adoptionData && (
+                <AdoptionDistribution
+                  stages={adoptionData.stages}
+                  totalUsers={adoptionData.totalUsers}
+                  days={days}
+                />
+              )}
 
-            {/* Tool Distribution */}
-            {stats && stats.totalTokens > 0 && (
-              <ToolDistribution
-                tools={[
-                  ...(stats.claudeCodeTokens > 0 ? [{
-                    tool: 'claude_code',
-                    tokens: stats.claudeCodeTokens,
-                    percentage: (stats.claudeCodeTokens / stats.totalTokens) * 100,
-                  }] : []),
-                  ...(stats.cursorTokens > 0 ? [{
-                    tool: 'cursor',
-                    tokens: stats.cursorTokens,
-                    percentage: (stats.cursorTokens / stats.totalTokens) * 100,
-                  }] : []),
-                ].sort((a, b) => b.tokens - a.tokens)}
-                totalTokens={stats.totalTokens}
-                days={days}
-              />
-            )}
+              {stats && stats.totalTokens > 0 && (
+                <ToolDistribution
+                  tools={[
+                    ...(stats.claudeCodeTokens > 0 || stats.claudeCodeUsers > 0 ? [{
+                      tool: 'claude_code',
+                      tokens: stats.claudeCodeTokens,
+                      tokenPercentage: (stats.claudeCodeTokens / stats.totalTokens) * 100,
+                      users: stats.claudeCodeUsers,
+                      userPercentage: stats.activeUsers > 0 ? (stats.claudeCodeUsers / stats.activeUsers) * 100 : 0,
+                    }] : []),
+                    ...(stats.cursorTokens > 0 || stats.cursorUsers > 0 ? [{
+                      tool: 'cursor',
+                      tokens: stats.cursorTokens,
+                      tokenPercentage: (stats.cursorTokens / stats.totalTokens) * 100,
+                      users: stats.cursorUsers,
+                      userPercentage: stats.activeUsers > 0 ? (stats.cursorUsers / stats.activeUsers) * 100 : 0,
+                    }] : []),
+                  ].sort((a, b) => b.tokens - a.tokens)}
+                  totalTokens={stats.totalTokens}
+                  totalUsers={stats.activeUsers}
+                  days={days}
+                />
+              )}
+            </div>
 
             {/* Charts Row */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">

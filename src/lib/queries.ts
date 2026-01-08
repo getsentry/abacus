@@ -18,6 +18,8 @@ export interface UsageStats {
   activeUsers: number;
   claudeCodeTokens: number;
   cursorTokens: number;
+  claudeCodeUsers: number;
+  cursorUsers: number;
 }
 
 export interface UserSummary {
@@ -63,7 +65,18 @@ export async function getOverallStats(startDate?: string, endDate?: string): Pro
     WHERE date >= ${effectiveStartDate} AND date <= ${effectiveEndDate}
   `;
 
-  return result.rows[0] as UsageStats;
+  // User counts per tool need separate subqueries since COUNT DISTINCT with CASE doesn't work
+  const userCountsResult = await sql`
+    SELECT
+      (SELECT COUNT(DISTINCT email) FROM usage_records WHERE tool = 'claude_code' AND date >= ${effectiveStartDate} AND date <= ${effectiveEndDate})::int as "claudeCodeUsers",
+      (SELECT COUNT(DISTINCT email) FROM usage_records WHERE tool = 'cursor' AND date >= ${effectiveStartDate} AND date <= ${effectiveEndDate})::int as "cursorUsers"
+  `;
+
+  return {
+    ...result.rows[0],
+    claudeCodeUsers: Number(userCountsResult.rows[0].claudeCodeUsers),
+    cursorUsers: Number(userCountsResult.rows[0].cursorUsers),
+  } as UsageStats;
 }
 
 export interface UsageStatsWithComparison extends UsageStats {
@@ -73,6 +86,8 @@ export interface UsageStatsWithComparison extends UsageStats {
     activeUsers: number;
     claudeCodeTokens: number;
     cursorTokens: number;
+    claudeCodeUsers: number;
+    cursorUsers: number;
   };
 }
 
@@ -112,16 +127,20 @@ export async function getOverallStatsWithComparison(
     WHERE date >= ${prevStartDate} AND date <= ${endDate}
   `;
 
-  // Active users need separate subqueries since COUNT DISTINCT with CASE doesn't work as expected
+  // User counts need separate subqueries since COUNT DISTINCT with CASE doesn't work as expected
   // COUNT(DISTINCT email) automatically excludes NULLs
-  const activeUsersResult = await sql`
+  const userCountsResult = await sql`
     SELECT
       (SELECT COUNT(DISTINCT email) FROM usage_records WHERE date >= ${startDate} AND date <= ${endDate})::int as "activeUsers",
-      (SELECT COUNT(DISTINCT email) FROM usage_records WHERE date >= ${prevStartDate} AND date <= ${prevEndDate})::int as "prevActiveUsers"
+      (SELECT COUNT(DISTINCT email) FROM usage_records WHERE date >= ${prevStartDate} AND date <= ${prevEndDate})::int as "prevActiveUsers",
+      (SELECT COUNT(DISTINCT email) FROM usage_records WHERE tool = 'claude_code' AND date >= ${startDate} AND date <= ${endDate})::int as "claudeCodeUsers",
+      (SELECT COUNT(DISTINCT email) FROM usage_records WHERE tool = 'cursor' AND date >= ${startDate} AND date <= ${endDate})::int as "cursorUsers",
+      (SELECT COUNT(DISTINCT email) FROM usage_records WHERE tool = 'claude_code' AND date >= ${prevStartDate} AND date <= ${prevEndDate})::int as "prevClaudeCodeUsers",
+      (SELECT COUNT(DISTINCT email) FROM usage_records WHERE tool = 'cursor' AND date >= ${prevStartDate} AND date <= ${prevEndDate})::int as "prevCursorUsers"
   `;
 
   const row = result.rows[0];
-  const activeRow = activeUsersResult.rows[0];
+  const userRow = userCountsResult.rows[0];
 
   return {
     totalTokens: Number(row.totalTokens),
@@ -129,15 +148,19 @@ export async function getOverallStatsWithComparison(
     totalInputTokens: Number(row.totalInputTokens),
     totalOutputTokens: Number(row.totalOutputTokens),
     totalCacheReadTokens: Number(row.totalCacheReadTokens),
-    activeUsers: Number(activeRow.activeUsers),
+    activeUsers: Number(userRow.activeUsers),
     claudeCodeTokens: Number(row.claudeCodeTokens),
     cursorTokens: Number(row.cursorTokens),
+    claudeCodeUsers: Number(userRow.claudeCodeUsers),
+    cursorUsers: Number(userRow.cursorUsers),
     previousPeriod: {
       totalTokens: Number(row.prevTotalTokens),
       totalCost: Number(row.prevTotalCost),
-      activeUsers: Number(activeRow.prevActiveUsers),
+      activeUsers: Number(userRow.prevActiveUsers),
       claudeCodeTokens: Number(row.prevClaudeCodeTokens),
       cursorTokens: Number(row.prevCursorTokens),
+      claudeCodeUsers: Number(userRow.prevClaudeCodeUsers),
+      cursorUsers: Number(userRow.prevCursorUsers),
     },
   };
 }
