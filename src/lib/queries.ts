@@ -1356,6 +1356,63 @@ export async function getRepositoryDetails(
   } as RepositoryDetails;
 }
 
+export interface RepositoryDetailsPreviousPeriod {
+  totalCommits: number;
+  aiAssistedCommits: number;
+  aiAssistanceRate: number;
+  uniqueAuthors: number;
+  totalAdditions: number;
+  totalDeletions: number;
+}
+
+export interface RepositoryDetailsWithComparison extends RepositoryDetails {
+  previousPeriod?: RepositoryDetailsPreviousPeriod;
+}
+
+export async function getRepositoryDetailsWithComparison(
+  repoId: number,
+  startDate: string,
+  endDate: string
+): Promise<RepositoryDetailsWithComparison | null> {
+  const { prevStartDate, prevEndDate } = getPreviousPeriodDates(startDate, endDate);
+
+  const [currentDetails, prevResult] = await Promise.all([
+    getRepositoryDetails(repoId, startDate, endDate),
+    sql`
+      SELECT
+        COUNT(c.id)::int as "totalCommits",
+        COUNT(c.id) FILTER (WHERE c.ai_tool IS NOT NULL)::int as "aiAssistedCommits",
+        COUNT(DISTINCT c.author_email)::int as "uniqueAuthors",
+        COALESCE(SUM(c.additions), 0)::int as "totalAdditions",
+        COALESCE(SUM(c.deletions), 0)::int as "totalDeletions"
+      FROM commits c
+      WHERE c.repo_id = ${repoId}
+        AND c.committed_at >= ${prevStartDate}::timestamp
+        AND c.committed_at < (${prevEndDate}::date + interval '1 day')
+    `
+  ]);
+
+  if (!currentDetails) return null;
+
+  const prev = prevResult.rows[0];
+  const prevTotalCommits = Number(prev.totalCommits);
+  const prevAiAssistedCommits = Number(prev.aiAssistedCommits);
+
+  return {
+    ...currentDetails,
+    previousPeriod: {
+      totalCommits: prevTotalCommits,
+      aiAssistedCommits: prevAiAssistedCommits,
+      aiAssistanceRate: prevTotalCommits > 0
+        ? Math.round((prevAiAssistedCommits / prevTotalCommits) * 100)
+        : 0,
+      uniqueAuthors: Number(prev.uniqueAuthors),
+      totalAdditions: Number(prev.totalAdditions),
+      totalDeletions: Number(prev.totalDeletions),
+    },
+  };
+}
+
 export async function getRepositoryCommits(
   repoId: number,
   startDate?: string,

@@ -143,7 +143,7 @@ Commands:
   backfill <tool> --from YYYY-MM-DD --to YYYY-MM-DD
                         Backfill historical data for a specific tool
   backfill:complete <tool>
-                        Mark backfill as complete for a tool (anthropic|cursor)
+                        Mark backfill as complete for a tool (anthropic|cursor|github)
   backfill:reset <tool> Reset backfill status for a tool (allows re-backfilling)
   gaps [tool]           Check for gaps in usage data (tool: anthropic|cursor, default: both)
   mappings              List API key mappings
@@ -152,9 +152,13 @@ Commands:
   anthropic:status      Show Anthropic sync state
   cursor:status         Show Cursor sync state
   github:status         Show GitHub commits sync state
-  github:sync <repo> [--days N] [--dry-run]
-                        Sync commits for a specific repo (e.g., getsentry/sentry)
-                        Use --dry-run to test detection without database
+  github:sync [repo] [options]
+                        Sync GitHub commits (filters to default branch, skips merge commits)
+                        Options:
+                          --days N      Sync last N days (default: 7)
+                          --from DATE   Sync from date (backfill mode for all repos)
+                          --reset       Delete existing commits first (clean slate)
+                          --dry-run     Show what would be synced without writing
   github:commits <repo> [--limit N]
                         Dump commits from database for debugging
   github:users          List GitHub users with commits and their mapping status
@@ -170,8 +174,9 @@ Examples:
   npm run cli sync --days 30
   npm run cli sync cursor --days 7
   npm run cli backfill cursor --from 2024-01-01 --to 2025-01-01
+  npm run cli github:sync getsentry/sentry --days 30
+  npm run cli github:sync --reset --from 2024-01-01   # Full reset and backfill
   npm run cli mappings:fix
-  npm run cli cursor:status
 `);
 }
 
@@ -310,12 +315,17 @@ async function cmdGitHubStatus() {
   }
 }
 
-async function cmdGitHubSync(repo: string, days: number = 7, dryRun: boolean = false) {
-  if (!repo) {
-    console.error('Error: Please specify a repo (e.g., getsentry/sentry)');
-    console.error('Usage: npm run cli github:sync <repo> [--days N] [--dry-run]');
-    return;
-  }
+interface GitHubSyncOptions {
+  repo?: string;
+  days?: number;
+  fromDate?: string;
+  reset?: boolean;
+  dryRun?: boolean;
+  org?: string;
+}
+
+async function cmdGitHubSync(options: GitHubSyncOptions) {
+  const { repo, days = 7, fromDate, reset = false, dryRun = false, org = 'getsentry' } = options;
 
   // Check for either GitHub App or personal token
   const hasGitHubApp = process.env.GITHUB_APP_ID && process.env.GITHUB_APP_PRIVATE_KEY && process.env.GITHUB_APP_INSTALLATION_ID;
@@ -329,23 +339,25 @@ async function cmdGitHubSync(repo: string, days: number = 7, dryRun: boolean = f
     return;
   }
 
-  const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
-  const sinceDate = since.split('T')[0];
+  // Determine date range
+  const since = fromDate || new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+  const isBackfill = !!fromDate;
 
+  // Dry-run mode: just show what would be detected
   if (dryRun) {
-    // Dry-run only supports personal token (simpler, no JWT generation needed)
     if (!token) {
       console.error('❌ --dry-run requires GITHUB_TOKEN (personal access token)');
-      console.error('   GitHub App auth is only supported for full sync.');
+      return;
+    }
+    if (!repo) {
+      console.error('❌ --dry-run requires a specific repo');
       return;
     }
 
-    console.log(`🔍 Dry run: Scanning ${repo} for AI Attributed commits (last ${days} days)\n`);
+    console.log(`🔍 Dry run: Scanning ${repo} for AI Attributed commits (since ${since})\n`);
     console.log('This does NOT write to the database - just shows what would be detected.\n');
 
-    // Fetch commits directly from GitHub API
     const url = `https://api.github.com/repos/${repo}/commits?since=${since}&per_page=100`;
-
     const response = await fetch(url, {
       headers: {
         'Authorization': `Bearer ${token}`,
@@ -365,22 +377,20 @@ async function cmdGitHubSync(repo: string, days: number = 7, dryRun: boolean = f
       sha: string;
       commit: {
         message: string;
-        author: {
-          name: string;
-          email: string;
-          date: string;
-        };
+        author: { name: string; email: string; date: string };
       };
       author: { login: string } | null;
+      parents: Array<{ sha: string }>;
     }
 
     const commits: CommitItem[] = await response.json();
-    console.log(`Found ${commits.length} commits\n`);
+    const nonMergeCommits = commits.filter(c => c.parents.length <= 1);
+    console.log(`Found ${commits.length} commits (${commits.length - nonMergeCommits.length} merge commits skipped)\n`);
 
     let aiCount = 0;
     const aiCommits: Array<{ sha: string; date: string; author: string; tool: string; model?: string; message: string }> = [];
 
-    for (const commit of commits) {
+    for (const commit of nonMergeCommits) {
       const attribution = detectAiAttribution(
         commit.commit.message,
         commit.commit.author.name,
@@ -409,15 +419,14 @@ async function cmdGitHubSync(repo: string, days: number = 7, dryRun: boolean = f
         console.log(`    by ${c.author}: ${c.message}`);
       }
 
-      // Summary by tool
       const byTool = aiCommits.reduce((acc, c) => {
         acc[c.tool] = (acc[c.tool] || 0) + 1;
         return acc;
       }, {} as Record<string, number>);
 
       console.log('\nSummary:');
-      console.log(`  Total commits: ${commits.length}`);
-      console.log(`  AI Attributed: ${aiCount} (${((aiCount / commits.length) * 100).toFixed(1)}%)`);
+      console.log(`  Total commits: ${nonMergeCommits.length}`);
+      console.log(`  AI Attributed: ${aiCount} (${((aiCount / nonMergeCommits.length) * 100).toFixed(1)}%)`);
       console.log('  By tool:');
       for (const [tool, count] of Object.entries(byTool)) {
         console.log(`    ${tool}: ${count}`);
@@ -428,19 +437,85 @@ async function cmdGitHubSync(repo: string, days: number = 7, dryRun: boolean = f
     return;
   }
 
-  // Normal sync (writes to database)
-  console.log(`🔄 Syncing ${repo} from ${sinceDate}...\n`);
-
-  const result = await syncGitHubRepo(repo, sinceDate, undefined, {
-    onProgress: (msg) => console.log(msg)
-  });
-
-  console.log(`\n✓ Sync complete`);
-  console.log(`  Commits processed: ${result.commitsProcessed}`);
-  console.log(`  AI Attributed: ${result.aiAttributedCommits}`);
-  if (result.errors.length > 0) {
-    console.log(`  Errors: ${result.errors.slice(0, 5).join(', ')}`);
+  // Reset mode: delete existing commits before syncing
+  if (reset) {
+    if (repo) {
+      console.log(`🗑️  Resetting commits for ${repo}...`);
+      const repoResult = await sql`
+        SELECT id FROM repositories WHERE full_name = ${repo}
+      `;
+      if (repoResult.rows.length > 0) {
+        const repoId = repoResult.rows[0].id;
+        // Delete attributions first (or rely on CASCADE)
+        await sql`DELETE FROM commits WHERE repo_id = ${repoId}`;
+        console.log(`  Deleted existing commits for ${repo}`);
+      }
+    } else {
+      console.log(`🗑️  Resetting ALL GitHub commits...`);
+      // Delete all commits (CASCADE will handle commit_attributions)
+      await sql`DELETE FROM commits`;
+      // Reset backfill state
+      await sql`
+        UPDATE sync_state
+        SET backfill_complete = false, last_synced_hour_end = NULL
+        WHERE id = 'github'
+      `;
+      console.log(`  Deleted all commits and reset backfill state`);
+    }
+    console.log('');
   }
+
+  // Single repo sync
+  if (repo) {
+    console.log(`🔄 Syncing ${repo} from ${since}...${reset ? ' (after reset)' : ''}\n`);
+
+    const result = await syncGitHubRepo(repo, since, undefined, {
+      onProgress: (msg) => console.log(msg)
+    });
+
+    console.log(`\n✓ Sync complete`);
+    console.log(`  Commits processed: ${result.commitsProcessed}`);
+    console.log(`  AI Attributed: ${result.aiAttributedCommits}`);
+    if (result.errors.length > 0) {
+      console.log(`  Errors: ${result.errors.slice(0, 5).join(', ')}`);
+    }
+    return;
+  }
+
+  // Full org sync (backfill mode)
+  if (isBackfill) {
+    console.log(`📥 ${reset ? 'Reset and backfilling' : 'Backfilling'} all ${org} repos from ${since}\n`);
+
+    const result = await backfillGitHubUsage(since, {
+      org,
+      onProgress: (msg) => console.log(msg)
+    });
+
+    console.log(`\n✓ Backfill complete`);
+    console.log(`  Commits processed: ${result.commitsProcessed}`);
+    console.log(`  AI Attributed: ${result.aiAttributedCommits}`);
+    if (result.rateLimited) {
+      console.log(`  ⚠️  Rate limited - will continue on next run`);
+    }
+    if (result.errors.length > 0) {
+      console.log(`  Errors: ${result.errors.slice(0, 5).join(', ')}`);
+    }
+    return;
+  }
+
+  // No repo and no --from: show help
+  console.error('Usage: npm run cli github:sync [repo] [options]');
+  console.error('');
+  console.error('Options:');
+  console.error('  --days N       Sync last N days (default: 7)');
+  console.error('  --from DATE    Sync from specific date (enables backfill mode for all repos)');
+  console.error('  --reset        Delete existing commits before syncing (clean slate)');
+  console.error('  --dry-run      Show what would be synced without writing to DB');
+  console.error('');
+  console.error('Examples:');
+  console.error('  npm run cli github:sync getsentry/sentry --days 30');
+  console.error('  npm run cli github:sync getsentry/sentry --reset --from 2024-01-01');
+  console.error('  npm run cli github:sync --reset --from 2024-01-01  # Reset ALL and backfill');
 }
 
 async function cmdGitHubBackfill(fromDate: string) {
@@ -969,11 +1044,15 @@ async function main() {
         await cmdGitHubStatus();
         break;
       case 'github:sync': {
-        const repo = args[1];
+        // Parse repo (first non-flag argument after command)
+        const repo = args[1] && !args[1].startsWith('--') ? args[1] : undefined;
         const daysIdx = args.indexOf('--days');
         const days = daysIdx >= 0 ? parseInt(args[daysIdx + 1]) : 7;
+        const fromIdx = args.indexOf('--from');
+        const fromDate = fromIdx >= 0 ? args[fromIdx + 1] : undefined;
+        const reset = args.includes('--reset');
         const dryRun = args.includes('--dry-run');
-        await cmdGitHubSync(repo, days, dryRun);
+        await cmdGitHubSync({ repo, days, fromDate, reset, dryRun });
         break;
       }
       case 'github:commits': {

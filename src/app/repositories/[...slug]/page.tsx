@@ -12,12 +12,22 @@ import { PageContainer } from '@/components/PageContainer';
 import { AppLink } from '@/components/AppLink';
 import { LoadingState, ErrorState, EmptyState } from '@/components/PageState';
 import { getToolConfig, formatToolName } from '@/lib/tools';
+import { calculateDelta } from '@/lib/comparison';
 import { GitCommit, Users, Calendar, ArrowLeft, ExternalLink, Filter, ChevronRight, ChevronDown } from 'lucide-react';
 
 function formatNumber(n: number): string {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
   if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
   return n.toLocaleString();
+}
+
+interface RepositoryDetailsPreviousPeriod {
+  totalCommits: number;
+  aiAssistedCommits: number;
+  aiAssistanceRate: number;
+  uniqueAuthors: number;
+  totalAdditions: number;
+  totalDeletions: number;
 }
 
 interface RepositoryDetails {
@@ -38,6 +48,7 @@ interface RepositoryDetails {
   cursorCommits: number;
   copilotCommits: number;
   windsurfCommits: number;
+  previousPeriod?: RepositoryDetailsPreviousPeriod;
 }
 
 interface CommitAttribution {
@@ -240,6 +251,7 @@ export default function RepositoryDetailPage() {
       queryParams.set('commitsLimit', commitsPerPage.toString());
       queryParams.set('commitsOffset', (commitsPage * commitsPerPage).toString());
       queryParams.set('aiFilter', aiFilter);
+      queryParams.set('comparison', 'true');
 
       const response = await fetch(`/api/repositories/${source}/${fullName}?${queryParams}`);
 
@@ -349,23 +361,34 @@ export default function RepositoryDetailPage() {
               >
                 <StatCard
                   label="Total Commits"
+                  days={days}
                   value={formatNumber(data.details.totalCommits)}
                   icon={GitCommit}
+                  trend={data.details.previousPeriod ? calculateDelta(data.details.totalCommits, data.details.previousPeriod.totalCommits) : undefined}
                 />
                 <StatCard
                   label="AI Attributed"
+                  days={days}
                   value={`${data.details.aiAssistanceRate}%`}
                   subValue={`${formatNumber(data.details.aiAssistedCommits)} commits`}
+                  trend={data.details.previousPeriod ? calculateDelta(data.details.aiAssistanceRate, data.details.previousPeriod.aiAssistanceRate) : undefined}
                 />
                 <StatCard
                   label="Contributors"
+                  days={days}
                   value={formatNumber(data.details.uniqueAuthors)}
                   icon={Users}
+                  trend={data.details.previousPeriod ? calculateDelta(data.details.uniqueAuthors, data.details.previousPeriod.uniqueAuthors) : undefined}
                 />
                 <StatCard
                   label="Lines Changed"
+                  days={days}
                   value={formatNumber(data.details.totalAdditions + data.details.totalDeletions)}
                   subValue={`+${formatNumber(data.details.totalAdditions)} / -${formatNumber(data.details.totalDeletions)}`}
+                  trend={data.details.previousPeriod ? calculateDelta(
+                    data.details.totalAdditions + data.details.totalDeletions,
+                    data.details.previousPeriod.totalAdditions + data.details.previousPeriod.totalDeletions
+                  ) : undefined}
                 />
               </motion.div>
 

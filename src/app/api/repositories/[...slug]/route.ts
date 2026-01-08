@@ -3,6 +3,7 @@ import { wrapRouteHandlerWithSentry } from '@sentry/nextjs';
 import {
   getRepositoryByFullName,
   getRepositoryDetails,
+  getRepositoryDetailsWithComparison,
   getRepositoryCommits,
   getRepositoryAuthors,
   getRepositoryDailyStats,
@@ -35,6 +36,7 @@ async function handler(
   const commitsLimit = parseInt(searchParams.get('commitsLimit') || '50');
   const commitsOffset = parseInt(searchParams.get('commitsOffset') || '0');
   const aiFilter = (searchParams.get('aiFilter') || 'all') as 'all' | 'ai' | 'human';
+  const includeComparison = searchParams.get('comparison') === 'true';
 
   if (startDate && !isValidDateString(startDate)) {
     return NextResponse.json({ error: 'Invalid startDate format. Use YYYY-MM-DD.' }, { status: 400 });
@@ -51,7 +53,9 @@ async function handler(
 
   // Fetch all data in parallel
   const [details, commitsData, authors, dailyStats] = await Promise.all([
-    getRepositoryDetails(repo.id, startDate || undefined, endDate || undefined),
+    includeComparison && startDate && endDate
+      ? getRepositoryDetailsWithComparison(repo.id, startDate, endDate)
+      : getRepositoryDetails(repo.id, startDate || undefined, endDate || undefined),
     getRepositoryCommits(repo.id, startDate || undefined, endDate || undefined, commitsLimit, commitsOffset, aiFilter),
     getRepositoryAuthors(repo.id, startDate || undefined, endDate || undefined),
     startDate && endDate
