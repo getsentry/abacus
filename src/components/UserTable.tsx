@@ -4,8 +4,10 @@ import { motion } from 'framer-motion';
 import Link from 'next/link';
 import { formatTokens, formatCurrency } from '@/lib/utils';
 import { DEFAULT_DAYS } from '@/lib/constants';
-import { getToolConfig, formatToolName } from '@/lib/tools';
 import { UserLink } from '@/components/UserLink';
+import { AnimatedCard } from '@/components/Card';
+import { SectionLabel } from '@/components/SectionLabel';
+import { ToolSplitBar } from '@/components/ToolSplitBar';
 
 interface UserSummary {
   email: string;
@@ -21,12 +23,12 @@ interface UserSummary {
 function getToolBreakdownFromSummary(user: UserSummary) {
   const tools = [];
   if (user.claudeCodeTokens > 0) {
-    tools.push({ tool: 'claude_code', tokens: Number(user.claudeCodeTokens) });
+    tools.push({ tool: 'claude_code', value: Number(user.claudeCodeTokens) });
   }
   if (user.cursorTokens > 0) {
-    tools.push({ tool: 'cursor', tokens: Number(user.cursorTokens) });
+    tools.push({ tool: 'cursor', value: Number(user.cursorTokens) });
   }
-  return tools.sort((a, b) => b.tokens - a.tokens);
+  return tools.sort((a, b) => b.value - a.value);
 }
 
 interface UserTableProps {
@@ -37,16 +39,9 @@ interface UserTableProps {
 
 export function UserTable({ users, days = DEFAULT_DAYS }: UserTableProps) {
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: 0.7 }}
-      className="rounded-lg border border-white/5 bg-white/[0.02] p-4 sm:p-6"
-    >
+    <AnimatedCard delay={0.7} responsivePadding>
       <div className="mb-4 flex items-center justify-between">
-        <h3 className="font-mono text-xs uppercase tracking-wider text-white/60">
-          Top Users <span className="text-white/30">({days}d)</span>
-        </h3>
+        <SectionLabel days={days}>Top Users</SectionLabel>
         <Link
           href={`/users?days=${days}`}
           className="font-mono text-xs text-amber-500 hover:text-amber-400 transition-colors"
@@ -91,41 +86,11 @@ export function UserTable({ users, days = DEFAULT_DAYS }: UserTableProps) {
                   <span className="font-mono text-xs sm:text-sm text-white/60">{formatCurrency(user.totalCost)}</span>
                 </td>
                 <td className="py-2.5 sm:py-3 pr-3 hidden sm:table-cell w-20 sm:w-28">
-                  {(() => {
-                    const tools = getToolBreakdownFromSummary(user);
-                    const total = Number(user.totalTokens);
-                    if (total === 0 || tools.length === 0) return null;
-
-                    return (
-                      <div className="group/dist relative flex gap-0.5 w-full">
-                        {tools.map((t, i) => {
-                          const config = getToolConfig(t.tool);
-                          const pct = (t.tokens / total) * 100;
-                          return (
-                            <div
-                              key={t.tool}
-                              className={`h-1.5 sm:h-2 ${config.bg} ${i === 0 ? 'rounded-l' : ''} ${i === tools.length - 1 ? 'rounded-r' : ''}`}
-                              style={{ width: `${pct}%` }}
-                            />
-                          );
-                        })}
-                        {/* Tooltip */}
-                        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover/dist:block z-20 pointer-events-none">
-                          <div className="rounded bg-black/95 px-2 py-1.5 text-[10px] whitespace-nowrap border border-white/10 shadow-lg">
-                            {tools.map(t => {
-                              const config = getToolConfig(t.tool);
-                              const pct = Math.round((t.tokens / total) * 100);
-                              return (
-                                <div key={t.tool} className={config.text}>
-                                  {formatToolName(t.tool)}: {formatTokens(t.tokens)} ({pct}%)
-                                </div>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })()}
+                  <ToolSplitBar
+                    data={getToolBreakdownFromSummary(user)}
+                    total={Number(user.totalTokens)}
+                    valueType="tokens"
+                  />
                 </td>
                 <td className="py-2.5 sm:py-3 hidden md:table-cell w-24">
                   <span className="font-mono text-[10px] text-white/40 truncate block">
@@ -137,6 +102,6 @@ export function UserTable({ users, days = DEFAULT_DAYS }: UserTableProps) {
           </tbody>
         </table>
       </div>
-    </motion.div>
+    </AnimatedCard>
   );
 }

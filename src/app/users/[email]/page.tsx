@@ -35,16 +35,20 @@ const TOOL_COLORS: Record<string, { bg: string; text: string; gradient: string }
     text: 'text-cyan-400',
     gradient: 'from-cyan-500/80 to-cyan-400/60',
   },
-  // Future tools
   windsurf: {
     bg: 'bg-emerald-500',
     text: 'text-emerald-400',
     gradient: 'from-emerald-500/80 to-emerald-400/60',
   },
-  copilot: {
-    bg: 'bg-violet-500',
-    text: 'text-violet-400',
-    gradient: 'from-violet-500/80 to-violet-400/60',
+  github_copilot: {
+    bg: 'bg-sky-500',
+    text: 'text-sky-400',
+    gradient: 'from-sky-500/80 to-sky-400/60',
+  },
+  codex: {
+    bg: 'bg-teal-500',
+    text: 'text-teal-400',
+    gradient: 'from-teal-500/80 to-teal-400/60',
   },
   default: {
     bg: 'bg-rose-500',
@@ -62,7 +66,8 @@ function formatToolName(tool: string): string {
     claude_code: 'Claude Code',
     cursor: 'Cursor',
     windsurf: 'Windsurf',
-    copilot: 'Copilot',
+    github_copilot: 'GitHub Copilot',
+    codex: 'Codex',
   };
   return names[tool] || tool.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
 }

@@ -21,7 +21,8 @@ const TOOL_COLORS: Record<string, { bg: string; text: string }> = {
   claude_code: { bg: 'bg-amber-500', text: 'text-amber-400' },
   cursor: { bg: 'bg-cyan-500', text: 'text-cyan-400' },
   windsurf: { bg: 'bg-emerald-500', text: 'text-emerald-400' },
-  copilot: { bg: 'bg-violet-500', text: 'text-violet-400' },
+  github_copilot: { bg: 'bg-sky-500', text: 'text-sky-400' },
+  codex: { bg: 'bg-teal-500', text: 'text-teal-400' },
   default: { bg: 'bg-rose-500', text: 'text-rose-400' },
 };
 
@@ -34,7 +35,8 @@ function formatToolName(tool: string): string {
     claude_code: 'Claude Code',
     cursor: 'Cursor',
     windsurf: 'Windsurf',
-    copilot: 'Copilot',
+    github_copilot: 'GitHub Copilot',
+    codex: 'Codex',
   };
   return names[tool] || tool.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
 }

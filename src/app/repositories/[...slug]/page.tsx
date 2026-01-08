@@ -282,7 +282,7 @@ export default function RepositoryDetailPage() {
   const toolBreakdown = data?.details ? [
     { tool: 'claude_code', commits: data.details.claudeCodeCommits },
     { tool: 'cursor', commits: data.details.cursorCommits },
-    { tool: 'copilot', commits: data.details.copilotCommits },
+    { tool: 'github_copilot', commits: data.details.copilotCommits },
     { tool: 'windsurf', commits: data.details.windsurfCommits },
   ].filter(t => t.commits > 0) : [];
 

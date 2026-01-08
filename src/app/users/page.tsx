@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useCallback, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { motion } from 'framer-motion';
 import { InlineSearchInput } from '@/components/SearchInput';
 import { TimeRangeSelector } from '@/components/TimeRangeSelector';
 import { AppHeader } from '@/components/AppHeader';
@@ -15,7 +14,8 @@ import { LoadingState, ErrorState } from '@/components/PageState';
 import { formatTokens, formatCurrency } from '@/lib/utils';
 import { useTimeRange } from '@/contexts/TimeRangeContext';
 import { type AdoptionStage, isInactive } from '@/lib/adoption';
-import { getToolConfig, formatToolName } from '@/lib/tools';
+import { ToolSplitBar, type ToolSplitData } from '@/components/ToolSplitBar';
+import { AnimatedCard } from '@/components/Card';
 
 interface UserPivotData {
   email: string;
@@ -41,15 +41,15 @@ type SortKey = keyof UserPivotData;
 type ColumnKey = SortKey | 'split';
 
 // Build tool breakdown from user data
-function getToolBreakdownFromUser(user: UserPivotData) {
-  const tools = [];
+function getToolBreakdownFromUser(user: UserPivotData): ToolSplitData[] {
+  const tools: ToolSplitData[] = [];
   if (user.claudeCodeTokens > 0) {
-    tools.push({ tool: 'claude_code', tokens: Number(user.claudeCodeTokens) });
+    tools.push({ tool: 'claude_code', value: Number(user.claudeCodeTokens) });
   }
   if (user.cursorTokens > 0) {
-    tools.push({ tool: 'cursor', tokens: Number(user.cursorTokens) });
+    tools.push({ tool: 'cursor', value: Number(user.cursorTokens) });
   }
-  return tools.sort((a, b) => b.tokens - a.tokens);
+  return tools.sort((a, b) => b.value - a.value);
 }
 
 const columns: { key: ColumnKey; label: string; align: 'left' | 'right'; format?: (v: number) => string; isAdoption?: boolean; sortable?: boolean }[] = [
@@ -218,11 +218,7 @@ function UsersPageContent() {
         ) : error ? (
           <ErrorState title="Error loading users" message={error} />
         ) : (
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="rounded-lg border border-white/5 bg-white/[0.02] overflow-hidden"
-          >
+          <AnimatedCard padding="none" className="overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead>
@@ -272,41 +268,12 @@ function UsersPageContent() {
                               isInactive={isInactive(user.daysSinceLastActive)}
                             />
                           ) : col.key === 'split' ? (
-                            (() => {
-                              const tools = getToolBreakdownFromUser(user);
-                              const total = Number(user.totalTokens);
-                              if (total === 0 || tools.length === 0) return null;
-
-                              return (
-                                <div className="group/dist relative flex gap-0.5 w-full min-w-[80px]">
-                                  {tools.map((t, idx) => {
-                                    const config = getToolConfig(t.tool);
-                                    const pct = (t.tokens / total) * 100;
-                                    return (
-                                      <div
-                                        key={t.tool}
-                                        className={`h-1.5 sm:h-2 ${config.bg} ${idx === 0 ? 'rounded-l' : ''} ${idx === tools.length - 1 ? 'rounded-r' : ''}`}
-                                        style={{ width: `${pct}%` }}
-                                      />
-                                    );
-                                  })}
-                                  {/* Tooltip */}
-                                  <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover/dist:block z-20 pointer-events-none">
-                                    <div className="rounded bg-black/95 px-2 py-1.5 text-[10px] whitespace-nowrap border border-white/10 shadow-lg">
-                                      {tools.map(t => {
-                                        const config = getToolConfig(t.tool);
-                                        const pct = Math.round((t.tokens / total) * 100);
-                                        return (
-                                          <div key={t.tool} className={config.text}>
-                                            {formatToolName(t.tool)}: {formatTokens(t.tokens)} ({pct}%)
-                                          </div>
-                                        );
-                                      })}
-                                    </div>
-                                  </div>
-                                </div>
-                              );
-                            })()
+                            <ToolSplitBar
+                              data={getToolBreakdownFromUser(user)}
+                              total={Number(user.totalTokens)}
+                              valueType="tokens"
+                              minWidth="80px"
+                            />
                           ) : col.key === 'claudeCodeTokens' ? (
                             <span className="text-amber-400/80">{col.format!(user[col.key] as number)}</span>
                           ) : col.key === 'cursorTokens' ? (
@@ -345,7 +312,7 @@ function UsersPageContent() {
                 </tfoot>
               </table>
             </div>
-          </motion.div>
+          </AnimatedCard>
         )}
         </PageContainer>
       </main>

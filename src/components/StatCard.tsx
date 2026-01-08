@@ -3,6 +3,7 @@
 import { motion } from 'framer-motion';
 import { type LucideIcon } from 'lucide-react';
 import { type ReactNode } from 'react';
+import { SectionLabel } from './SectionLabel';
 
 interface StatCardProps {
   /** Card label/title */
@@ -66,10 +67,7 @@ export function StatCard({
         {/* Label row with optional icon */}
         <div className={`flex items-center gap-2 ${Icon ? 'mb-3' : ''}`}>
           {Icon && <Icon className="w-4 h-4" style={{ color: accentColor }} />}
-          <p className="font-mono text-xs uppercase tracking-wider text-white/60">
-            {label}
-            {days !== undefined && <span className="text-white/20"> ({days}d)</span>}
-          </p>
+          <SectionLabel days={days}>{label}</SectionLabel>
         </div>
 
         {/* Value row */}

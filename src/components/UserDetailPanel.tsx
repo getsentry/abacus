@@ -7,6 +7,8 @@ import { getToolConfig, formatToolName, calculateToolBreakdown, type ToolBreakdo
 import { useTimeRange } from '@/contexts/TimeRangeContext';
 import { AppLink } from '@/components/AppLink';
 import { AdoptionBadge } from '@/components/AdoptionBadge';
+import { Card } from '@/components/Card';
+import { SectionLabel } from '@/components/SectionLabel';
 import { DOMAIN } from '@/lib/constants';
 import {
   calculateAdoptionScore,
@@ -44,12 +46,12 @@ interface UserDetailPanelProps {
 // Skeleton loader for cards
 function CardSkeleton({ lines = 2 }: { lines?: number }) {
   return (
-    <div className="rounded-lg border border-white/5 bg-white/[0.02] p-4 animate-pulse">
+    <Card padding="md" className="animate-pulse">
       <div className="h-2 w-20 bg-white/10 rounded mb-3" />
       {Array.from({ length: lines }).map((_, i) => (
         <div key={i} className={`h-4 bg-white/5 rounded ${i === 0 ? 'w-32' : 'w-24'} ${i > 0 ? 'mt-2' : 'mt-1'}`} />
       ))}
-    </div>
+    </Card>
   );
 }
 
@@ -202,9 +204,9 @@ export function UserDetailPanel({ email, onClose }: UserDetailPanelProps) {
                 transition={{ duration: 0.3 }}
                 className="space-y-4"
               >
-                  <div className="rounded-lg border border-white/5 bg-white/[0.02] p-4">
+                  <Card padding="md">
                     <div className="flex items-baseline justify-between">
-                      <p className="font-mono text-xs uppercase tracking-wider text-white/60">Total Tokens</p>
+                      <SectionLabel>Total Tokens</SectionLabel>
                       <p className="font-mono text-[10px] text-white/30">{rangeLabel}</p>
                     </div>
                     <div className="mt-1 flex items-baseline gap-2">
@@ -220,7 +222,7 @@ export function UserDetailPanel({ email, onClose }: UserDetailPanelProps) {
                       })()}
                     </div>
                     <p className="font-mono text-xs text-white/50">{formatCurrency(user.totalCost)} estimated cost</p>
-                  </div>
+                  </Card>
 
                   {/* Adoption Journey - Redesigned */}
                   {adoptionData && (
@@ -292,8 +294,8 @@ export function UserDetailPanel({ email, onClose }: UserDetailPanelProps) {
 
                   {/* Tool Breakdown - Dynamic */}
                   {toolBreakdown.length > 0 && (
-                    <div className="rounded-lg border border-white/5 bg-white/[0.02] p-4">
-                      <p className="mb-3 font-mono text-xs uppercase tracking-wider text-white/60">Tool Breakdown</p>
+                    <Card padding="md">
+                      <SectionLabel margin="md">Tool Breakdown</SectionLabel>
 
                       {/* Stacked bar */}
                       <div className="mb-4">
@@ -335,12 +337,12 @@ export function UserDetailPanel({ email, onClose }: UserDetailPanelProps) {
                           );
                         })}
                       </div>
-                    </div>
+                    </Card>
                   )}
 
                   {details?.modelBreakdown && details.modelBreakdown.length > 0 && (
-                    <div className="rounded-lg border border-white/5 bg-white/[0.02] p-4">
-                      <p className="mb-3 font-mono text-xs uppercase tracking-wider text-white/60">Models Used</p>
+                    <Card padding="md">
+                      <SectionLabel margin="md">Models Used</SectionLabel>
                       <div className="space-y-2">
                         {details.modelBreakdown.slice(0, 5).map(m => {
                           const config = getToolConfig(m.tool);
@@ -357,12 +359,12 @@ export function UserDetailPanel({ email, onClose }: UserDetailPanelProps) {
                           );
                         })}
                       </div>
-                    </div>
+                    </Card>
                   )}
 
                   {details?.dailyUsage && details.dailyUsage.length > 0 && (
-                    <div className="rounded-lg border border-white/5 bg-white/[0.02] p-4">
-                      <p className="mb-3 font-mono text-xs uppercase tracking-wider text-white/60">Daily Activity</p>
+                    <Card padding="md">
+                      <SectionLabel margin="md">Daily Activity</SectionLabel>
                       <div className="flex h-16 items-end gap-0.5">
                         {details.dailyUsage.map((d) => {
                           const total = Number(d.claudeCode) + Number(d.cursor);
@@ -381,19 +383,19 @@ export function UserDetailPanel({ email, onClose }: UserDetailPanelProps) {
                         <span>{details.dailyUsage.length}d ago</span>
                         <span>Today</span>
                       </div>
-                    </div>
+                    </Card>
                   )}
 
-                <div className="rounded-lg border border-white/5 bg-white/[0.02] p-4">
+                <Card padding="md">
                   <div className="flex justify-between">
-                    <span className="font-mono text-xs uppercase tracking-wider text-white/60">First Active</span>
+                    <SectionLabel>First Active</SectionLabel>
                     <span className="font-mono text-xs text-white/60">{user.firstActive}</span>
                   </div>
                   <div className="flex justify-between mt-2">
-                    <span className="font-mono text-xs uppercase tracking-wider text-white/60">Last Active</span>
+                    <SectionLabel>Last Active</SectionLabel>
                     <span className="font-mono text-xs text-white/60">{user.lastActive}</span>
                   </div>
-                </div>
+                </Card>
               </motion.div>
             ) : !loading ? (
               <div className="flex h-64 items-center justify-center">

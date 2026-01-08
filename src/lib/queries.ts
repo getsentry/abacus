@@ -1085,7 +1085,7 @@ export async function getRepositoryPivot(
           MAX(c.committed_at)::text as "lastCommit",
           COUNT(c.id) FILTER (WHERE c.ai_tool = 'claude_code')::int as "claudeCodeCommits",
           COUNT(c.id) FILTER (WHERE c.ai_tool = 'cursor')::int as "cursorCommits",
-          COUNT(c.id) FILTER (WHERE c.ai_tool = 'copilot')::int as "copilotCommits"
+          COUNT(c.id) FILTER (WHERE c.ai_tool = 'github_copilot')::int as "copilotCommits"
         FROM repositories r
         LEFT JOIN commits c ON c.repo_id = r.id
           AND c.committed_at >= ${effectiveStartDate}::timestamp
@@ -1111,7 +1111,7 @@ export async function getRepositoryPivot(
           MAX(c.committed_at)::text as "lastCommit",
           COUNT(c.id) FILTER (WHERE c.ai_tool = 'claude_code')::int as "claudeCodeCommits",
           COUNT(c.id) FILTER (WHERE c.ai_tool = 'cursor')::int as "cursorCommits",
-          COUNT(c.id) FILTER (WHERE c.ai_tool = 'copilot')::int as "copilotCommits"
+          COUNT(c.id) FILTER (WHERE c.ai_tool = 'github_copilot')::int as "copilotCommits"
         FROM repositories r
         LEFT JOIN commits c ON c.repo_id = r.id
           AND c.committed_at >= ${effectiveStartDate}::timestamp
@@ -1335,7 +1335,7 @@ export async function getRepositoryDetails(
       MAX(c.committed_at)::text as "lastCommit",
       COUNT(c.id) FILTER (WHERE c.ai_tool = 'claude_code')::int as "claudeCodeCommits",
       COUNT(c.id) FILTER (WHERE c.ai_tool = 'cursor')::int as "cursorCommits",
-      COUNT(c.id) FILTER (WHERE c.ai_tool = 'copilot')::int as "copilotCommits",
+      COUNT(c.id) FILTER (WHERE c.ai_tool = 'github_copilot')::int as "copilotCommits",
       COUNT(c.id) FILTER (WHERE c.ai_tool = 'windsurf')::int as "windsurfCommits"
     FROM repositories r
     LEFT JOIN commits c ON c.repo_id = r.id
@@ -1551,7 +1551,7 @@ export async function getRepositoryDailyStats(
       COALESCE(COUNT(c.id), 0)::int as "totalCommits",
       COALESCE(COUNT(c.id) FILTER (WHERE c.ai_tool = 'claude_code'), 0)::int as "claudeCodeCommits",
       COALESCE(COUNT(c.id) FILTER (WHERE c.ai_tool = 'cursor'), 0)::int as "cursorCommits",
-      COALESCE(COUNT(c.id) FILTER (WHERE c.ai_tool = 'copilot'), 0)::int as "copilotCommits",
+      COALESCE(COUNT(c.id) FILTER (WHERE c.ai_tool = 'github_copilot'), 0)::int as "copilotCommits",
       COALESCE(COUNT(c.id) FILTER (WHERE c.ai_tool = 'windsurf'), 0)::int as "windsurfCommits"
     FROM date_series ds
     LEFT JOIN commits c ON c.committed_at::date = ds.date AND c.repo_id = ${repoId}

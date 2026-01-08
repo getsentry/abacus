@@ -41,9 +41,9 @@ const COMMIT_SEGMENTS: StackedBarSegment[] = [
   },
   {
     key: 'copilot',
-    label: TOOL_CONFIGS.copilot.name,
-    color: TOOL_CONFIGS.copilot.bgChart,
-    textColor: TOOL_CONFIGS.copilot.text,
+    label: TOOL_CONFIGS.github_copilot.name,
+    color: TOOL_CONFIGS.github_copilot.bgChart,
+    textColor: TOOL_CONFIGS.github_copilot.text,
   },
   {
     key: 'windsurf',

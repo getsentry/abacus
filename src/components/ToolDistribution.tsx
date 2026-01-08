@@ -4,6 +4,8 @@ import { useState, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { formatTokens } from '@/lib/utils';
 import { getToolConfig, formatToolName } from '@/lib/tools';
+import { AnimatedCard } from './Card';
+import { SectionLabel } from './SectionLabel';
 
 interface ToolData {
   tool: string;
@@ -26,7 +28,8 @@ const TOOL_HOVER_COLORS: Record<string, { bar: string; barHover: string }> = {
   claude_code: { bar: 'bg-amber-500', barHover: 'bg-amber-400' },
   cursor: { bar: 'bg-cyan-500', barHover: 'bg-cyan-400' },
   windsurf: { bar: 'bg-emerald-500', barHover: 'bg-emerald-400' },
-  copilot: { bar: 'bg-violet-500', barHover: 'bg-violet-400' },
+  github_copilot: { bar: 'bg-sky-500', barHover: 'bg-sky-400' },
+  codex: { bar: 'bg-teal-500', barHover: 'bg-teal-400' },
 };
 
 const DEFAULT_HOVER_COLORS = { bar: 'bg-rose-500', barHover: 'bg-rose-400' };
@@ -75,16 +78,9 @@ export function ToolDistribution({
   const positions = hoveredBar === 'users' ? userPositions : tokenPositions;
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: 0.35 }}
-      className={`rounded-lg border border-white/5 bg-white/[0.02] p-4 ${className}`}
-    >
+    <AnimatedCard delay={0.35} padding="md" className={className}>
       <div className="flex items-center justify-between mb-3">
-        <p className="font-mono text-xs uppercase tracking-wider text-white/60">
-          Tool Distribution {days && <span className="text-white/30">({days}d)</span>}
-        </p>
+        <SectionLabel days={days}>Tool Distribution</SectionLabel>
       </div>
 
       {/* Dual stacked bars with tooltips */}
@@ -176,6 +172,6 @@ export function ToolDistribution({
           );
         })}
       </div>
-    </motion.div>
+    </AnimatedCard>
   );
 }

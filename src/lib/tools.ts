@@ -15,6 +15,24 @@ export interface ToolConfig {
   gradient: string;
 }
 
+// GitHub Copilot config
+const COPILOT_CONFIG: ToolConfig = {
+  name: 'GitHub Copilot',
+  bg: 'bg-sky-500',
+  bgChart: 'bg-sky-500/80',
+  text: 'text-sky-400',
+  gradient: 'from-sky-500/80 to-sky-400/60',
+};
+
+// OpenAI Codex config
+const CODEX_CONFIG: ToolConfig = {
+  name: 'Codex',
+  bg: 'bg-teal-500',
+  bgChart: 'bg-teal-500/80',
+  text: 'text-teal-400',
+  gradient: 'from-teal-500/80 to-teal-400/60',
+};
+
 export const TOOL_CONFIGS: Record<string, ToolConfig> = {
   claude_code: {
     name: 'Claude Code',
@@ -37,13 +55,9 @@ export const TOOL_CONFIGS: Record<string, ToolConfig> = {
     text: 'text-emerald-400',
     gradient: 'from-emerald-500/80 to-emerald-400/60',
   },
-  copilot: {
-    name: 'Copilot',
-    bg: 'bg-violet-500',
-    bgChart: 'bg-violet-500/80',
-    text: 'text-violet-400',
-    gradient: 'from-violet-500/80 to-violet-400/60',
-  },
+  github_copilot: COPILOT_CONFIG,
+  // OpenAI Codex
+  codex: CODEX_CONFIG,
 };
 
 /** Config for non-AI/human commits */

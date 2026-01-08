@@ -3,6 +3,8 @@
 import { useState, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { AppLink } from './AppLink';
+import { AnimatedCard } from './Card';
+import { SectionLabel } from './SectionLabel';
 import { type AdoptionStage, STAGE_CONFIG, STAGE_ORDER, STAGE_ICONS } from '@/lib/adoption';
 
 interface StageData {
@@ -49,16 +51,9 @@ export function AdoptionDistribution({
   if (totalUsers === 0) return null;
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: 0.3 }}
-      className={`rounded-lg border border-white/5 bg-white/[0.02] p-4 ${className}`}
-    >
+    <AnimatedCard delay={0.3} padding="md" className={className}>
       <div className="flex items-center justify-between mb-3">
-        <p className="font-mono text-xs uppercase tracking-wider text-white/60">
-          Adoption Distribution {days && <span className="text-white/30">({days}d)</span>}
-        </p>
+        <SectionLabel days={days}>Adoption Distribution</SectionLabel>
         <AppLink
           href="/adoption"
           className="font-mono text-xs text-amber-500 hover:text-amber-400 transition-colors cursor-pointer"
@@ -133,6 +128,6 @@ export function AdoptionDistribution({
           );
         })}
       </div>
-    </motion.div>
+    </AnimatedCard>
   );
 }

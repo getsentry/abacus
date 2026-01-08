@@ -2,6 +2,8 @@
 
 import { motion } from 'framer-motion';
 import { formatTokens } from '@/lib/utils';
+import { Card } from '@/components/Card';
+import { SectionLabel } from '@/components/SectionLabel';
 
 interface ModelData {
   model: string;
@@ -42,15 +44,8 @@ function formatModelName(model: string): string {
 
 export function ModelBreakdown({ data, days }: ModelBreakdownProps) {
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: 0.5 }}
-      className="rounded-lg border border-white/5 bg-white/[0.02] p-6 h-full"
-    >
-      <h3 className="mb-4 font-mono text-xs uppercase tracking-wider text-white/60">
-        Model Distribution {days && <span className="text-white/30">({days}d)</span>}
-      </h3>
+    <Card animate delay={0.5} padding="lg" className="h-full">
+      <SectionLabel days={days} margin="lg">Model Distribution</SectionLabel>
       <div className="space-y-3">
         {data.slice(0, 6).map((m, i) => (
           <motion.div
@@ -80,6 +75,6 @@ export function ModelBreakdown({ data, days }: ModelBreakdownProps) {
           </motion.div>
         ))}
       </div>
-    </motion.div>
+    </Card>
   );
 }

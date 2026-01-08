@@ -84,13 +84,15 @@ const AI_PATTERNS: Array<{
   // ===========================================
   // Co-Authored-By: Claude <noreply@anthropic.com>
   // Co-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>
+  // Co-Authored-By: Claude Code <noreply@anthropic.com> (old format, no model)
   {
     // [^<]* safely captures optional model name without backtracking
     pattern: /Co-Authored-By:\s+Claude\b([^<]*)<[^>]+@anthropic\.com>/i,
     tool: 'claude_code',
     modelExtractor: (match) => {
       const modelPart = match[1]?.trim();
-      if (modelPart) {
+      // "Code" is the product name, not a model - ignore it
+      if (modelPart && modelPart.toLowerCase() !== 'code') {
         // "Opus 4.5" -> "opus-4.5"
         return modelPart.toLowerCase().replace(/\s+/g, '-');
       }

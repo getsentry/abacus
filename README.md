@@ -77,7 +77,7 @@ Redeploy to apply environment variables. Migrations run automatically on build.
 ## Local Development
 
 ```bash
-npm install
+pnpm install
 
 # Create .env.local with your credentials
 cat > .env.local << 'EOF'
@@ -93,8 +93,8 @@ ANTHROPIC_ADMIN_KEY=sk-admin-...
 CURSOR_ADMIN_KEY=...
 EOF
 
-npm run cli db:migrate
-npm run dev
+pnpm cli db:migrate
+pnpm dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000).
@@ -124,8 +124,8 @@ Claude Code usage is tracked via the Anthropic Admin API.
 #### Manual Sync
 
 ```bash
-npm run cli sync anthropic --days 7
-npm run cli backfill anthropic --from 2025-01-01 --to 2025-06-01
+pnpm cli sync anthropic --days 7
+pnpm cli backfill anthropic --from 2025-01-01 --to 2025-06-01
 ```
 
 ---
@@ -145,7 +145,7 @@ Cursor usage can be imported via API or CSV.
 - **Data**: Token counts, model, user email, cost
 
 ```bash
-npm run cli sync cursor --days 7
+pnpm cli sync cursor --days 7
 ```
 
 #### Option B: CSV Import
@@ -156,7 +156,7 @@ Faster for large historical imports.
 2. Import:
 
 ```bash
-npm run cli import:cursor-csv /path/to/export.csv
+pnpm cli import:cursor-csv /path/to/export.csv
 ```
 
 ---
@@ -249,10 +249,10 @@ Fine-grained tokens are scoped to exactly what's needed and don't require org-le
 #### Manual Sync
 
 ```bash
-npm run cli github:sync getsentry/sentry --dry-run # Test detection (no database needed)
-npm run cli github:status                          # Check sync state
-npm run cli github:sync getsentry/sentry --days 30 # Sync specific repo
-npm run cli backfill github --from 2024-10-01      # Backfill all repos
+pnpm cli github:sync getsentry/sentry --dry-run # Test detection (no database needed)
+pnpm cli github:status                          # Check sync state
+pnpm cli github:sync getsentry/sentry --days 30 # Sync specific repo
+pnpm cli backfill github --from 2024-10-01      # Backfill all repos
 ```
 
 ---
@@ -261,41 +261,41 @@ npm run cli backfill github --from 2024-10-01      # Backfill all repos
 
 ```bash
 # Database
-npm run cli db:migrate              # Run pending migrations
+pnpm cli db:migrate              # Run pending migrations
 
 # Sync (API-based)
-npm run cli sync                    # Sync all providers (last 7 days)
-npm run cli sync anthropic --days 30
-npm run cli sync cursor --days 7
+pnpm cli sync                    # Sync all providers (last 7 days)
+pnpm cli sync anthropic --days 30
+pnpm cli sync cursor --days 7
 
 # Backfill (historical data)
-npm run cli backfill anthropic --from 2025-01-01 --to 2025-06-01
-npm run cli backfill cursor --from 2025-01-01 --to 2025-06-01
-npm run cli backfill github --from 2024-10-01   # GitHub only needs --from
-npm run cli backfill:complete anthropic  # Mark backfill as complete
-npm run cli backfill:reset cursor        # Reset backfill status
+pnpm cli backfill anthropic --from 2025-01-01 --to 2025-06-01
+pnpm cli backfill cursor --from 2025-01-01 --to 2025-06-01
+pnpm cli backfill github --from 2024-10-01   # GitHub only needs --from
+pnpm cli backfill:complete anthropic  # Mark backfill as complete
+pnpm cli backfill:reset cursor        # Reset backfill status
 
 # CSV Import
-npm run cli import:cursor-csv <file>
+pnpm cli import:cursor-csv <file>
 
 # API Key Mappings (Claude Code)
-npm run cli mappings               # List current mappings
-npm run cli mappings:sync          # Sync from Anthropic API
-npm run cli mappings:fix           # Interactive unmapped key assignment
+pnpm cli mappings               # List current mappings
+pnpm cli mappings:sync          # Sync from Anthropic API
+pnpm cli mappings:fix           # Interactive unmapped key assignment
 
 # Data Analysis
-npm run cli gaps                   # Check for gaps in usage data
-npm run cli gaps anthropic
-npm run cli gaps cursor
+pnpm cli gaps                   # Check for gaps in usage data
+pnpm cli gaps anthropic
+pnpm cli gaps cursor
 
 # Status
-npm run cli anthropic:status       # Show Claude Code sync state
-npm run cli cursor:status          # Show Cursor sync state
-npm run cli github:status          # Show GitHub commits sync state
-npm run cli stats                  # Database statistics
+pnpm cli anthropic:status       # Show Claude Code sync state
+pnpm cli cursor:status          # Show Cursor sync state
+pnpm cli github:status          # Show GitHub commits sync state
+pnpm cli stats                  # Database statistics
 
 # GitHub-specific
-npm run cli github:sync <repo> [--days N]  # Sync a specific repo
+pnpm cli github:sync <repo> [--days N]  # Sync a specific repo
 ```
 
 ---

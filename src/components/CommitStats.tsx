@@ -4,6 +4,8 @@ import { motion } from 'framer-motion';
 import { GitCommit } from 'lucide-react';
 import { getToolConfig, formatToolName } from '@/lib/tools';
 import { AppLink } from '@/components/AppLink';
+import { Card } from '@/components/Card';
+import { SectionLabel } from '@/components/SectionLabel';
 
 interface ToolBreakdown {
   tool: string;
@@ -38,18 +40,11 @@ export function CommitStats({
   const totalAiCommits = toolBreakdown.reduce((sum, t) => sum + t.commits, 0);
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: 0.4 }}
-      className={`rounded-lg border border-white/5 bg-white/[0.02] p-4 ${className}`}
-    >
+    <Card animate delay={0.4} className={className}>
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">
           <GitCommit className="w-4 h-4 text-white/50" />
-          <p className="font-mono text-xs uppercase tracking-wider text-white/60">
-            Commits {days && <span className="text-white/30">({days}d)</span>}
-          </p>
+          <SectionLabel days={days}>Commits</SectionLabel>
         </div>
         <AppLink
           href="/commits"
@@ -109,6 +104,6 @@ export function CommitStats({
           </div>
         </div>
       )}
-    </motion.div>
+    </Card>
   );
 }

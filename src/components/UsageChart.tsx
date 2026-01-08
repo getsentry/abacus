@@ -2,6 +2,10 @@
 
 import { motion } from 'framer-motion';
 import { formatTokens, formatDate, formatCurrency } from '@/lib/utils';
+import { Card } from '@/components/Card';
+import { SectionLabel } from '@/components/SectionLabel';
+import { TooltipContent } from '@/components/Tooltip';
+import { TOOL_CONFIGS } from '@/lib/tools';
 
 interface DailyUsage {
   date: string;
@@ -25,22 +29,15 @@ export function UsageChart({ data, days }: UsageChartProps) {
   const labelEvery = Math.max(1, Math.ceil(data.length / maxLabels));
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: 0.4 }}
-      className="rounded-lg border border-white/5 bg-white/[0.02] p-6 h-full"
-    >
+    <Card animate delay={0.4} padding="lg" className="h-full">
       <div className="mb-4 flex items-center justify-between">
-        <h3 className="font-mono text-xs uppercase tracking-wider text-white/60">
-          Daily Usage {days && <span className="text-white/30">({days}d)</span>}
-        </h3>
+        <SectionLabel days={days}>Daily Usage</SectionLabel>
         <div className="flex gap-4">
-          <span className="font-mono text-xs text-amber-400">
-            Claude Code: {formatTokens(claudeCodeTotal)}
+          <span className={`font-mono text-xs ${TOOL_CONFIGS.claude_code.text}`}>
+            {TOOL_CONFIGS.claude_code.name}: {formatTokens(claudeCodeTotal)}
           </span>
-          <span className="font-mono text-xs text-cyan-400">
-            Cursor: {formatTokens(cursorTotal)}
+          <span className={`font-mono text-xs ${TOOL_CONFIGS.cursor.text}`}>
+            {TOOL_CONFIGS.cursor.name}: {formatTokens(cursorTotal)}
           </span>
         </div>
       </div>
@@ -58,7 +55,7 @@ export function UsageChart({ data, days }: UsageChartProps) {
                     initial={{ height: 0 }}
                     animate={{ height: `${claudeHeight}%` }}
                     transition={{ duration: 0.6, delay: Math.min(i * 0.02, 1) }}
-                    className="w-full rounded-t bg-amber-500/80"
+                    className={`w-full rounded-t ${TOOL_CONFIGS.claude_code.bgChart}`}
                     style={{ minHeight: '2px' }}
                   />
                 )}
@@ -67,7 +64,7 @@ export function UsageChart({ data, days }: UsageChartProps) {
                     initial={{ height: 0 }}
                     animate={{ height: `${cursorHeight}%` }}
                     transition={{ duration: 0.6, delay: Math.min(i * 0.02 + 0.02, 1) }}
-                    className="w-full rounded-b bg-cyan-500/80"
+                    className={`w-full rounded-b ${TOOL_CONFIGS.cursor.bgChart}`}
                     style={{ minHeight: '2px' }}
                   />
                 )}
@@ -81,16 +78,14 @@ export function UsageChart({ data, days }: UsageChartProps) {
               )}
 
               {/* Tooltip */}
-              <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block z-10 pointer-events-none">
-                <div className="rounded bg-black/90 px-2 py-1.5 text-[10px] whitespace-nowrap border border-white/10">
-                  <div className="text-white/60 mb-1">{formatDate(item.date)}</div>
-                  <div className="text-amber-400">Claude Code: {formatTokens(item.claudeCode)}</div>
-                  <div className="text-cyan-400">Cursor: {formatTokens(item.cursor)}</div>
-                  {item.cost !== undefined && (
-                    <div className="text-green-400 mt-1 pt-1 border-t border-white/10">Cost: {formatCurrency(item.cost)}</div>
-                  )}
-                </div>
-              </div>
+              <TooltipContent>
+                <div className="text-white/60 mb-1">{formatDate(item.date)}</div>
+                <div className={TOOL_CONFIGS.claude_code.text}>{TOOL_CONFIGS.claude_code.name}: {formatTokens(item.claudeCode)}</div>
+                <div className={TOOL_CONFIGS.cursor.text}>{TOOL_CONFIGS.cursor.name}: {formatTokens(item.cursor)}</div>
+                {item.cost !== undefined && (
+                  <div className="text-green-400 mt-1 pt-1 border-t border-white/10">Cost: {formatCurrency(item.cost)}</div>
+                )}
+              </TooltipContent>
             </div>
           );
         })}
@@ -98,6 +93,6 @@ export function UsageChart({ data, days }: UsageChartProps) {
 
       {/* X-axis line */}
       <div className="h-px bg-white/10 mt-1" />
-    </motion.div>
+    </Card>
   );
 }

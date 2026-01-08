@@ -16,6 +16,9 @@ import { AppLink } from '@/components/AppLink';
 import { useTimeRange } from '@/contexts/TimeRangeContext';
 import { getToolConfig, formatToolName } from '@/lib/tools';
 import { calculateDelta } from '@/lib/comparison';
+import { AnimatedCard } from '@/components/Card';
+import { SectionLabel } from '@/components/SectionLabel';
+import { ToolSplitBar, type ToolSplitData } from '@/components/ToolSplitBar';
 
 interface RepositoryPivotData {
   id: number;
@@ -62,18 +65,18 @@ function formatDate(dateStr: string | null): string {
 }
 
 // Build tool breakdown from repository data
-function getToolBreakdownFromRepo(repo: RepositoryPivotData) {
-  const tools = [];
+function getToolBreakdownFromRepo(repo: RepositoryPivotData): ToolSplitData[] {
+  const tools: ToolSplitData[] = [];
   if (repo.claudeCodeCommits > 0) {
-    tools.push({ tool: 'claude_code', commits: repo.claudeCodeCommits });
+    tools.push({ tool: 'claude_code', value: repo.claudeCodeCommits });
   }
   if (repo.cursorCommits > 0) {
-    tools.push({ tool: 'cursor', commits: repo.cursorCommits });
+    tools.push({ tool: 'cursor', value: repo.cursorCommits });
   }
   if (repo.copilotCommits > 0) {
-    tools.push({ tool: 'copilot', commits: repo.copilotCommits });
+    tools.push({ tool: 'github_copilot', value: repo.copilotCommits });
   }
-  return tools.sort((a, b) => b.commits - a.commits);
+  return tools.sort((a, b) => b.value - a.value);
 }
 
 const columns: { key: ColumnKey; label: string; align: 'left' | 'right'; format?: (v: number) => string; sortable?: boolean }[] = [
@@ -243,15 +246,8 @@ function CommitsPageContent() {
 
             {/* Tool Breakdown Bar */}
             {totals.toolBreakdown && totals.toolBreakdown.length > 0 && (
-              <motion.div
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.1 }}
-                className="mt-4 rounded-lg border border-white/5 bg-white/[0.02] p-4"
-              >
-                <p className="font-mono text-xs uppercase tracking-wider text-white/60 mb-3">
-                  Attributed Commits by Tool
-                </p>
+              <AnimatedCard delay={0.1} padding="md" className="mt-4">
+                <SectionLabel margin="md">Attributed Commits by Tool</SectionLabel>
                 <div className="flex items-center gap-4">
                   <div className="flex-1 h-2 rounded-full bg-white/5 overflow-hidden flex">
                     {totals.toolBreakdown.map((t, i) => {
@@ -290,7 +286,7 @@ function CommitsPageContent() {
                     })}
                   </div>
                 </div>
-              </motion.div>
+              </AnimatedCard>
             )}
           </PageContainer>
         </div>
@@ -349,11 +345,7 @@ function CommitsPageContent() {
               description="Configure GitHub webhooks to start tracking commits"
             />
           ) : (
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="rounded-lg border border-white/5 bg-white/[0.02] overflow-hidden"
-            >
+            <AnimatedCard padding="none" className="overflow-hidden">
               <div className="overflow-x-auto">
                 <table className="w-full">
                   <thead>
@@ -426,41 +418,12 @@ function CommitsPageContent() {
                                 {col.format!(repo[col.key])}
                               </span>
                             ) : col.key === 'toolSplit' ? (
-                              (() => {
-                                const tools = getToolBreakdownFromRepo(repo);
-                                const total = repo.aiAssistedCommits;
-                                if (total === 0 || tools.length === 0) return <span className="text-white/30">-</span>;
-
-                                return (
-                                  <div className="group/dist relative flex gap-0.5 w-full min-w-[80px]">
-                                    {tools.map((t, idx) => {
-                                      const config = getToolConfig(t.tool);
-                                      const pct = (t.commits / total) * 100;
-                                      return (
-                                        <div
-                                          key={t.tool}
-                                          className={`h-1.5 sm:h-2 ${config.bg} ${idx === 0 ? 'rounded-l' : ''} ${idx === tools.length - 1 ? 'rounded-r' : ''}`}
-                                          style={{ width: `${pct}%` }}
-                                        />
-                                      );
-                                    })}
-                                    {/* Tooltip */}
-                                    <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover/dist:block z-20 pointer-events-none">
-                                      <div className="rounded bg-black/95 px-2 py-1.5 text-[10px] whitespace-nowrap border border-white/10 shadow-lg">
-                                        {tools.map(t => {
-                                          const config = getToolConfig(t.tool);
-                                          const pct = Math.round((t.commits / total) * 100);
-                                          return (
-                                            <div key={t.tool} className={config.text}>
-                                              {formatToolName(t.tool)}: {t.commits} ({pct}%)
-                                            </div>
-                                          );
-                                        })}
-                                      </div>
-                                    </div>
-                                  </div>
-                                );
-                              })()
+                              <ToolSplitBar
+                                data={getToolBreakdownFromRepo(repo)}
+                                total={repo.aiAssistedCommits}
+                                valueType="commits"
+                                minWidth="80px"
+                              />
                             ) : col.key === 'lastCommit' ? (
                               <span className="text-white/50">{formatDate(repo[col.key])}</span>
                             ) : col.format ? (
@@ -503,7 +466,7 @@ function CommitsPageContent() {
                   </tfoot>
                 </table>
               </div>
-            </motion.div>
+            </AnimatedCard>
           )}
         </PageContainer>
       </main>
