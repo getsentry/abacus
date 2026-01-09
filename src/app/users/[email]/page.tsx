@@ -98,6 +98,15 @@ interface UserDetails {
     favoriteTool: string | null;
     recordDay: { date: string; tokens: number } | null;
   };
+  commitStats?: {
+    totalCommits: number;
+    aiAssistedCommits: number;
+    aiAssistanceRate: number;
+    toolBreakdown: {
+      tool: string;
+      commits: number;
+    }[];
+  };
   modelBreakdown: {
     model: string;
     tokens: number;
@@ -312,6 +321,16 @@ function UserDetailContent() {
                 accentColor="#06b6d4"
                 delay={0.15}
               />
+              {data.commitStats && data.commitStats.totalCommits > 0 && (
+                <StatCard
+                  label="AI Attributed"
+                  days={days}
+                  value={`${data.commitStats.aiAssistanceRate}%`}
+                  subValue={`${data.commitStats.aiAssistedCommits} of ${data.commitStats.totalCommits}`}
+                  accentColor="#f59e0b"
+                  delay={0.2}
+                />
+              )}
             </div>
 
             {/* Adoption Journey */}

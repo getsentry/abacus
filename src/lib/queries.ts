@@ -1700,3 +1700,64 @@ export async function getToolTrends(
 
   return result.rows as ToolTrendData[];
 }
+
+// ============================================================================
+// User Commit Stats (AI attribution per user)
+// ============================================================================
+
+export interface UserCommitStats {
+  totalCommits: number;
+  aiAssistedCommits: number;
+  aiAssistanceRate: number;
+  toolBreakdown: {
+    tool: string;
+    commits: number;
+  }[];
+}
+
+export async function getUserCommitStats(
+  email: string,
+  startDate?: string,
+  endDate?: string
+): Promise<UserCommitStats> {
+  const effectiveStartDate = startDate || '1970-01-01';
+  const effectiveEndDate = endDate || '9999-12-31';
+
+  const [overallResult, toolBreakdownResult] = await Promise.all([
+    sql`
+      SELECT
+        COUNT(*)::int as "totalCommits",
+        COUNT(*) FILTER (WHERE ai_tool IS NOT NULL)::int as "aiAssistedCommits"
+      FROM commits
+      WHERE author_email = ${email}
+        AND committed_at >= ${effectiveStartDate}::timestamp
+        AND committed_at < (${effectiveEndDate}::date + interval '1 day')
+    `,
+    sql`
+      SELECT
+        ai_tool as tool,
+        COUNT(*)::int as commits
+      FROM commits
+      WHERE author_email = ${email}
+        AND ai_tool IS NOT NULL
+        AND committed_at >= ${effectiveStartDate}::timestamp
+        AND committed_at < (${effectiveEndDate}::date + interval '1 day')
+      GROUP BY ai_tool
+      ORDER BY commits DESC
+    `
+  ]);
+
+  const overall = overallResult.rows[0];
+  const totalCommits = Number(overall.totalCommits);
+  const aiAssistedCommits = Number(overall.aiAssistedCommits);
+
+  return {
+    totalCommits,
+    aiAssistedCommits,
+    aiAssistanceRate: totalCommits > 0 ? Math.round((aiAssistedCommits / totalCommits) * 100) : 0,
+    toolBreakdown: toolBreakdownResult.rows.map(row => ({
+      tool: row.tool,
+      commits: Number(row.commits),
+    })),
+  };
+}

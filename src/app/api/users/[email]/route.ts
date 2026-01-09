@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { wrapRouteHandlerWithSentry } from '@sentry/nextjs';
-import { getUserDetails, getUserDetailsExtended, getUserLifetimeStats, resolveUserEmail } from '@/lib/queries';
+import { getUserDetails, getUserDetailsExtended, getUserLifetimeStats, getUserCommitStats, resolveUserEmail } from '@/lib/queries';
 import { getSession } from '@/lib/auth';
 import { isValidDateString } from '@/lib/utils';
 import { getPreviousPeriodDates } from '@/lib/comparison';
@@ -39,10 +39,11 @@ async function handler(
   // Fetch comparison data if requested
   if (includeComparison && startDate && endDate) {
     const { prevStartDate, prevEndDate } = getPreviousPeriodDates(startDate, endDate);
-    const [details, prevDetails, lifetime] = await Promise.all([
+    const [details, prevDetails, lifetime, commitStats] = await Promise.all([
       getUserDetailsExtended(email, startDate, endDate),
       getUserDetailsExtended(email, prevStartDate, prevEndDate),
       getUserLifetimeStats(email),
+      getUserCommitStats(email, startDate, endDate),
     ]);
 
     if (!details.summary) {
@@ -52,6 +53,7 @@ async function handler(
     return NextResponse.json({
       ...details,
       lifetime,
+      commitStats,
       previousPeriod: prevDetails.summary ? {
         totalTokens: Number(prevDetails.summary.totalTokens),
         totalCost: Number(prevDetails.summary.totalCost),
@@ -60,17 +62,18 @@ async function handler(
   }
 
   // Use extended query if date parameters are provided, and always fetch lifetime stats
-  const [details, lifetime] = await Promise.all([
+  const [details, lifetime, commitStats] = await Promise.all([
     startDate && endDate
       ? getUserDetailsExtended(email, startDate, endDate)
       : getUserDetails(email),
     getUserLifetimeStats(email),
+    getUserCommitStats(email, startDate || undefined, endDate || undefined),
   ]);
 
   if (!details.summary) {
     return NextResponse.json({ error: 'User not found' }, { status: 404 });
   }
-  return NextResponse.json({ ...details, lifetime });
+  return NextResponse.json({ ...details, lifetime, commitStats });
 }
 
 export const GET = wrapRouteHandlerWithSentry(handler, {
