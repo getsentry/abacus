@@ -101,6 +101,12 @@ interface CommitStatsData {
     commits: number;
   }[];
   repositoryCount: number;
+  previousPeriod?: {
+    totalCommits: number;
+    aiAssistedCommits: number;
+    aiAssistanceRate: number;
+    repositoryCount: number;
+  };
 }
 
 function DashboardContent() {
@@ -139,7 +145,7 @@ function DashboardContent() {
         fetch(`/api/trends?${params}`),
         fetch(`/api/models?${params}`),
         fetch(`/api/adoption?${params}&comparison=true`),
-        fetch(`/api/stats/commits?${params}`),
+        fetch(`/api/stats/commits?${params}&comparison=true`),
       ]);
 
       const [statsData, usersData, trendsData, modelsData, adoptionDataRes, commitsData] = await Promise.all([
@@ -338,6 +344,7 @@ function DashboardContent() {
                   aiAssistanceRate={commitStats.aiAssistanceRate}
                   days={days}
                   hideToolBreakdown
+                  trend={commitStats.previousPeriod ? calculateDelta(commitStats.aiAssistanceRate, commitStats.previousPeriod.aiAssistanceRate) : undefined}
                 />
               )}
             </div>

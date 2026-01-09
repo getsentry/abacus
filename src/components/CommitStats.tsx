@@ -20,6 +20,7 @@ interface CommitStatsProps {
   days?: number;
   className?: string;
   hideToolBreakdown?: boolean;
+  trend?: number;
 }
 
 function formatNumber(n: number): string {
@@ -36,6 +37,7 @@ export function CommitStats({
   days,
   className = '',
   hideToolBreakdown = false,
+  trend,
 }: CommitStatsProps) {
   if (totalCommits === 0) return null;
 
@@ -65,6 +67,11 @@ export function CommitStats({
             {aiAssistanceRate}%
           </span>
           <span className="text-sm text-muted">AI Attributed</span>
+          {trend !== undefined && (
+            <span className={`font-mono text-xs ${trend >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+              {trend >= 0 ? '↑' : '↓'} {Math.abs(trend)}%
+            </span>
+          )}
         </div>
         <p className="text-xs text-muted mt-1">
           <span className="font-mono">{formatNumber(aiAssistedCommits)}</span> of <span className="font-mono">{formatNumber(totalCommits)}</span> commits
