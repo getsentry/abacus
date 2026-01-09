@@ -733,18 +733,35 @@ export async function processWebhookPush(payload: GitHubPushEvent): Promise<Sync
 async function fetchDefaultBranch(
   repoFullName: string,
   token: string
-): Promise<string | null> {
+): Promise<{ branch: string } | { error: string }> {
   const response = await githubFetch(
     `https://api.github.com/repos/${repoFullName}`,
     token
   );
 
   if (!response.ok) {
-    return null;
+    if (response.status === 404) {
+      return { error: `Repository not found (may have been deleted or moved)` };
+    }
+    if (response.status === 403 || response.status === 429) {
+      const rateLimitRemaining = response.headers.get('x-ratelimit-remaining');
+      if (rateLimitRemaining === '0') {
+        const rateLimitReset = response.headers.get('x-ratelimit-reset');
+        const resetTime = rateLimitReset
+          ? new Date(parseInt(rateLimitReset) * 1000).toISOString()
+          : 'unknown';
+        return { error: `Rate limited until ${resetTime}` };
+      }
+      return { error: `Access denied (check GitHub App permissions)` };
+    }
+    return { error: `API error: ${response.status} ${response.statusText}` };
   }
 
   const data = await response.json();
-  return data.default_branch || null;
+  if (!data.default_branch) {
+    return { error: `Repository has no default branch` };
+  }
+  return { branch: data.default_branch };
 }
 
 /**
@@ -806,11 +823,12 @@ export async function syncGitHubRepo(
     const repoId = await getOrCreateRepository('github', repoFullName);
 
     // Get the default branch to filter commits
-    const defaultBranch = await fetchDefaultBranch(repoFullName, token);
-    if (!defaultBranch) {
-      result.errors.push(`Could not determine default branch for ${repoFullName}`);
+    const branchResult = await fetchDefaultBranch(repoFullName, token);
+    if ('error' in branchResult) {
+      result.errors.push(`${repoFullName}: ${branchResult.error}`);
       return result;
     }
+    const defaultBranch = branchResult.branch;
 
     let page = 1;
     const perPage = 100;

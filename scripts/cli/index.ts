@@ -121,7 +121,8 @@ async function main() {
         const full = args.includes('--full');
         const dryRun = args.includes('--dry-run');
         const fix = args.includes('--fix');
-        await cmdGitHubSync({ repo, days, fromDate, reset, full, dryRun, fix });
+        const retry = args.includes('--retry');
+        await cmdGitHubSync({ repo, days, fromDate, reset, full, dryRun, fix, retry });
         break;
       }
       case 'github:commits': {

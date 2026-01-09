@@ -96,13 +96,14 @@ export interface GitHubSyncOptions {
   dryRun?: boolean;
   org?: string;
   fix?: boolean;
+  retry?: boolean;
 }
 
 // Default start date for --full sync (captures most relevant history)
 const FULL_SYNC_START_DATE = '2024-01-01';
 
 export async function cmdGitHubSync(options: GitHubSyncOptions) {
-  const { repo, days = 90, fromDate, reset = false, full = false, dryRun = false, fix = false, org = 'getsentry' } = options;
+  const { repo, days = 90, fromDate, reset = false, full = false, dryRun = false, fix = false, retry = false, org = 'getsentry' } = options;
 
   // --full implies --reset and uses FULL_SYNC_START_DATE
   const effectiveReset = reset || full;
@@ -278,6 +279,101 @@ export async function cmdGitHubSync(options: GitHubSyncOptions) {
     return;
   }
 
+  // Retry mode: find repos with incomplete data and intelligently fill gaps
+  if (retry) {
+    console.log('🔄 Retry mode: Finding repos with incomplete data...\n');
+
+    const targetSince = since;
+    const targetSinceDate = new Date(targetSince);
+
+    // Query all repos with their oldest commit date
+    const allRepos = await sql`
+      SELECT r.id, r.full_name,
+        COUNT(c.id)::int as commit_count,
+        MIN(c.committed_at) as oldest_commit
+      FROM repositories r
+      LEFT JOIN commits c ON c.repo_id = r.id
+      GROUP BY r.id, r.full_name
+      ORDER BY r.full_name
+    `;
+
+    // Filter to repos that need syncing:
+    // 1. 0 commits (completely failed)
+    // 2. Oldest commit is after our target since date (missing historical data)
+    const incompleteRepos = allRepos.rows.filter(r => {
+      if (r.commit_count === 0) return true;
+      if (!r.oldest_commit) return true;
+      // If oldest commit is after our target start date, we have a gap
+      return new Date(r.oldest_commit) > targetSinceDate;
+    });
+
+    if (incompleteRepos.length === 0) {
+      console.log(`✓ All repos have data back to ${targetSince}. Nothing to sync!`);
+      return;
+    }
+
+    console.log(`Target: sync commits from ${targetSince}\n`);
+    console.log(`Found ${incompleteRepos.length} repo(s) needing data:\n`);
+
+    for (const r of incompleteRepos) {
+      if (r.commit_count === 0) {
+        console.log(`  ${r.full_name} (0 commits - full sync needed)`);
+      } else {
+        const oldestDate = r.oldest_commit.toISOString().split('T')[0];
+        console.log(`  ${r.full_name} (oldest: ${oldestDate} - gap from ${targetSince})`);
+      }
+    }
+    console.log('');
+
+    let successCount = 0;
+    let errorCount = 0;
+    let skippedCount = 0;
+
+    // Process each incomplete repo with smart date ranges
+    for (const r of incompleteRepos) {
+      const repoName = r.full_name as string;
+
+      let syncFrom = targetSince;
+      let syncUntil: string | undefined;
+
+      if (r.commit_count > 0 && r.oldest_commit) {
+        // We have some commits - only fetch the gap
+        // Fetch from target date up to the day before our oldest commit
+        const oldestDate = new Date(r.oldest_commit);
+        syncUntil = oldestDate.toISOString();
+        console.log(`🔄 Filling gap for ${repoName} (${targetSince} to ${syncUntil.split('T')[0]})...`);
+      } else {
+        // No commits - full sync needed
+        console.log(`🔄 Full sync for ${repoName} (from ${targetSince})...`);
+      }
+
+      const result = await syncGitHubRepo(repoName, syncFrom, syncUntil, {
+        onProgress: (msg) => console.log(`  ${msg}`)
+      });
+
+      if (result.errors.length > 0) {
+        console.log(`  ⚠️  ${result.errors[0]}`);
+        errorCount++;
+      } else if (result.commitsProcessed === 0 && r.commit_count > 0) {
+        console.log(`  ○ No commits in gap period`);
+        skippedCount++;
+      } else {
+        console.log(`  ✓ Synced: ${result.commitsProcessed} commits, ${result.aiAttributedCommits} AI attributed`);
+        successCount++;
+      }
+      console.log('');
+    }
+
+    console.log(`✓ Retry complete: ${successCount} synced, ${skippedCount} no gap data, ${errorCount} failed`);
+    if (errorCount > 0) {
+      console.log(`  Run with --retry again after rate limit resets to continue`);
+    }
+
+    // Sync email mappings if needed
+    await syncMappingsIfNeeded();
+    return;
+  }
+
   // Reset mode: delete existing commits before syncing
   if (effectiveReset) {
     if (repo) {
@@ -360,6 +456,7 @@ export async function cmdGitHubSync(options: GitHubSyncOptions) {
   console.error('  --from DATE    Sync from specific date (enables backfill mode for all repos)');
   console.error('  --reset        Delete existing commits before syncing (clean slate)');
   console.error('  --fix          Find repos with bad commits (null message), reset and resync them');
+  console.error('  --retry        Retry repos with incomplete data (respects --from/--days)');
   console.error('  --dry-run      Show what would be synced without writing to DB');
   console.error('');
   console.error('Examples:');
@@ -367,6 +464,8 @@ export async function cmdGitHubSync(options: GitHubSyncOptions) {
   console.error('  npm run cli github:sync getsentry/sentry --reset --from 2024-01-01');
   console.error('  npm run cli github:sync --reset --from 2024-01-01  # Reset ALL and backfill');
   console.error('  npm run cli github:sync --fix                      # Fix repos with bad data');
+  console.error('  npm run cli github:sync --retry                    # Retry incomplete repos (last 90 days)');
+  console.error('  npm run cli github:sync --retry --from 2024-01-01  # Retry incomplete repos from date');
 }
 
 export async function cmdGitHubCommits(repo: string, limit: number = 20) {
