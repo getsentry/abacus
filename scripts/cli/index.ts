@@ -36,6 +36,7 @@ import { cmdCursorStatus, cmdImportCursorCsv } from './cursor';
 import { cmdGitHubStatus, cmdGitHubSync, cmdGitHubCommits, cmdGitHubUsers, cmdGitHubUsersMap, cmdGitHubUsersSync, cmdGitHubCleanupMerges } from './github';
 import { cmdMappings, cmdMappingsSync, cmdMappingsFix } from './mappings';
 import { cmdSync, cmdBackfill, cmdGitHubBackfill, cmdBackfillComplete, cmdBackfillReset, cmdGaps } from './sync';
+import { cmdFixDuplicates } from './fix-duplicates';
 
 function printHelp() {
   console.log(`
@@ -76,6 +77,8 @@ Commands:
                         Map a GitHub user ID to a work email
   import:cursor-csv <file>
                         Import Cursor usage from CSV export
+  fix:duplicates [--execute]
+                        Fix duplicate usage records (dry-run by default)
   stats                 Show database statistics
   help                  Show this help message
 
@@ -248,6 +251,11 @@ async function main() {
           break;
         }
         await cmdImportCursorCsv(filePath);
+        break;
+      }
+      case 'fix:duplicates': {
+        const execute = args.includes('--execute');
+        await cmdFixDuplicates(!execute);
         break;
       }
       case 'help':
