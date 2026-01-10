@@ -21,6 +21,9 @@
       "Bash(git tag:*)",
       "Bash(git stash list:*)",
       "Bash(git rev-parse:*)",
+      "Bash(git fetch:*)",
+      "Bash(git ls-files:*)",
+      "Bash(git blame:*)",
 
       "Bash(gh pr view:*)",
       "Bash(gh pr list:*)",
@@ -56,6 +59,8 @@
       "WebFetch(domain:tailwindcss.com)",
       "WebFetch(domain:vercel.com)",
       "WebFetch(domain:www.better-auth.com)",
+      "WebFetch(domain:orm.drizzle.team)",
+      "WebFetch(domain:vitest.dev)",
 
       "Skill(sentry-skills:commit)",
       "Skill(sentry-skills:create-pr)",
@@ -64,6 +69,7 @@
       "Skill(sentry-skills:deslop)",
       "Skill(sentry-skills:iterate-pr)",
       "Skill(sentry-skills:claude-settings-audit)",
+      "Skill(sentry-skills:agents-md)",
 
       "mcp__sentry__whoami",
       "mcp__sentry__find_teams",

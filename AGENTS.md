@@ -2,20 +2,20 @@
 
 ## Package Manager
 
-Use **pnpm** (not npm/yarn): `pnpm install`, `pnpm dev`, `pnpm cli <cmd>`
+Use **pnpm**: `pnpm install`, `pnpm dev`, `pnpm cli <cmd>`
 
 ## Commit Attribution
 
-AI-generated commits MUST include:
+AI commits MUST include:
 ```
-Co-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>
+Co-Authored-By: <model-name> <noreply@anthropic.com>
 ```
+Use your actual model name (e.g., `Claude Sonnet 4`, `Claude Opus 4.5`).
 
 ## API Routes
 
-All routes require session validation except `/sign-in`, `/api/auth/*`, `/api/cron/*` (uses `CRON_SECRET`), `/api/webhooks/*` (signature verification).
+Routes require session validation except `/sign-in`, `/api/auth/*`, `/api/cron/*`, `/api/webhooks/*`.
 
-**Template for new routes:**
 ```tsx
 import { NextResponse } from 'next/server';
 import { wrapRouteHandlerWithSentry } from '@sentry/nextjs';
@@ -35,29 +35,21 @@ export const GET = wrapRouteHandlerWithSentry(handler, {
 
 ## Navigation
 
-Use `<AppLink>` for internal links (preserves `?days=N`). Use `useTimeRange()` hook to access/update time range.
+- Use `<AppLink>` for internal links (preserves `?days=N`)
+- Use `useTimeRange()` hook to access/update time range
 
 ## Database
 
-Migrations in `/drizzle/` run automatically on `pnpm build`. Manual: `pnpm cli db:migrate`
-
-### Schema Changes
-
-Use `db-migrate` skill when modifying database schema. Key rules:
-- NEVER edit `src/lib/schema.ts` without generating a corresponding migration
-- Use `pnpm drizzle-kit generate` to create migrations from schema changes
-- Both schema.ts and migration must be in the same commit
-
-See `.claude/skills/db-migrate/SKILL.md` for the full workflow.
+Use `db-migrate` skill for schema changes. See `.claude/skills/db-migrate/SKILL.md`
 
 ## CLI
 
-```bash
-pnpm cli stats                    # DB statistics
-pnpm cli sync --days 7            # Sync recent usage
-pnpm cli backfill anthropic --from 2024-01-01 --to 2025-01-01
-pnpm cli mappings:sync            # Sync API key mappings
-```
+| Command | Description |
+|---------|-------------|
+| `pnpm cli stats` | DB statistics |
+| `pnpm cli sync --days 7` | Sync recent usage |
+| `pnpm cli backfill anthropic --from YYYY-MM-DD --to YYYY-MM-DD` | Backfill provider data |
+| `pnpm cli mappings:sync` | Sync API key mappings |
 
 ## Model Names
 
@@ -75,43 +67,29 @@ Normalize at write-time via `normalizeModelName()`: `sonnet-4`, `opus-4.5 (T)`, 
 
 ## Testing
 
-Tests use Vitest with colocated test files. Use `write-tests` skill when adding tests.
+Use `write-tests` skill. See `.claude/skills/write-tests/SKILL.md`
 
 ```bash
 pnpm test              # Run all tests
 pnpm test:watch        # Watch mode
 ```
 
-**Key rules:**
-- Tests colocated next to source: `foo.ts` → `foo.test.ts`
-- Every protected route must have an auth test (401 for unauthenticated)
-- Mock external APIs via MSW, mock auth via `@/test-utils/auth`
-- Uses PGlite for in-memory PostgreSQL (no Docker required)
-
-See `.claude/skills/write-tests/SKILL.md` for full workflow.
-
 ## Frontend & UI
 
-Use `ui-design` skill when creating or modifying frontend components. Covers color palette, typography, shared components, and design patterns. See `.claude/skills/ui-design/SKILL.md`
+Use `ui-design` skill. See `.claude/skills/ui-design/SKILL.md`
 
 ## Tips & Guides
 
-Use `write-tip` skill when editing tips. Key files: `src/lib/tips.ts`, `.claude/skills/write-tip/SKILL.md`
+Use `write-tip` skill. See `.claude/skills/write-tip/SKILL.md`
 
 ## Documentation
 
-Documentation lives in `docs/` (Astro Starlight, deployed to GitHub Pages).
-
-**Keep docs in sync with code.** When changing these areas, update the corresponding docs:
+Use `write-docs` skill. See `.claude/skills/write-docs/SKILL.md`
 
 | Code Change | Update Docs |
 |-------------|-------------|
-| CLI commands (usage sync) | `docs/src/content/docs/cli/usage-data.mdx` |
-| CLI commands (commits) | `docs/src/content/docs/cli/commit-data.mdx` |
-| CLI commands (mappings) | `docs/src/content/docs/cli/identity-mappings.mdx` |
+| CLI commands | `docs/src/content/docs/cli/*.mdx` |
 | Environment variables | `docs/src/content/docs/getting-started/environment-variables.mdx` |
 | Provider setup/behavior | `docs/src/content/docs/providers/*.mdx` |
-| Cron schedules / Vercel config | `docs/src/content/docs/deployment/vercel.mdx` |
+| Vercel config | `docs/src/content/docs/deployment/vercel.mdx` |
 | Project structure | `docs/src/content/docs/development/architecture.mdx` |
-
-Use `write-docs` skill when creating or updating documentation. See `.claude/skills/write-docs/SKILL.md`
