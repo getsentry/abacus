@@ -7,12 +7,16 @@ sidebar:
 
 import { Aside } from '@astrojs/starlight/components';
 
-Abacus is designed to run on Vercel with Vercel Postgres. This guide covers production deployment and automated syncing.
+Abacus is designed to run on Vercel with a Postgres database. This guide covers production deployment and automated syncing.
 
 ## Deployment
 
 1. Deploy via the button in the README or connect your fork to Vercel
-2. Create a Postgres database: `vercel storage create postgres`
+2. Add a Postgres database via the [Vercel Marketplace](https://vercel.com/marketplace/neon):
+   - Go to **Storage** tab in your Vercel project
+   - Click **Connect Database** → **Neon Postgres**
+   - Follow the prompts to create or link a database
+   - This automatically sets `POSTGRES_URL` in your environment
 3. Set environment variables (see [Environment Variables](/abacus/getting-started/environment-variables/))
 4. Deploy - migrations run automatically on build
 
