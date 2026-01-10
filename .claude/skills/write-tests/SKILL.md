@@ -86,3 +86,72 @@ pnpm test:watch  # watch mode
 2. Use `mockAuthenticated()`/`mockUnauthenticated()` for auth
 3. Use `insertUsageRecord` for seeding database
 4. External APIs mocked via MSW in `src/test-utils/msw-handlers.ts`
+
+## CRITICAL: Auth Tests Required
+
+**Every protected route MUST have an auth test.** This is non-negotiable.
+
+### Session-Authenticated Routes
+
+Routes using `getSession()` must verify 401 on unauthenticated requests:
+
+```typescript
+it('returns 401 for unauthenticated requests', async () => {
+  await mockUnauthenticated();
+  const response = await GET(new Request('http://localhost/api/your-route'));
+  expect(response.status).toBe(401);
+});
+```
+
+### Cron Routes
+
+Routes using `CRON_SECRET` must verify auth:
+
+```typescript
+beforeEach(() => {
+  vi.stubEnv('CRON_SECRET', 'test-secret');
+});
+
+it('returns 401 without authorization header', async () => {
+  const response = await GET(new Request('http://localhost/api/cron/your-route'));
+  expect(response.status).toBe(401);
+});
+
+it('returns 401 with invalid authorization', async () => {
+  const response = await GET(
+    new Request('http://localhost/api/cron/your-route', {
+      headers: { Authorization: 'Bearer wrong-secret' },
+    })
+  );
+  expect(response.status).toBe(401);
+});
+```
+
+### Webhook Routes
+
+Routes with signature verification must test invalid signatures:
+
+```typescript
+it('returns 401 without signature', async () => {
+  const response = await POST(
+    new Request('http://localhost/api/webhooks/github', {
+      method: 'POST',
+      body: '{}',
+    })
+  );
+  expect(response.status).toBe(401);
+});
+
+it('returns 401 with invalid signature', async () => {
+  const response = await POST(
+    new Request('http://localhost/api/webhooks/github', {
+      method: 'POST',
+      body: '{}',
+      headers: { 'x-hub-signature-256': 'sha256=invalid' },
+    })
+  );
+  expect(response.status).toBe(401);
+});
+```
+
+**When adding a new route, always ask: "What auth does this route require?" and add the corresponding auth test.**
