@@ -1,44 +1,40 @@
 ---
 name: write-tests
-description: Write tests following project conventions. Use when adding new tests or modifying existing ones. Ensures tests follow flat structure, naming conventions, and safety requirements.
+description: Write tests following project conventions. Use when adding new tests or modifying existing ones.
 allowed-tools: Read, Grep, Glob, Edit, Write, Bash
 ---
 
 # Write Tests Skill
 
-Write tests using Vitest following project conventions.
+Write tests using Vitest. Tests are **colocated** next to source files.
 
-## Test Structure
+## Structure
 
-Flat structure in `tests/`:
 ```
-tests/
-├── setup.ts              # Global setup (PGlite, MSW)
-├── msw-handlers.ts       # External API mocks
-├── utils.test.ts         # Utility function tests
-├── queries.test.ts       # Database query tests
-├── stats-route.test.ts   # API route tests
-└── sign-in-page.test.tsx # Page render tests
+src/lib/utils.ts
+src/lib/utils.test.ts        # colocated
+src/lib/queries.ts
+src/lib/queries.test.ts      # colocated
+src/app/api/stats/route.ts
+src/app/api/stats/route.test.ts  # colocated
+src/test-utils/
+├── setup.ts                 # global setup (PGlite, MSW)
+└── msw-handlers.ts          # external API mocks
 ```
-
-### Naming Conventions
-- Unit tests: `{module}.test.ts`
-- API routes: `{route-name}-route.test.ts`
-- Pages: `{page-name}-page.test.tsx`
 
 ## Database Testing
 
-Uses **PGlite** (in-memory PostgreSQL via WebAssembly). No Docker required.
+Uses **PGlite** (in-memory PostgreSQL). No Docker required.
 
-- Schema is pushed automatically in `setup.ts`
-- Each test runs in a transaction that rolls back (fast cleanup)
+- Schema pushed automatically on boot
+- Each test runs in a transaction that rolls back
 - Import `insertUsageRecord` from `@/lib/queries` to seed data
 
 ```typescript
 import { describe, it, expect, beforeEach } from 'vitest';
 import { insertUsageRecord, getOverallStats } from '@/lib/queries';
 
-describe('My Database Tests', () => {
+describe('getOverallStats', () => {
   beforeEach(async () => {
     await insertUsageRecord({
       date: '2025-01-01',
@@ -54,7 +50,7 @@ describe('My Database Tests', () => {
     });
   });
 
-  it('queries data correctly', async () => {
+  it('returns stats', async () => {
     const stats = await getOverallStats('2025-01-01', '2025-01-31');
     expect(stats.activeUsers).toBe(1);
   });
@@ -66,17 +62,15 @@ describe('My Database Tests', () => {
 Mock auth, use real database:
 
 ```typescript
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 
-vi.mock('@/lib/auth', () => ({
-  getSession: vi.fn(),
-}));
+vi.mock('@/lib/auth', () => ({ getSession: vi.fn() }));
 
 import { getSession } from '@/lib/auth';
-import { GET } from '@/app/api/stats/route';
+import { GET } from './route';
 
 describe('GET /api/stats', () => {
-  it('returns 401 for unauthenticated requests', async () => {
+  it('returns 401 when unauthenticated', async () => {
     vi.mocked(getSession).mockResolvedValueOnce(null);
     const response = await GET(new Request('http://localhost/api/stats'));
     expect(response.status).toBe(401);
@@ -84,36 +78,16 @@ describe('GET /api/stats', () => {
 });
 ```
 
-## Unit Tests
-
-No database setup needed:
-
-```typescript
-import { describe, it, expect } from 'vitest';
-import { normalizeModelName } from '@/lib/utils';
-
-describe('normalizeModelName', () => {
-  it('normalizes model names', () => {
-    expect(normalizeModelName('claude-sonnet-4-20250514')).toBe('sonnet-4');
-  });
-});
-```
-
-## External APIs
-
-Mocked via MSW in `tests/msw-handlers.ts`. Add handlers as needed.
-
 ## Running Tests
 
 ```bash
-pnpm test        # Run all tests
-pnpm test:watch  # Watch mode
+pnpm test        # run all
+pnpm test:watch  # watch mode
 ```
 
 ## Key Rules
 
-1. All tests in `tests/` directory (flat structure)
-2. vi.mock calls are hoisted - put imports after mocks
-3. Use `insertUsageRecord` for seeding, not raw SQL
-4. External APIs (Anthropic, Cursor, GitHub) mocked via MSW
-5. Mock only `@/lib/auth` for protected routes
+1. Colocate tests next to source (`foo.ts` → `foo.test.ts`)
+2. vi.mock calls hoist - put imports after mocks
+3. Use `insertUsageRecord` for seeding
+4. External APIs mocked via MSW in `src/test-utils/msw-handlers.ts`

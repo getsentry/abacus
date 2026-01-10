@@ -24,7 +24,7 @@ let pgliteDb: ReturnType<typeof import('drizzle-orm/pglite').drizzle> | null = n
 vi.mock('@vercel/postgres', async () => {
   const { PGlite } = await import('@electric-sql/pglite');
   const { drizzle } = await import('drizzle-orm/pglite');
-  const schema = await import('../src/lib/schema');
+  const schema = await import('../lib/schema');
 
   // Create in-memory PGlite instance
   pgliteClient = new PGlite();
