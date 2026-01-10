@@ -1,0 +1,111 @@
+---
+title: Vercel
+description: Deploy and run Abacus on Vercel
+sidebar:
+  order: 1
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+Abacus is designed to run on Vercel with Vercel Postgres. This guide covers production deployment and automated syncing.
+
+## Deployment
+
+1. Deploy via the button in the README or connect your fork to Vercel
+2. Create a Postgres database: `vercel storage create postgres`
+3. Set environment variables (see [Environment Variables](/abacus/getting-started/environment-variables/))
+4. Deploy - migrations run automatically on build
+
+## Automated Syncing
+
+Abacus uses Vercel cron jobs to keep data current. These run automatically once deployed.
+
+### Cron Schedule
+
+| Endpoint | Schedule | Purpose |
+|----------|----------|---------|
+| `/api/cron/sync-anthropic` | Daily at 6 AM UTC | Sync recent Claude Code usage |
+| `/api/cron/sync-cursor` | Hourly | Sync recent Cursor usage |
+| `/api/cron/backfill-anthropic` | Every 6 hours | Backfill historical Claude Code data |
+| `/api/cron/backfill-cursor` | Every 6 hours | Backfill historical Cursor data |
+| `/api/cron/backfill-github` | Every 6 hours | Backfill GitHub commits (90 days) |
+| `/api/cron/sync-github-mappings` | Daily | Sync GitHub user mappings |
+
+<Aside type="note">
+  GitHub commits are primarily synced via webhook (real-time). The backfill cron catches any missed events and fills historical data.
+</Aside>
+
+### Cron Authentication
+
+All cron endpoints require `CRON_SECRET`. Vercel automatically includes this in cron requests.
+
+```bash
+# Generate a secure secret
+openssl rand -hex 32
+```
+
+### Manual Triggering
+
+Trigger cron jobs manually for testing:
+
+```bash
+curl -X POST https://your-app.vercel.app/api/cron/sync-anthropic \
+  -H "Authorization: Bearer $CRON_SECRET"
+```
+
+Or use the CLI:
+
+```bash
+pnpm cli sync anthropic --days 7
+```
+
+## Vercel Configuration
+
+Cron jobs are defined in `vercel.json`:
+
+```json
+{
+  "crons": [
+    {
+      "path": "/api/cron/sync-anthropic",
+      "schedule": "0 6 * * *"
+    },
+    {
+      "path": "/api/cron/sync-cursor",
+      "schedule": "0 * * * *"
+    }
+  ]
+}
+```
+
+<Aside type="tip">
+  Vercel's free tier includes limited cron executions. Check your usage if running many providers.
+</Aside>
+
+## Monitoring
+
+### Vercel Dashboard
+
+Check the Vercel dashboard for:
+- Cron execution history
+- Success/failure rates
+- Execution duration
+
+### Abacus Status Page
+
+The `/status` page shows:
+- Last sync time for each provider
+- Backfill progress
+- Any sync errors
+
+## Database
+
+Abacus works with:
+- **Vercel Postgres** (recommended)
+- **Neon** (compatible)
+
+Migrations run automatically on `vercel build`. For manual migrations:
+
+```bash
+pnpm cli db:migrate
+```

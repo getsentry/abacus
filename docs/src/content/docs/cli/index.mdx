@@ -1,0 +1,60 @@
+---
+title: CLI Overview
+description: Command-line tools for managing Abacus
+sidebar:
+  order: 1
+---
+
+import { Card, CardGrid } from '@astrojs/starlight/components';
+
+Abacus includes a CLI for syncing data, managing identity mappings, and database operations.
+
+## Usage
+
+```bash
+pnpm cli <command> [options]
+```
+
+## Command Categories
+
+<CardGrid>
+  <Card title="Usage Data" icon="rocket">
+    Sync token consumption from Claude Code and Cursor.
+
+    [View usage commands →](/abacus/cli/usage-data/)
+  </Card>
+
+  <Card title="Commit Data" icon="github">
+    Sync AI-attributed commits from GitHub repositories.
+
+    [View commit commands →](/abacus/cli/commit-data/)
+  </Card>
+
+  <Card title="Identity Mappings" icon="setting">
+    Map provider IDs (API keys, usernames) to user emails.
+
+    [View mapping commands →](/abacus/cli/identity-mappings/)
+  </Card>
+
+  <Card title="Database" icon="document">
+    Migrations, statistics, and maintenance.
+
+    [View database commands →](/abacus/cli/database/)
+  </Card>
+</CardGrid>
+
+## Quick Reference
+
+| Command | Description |
+|---------|-------------|
+| `pnpm cli sync` | Sync usage from all providers |
+| `pnpm cli github:sync <repo>` | Sync commits from a repository |
+| `pnpm cli mappings` | List API key mappings |
+| `pnpm cli stats` | Show database statistics |
+| `pnpm cli db:migrate` | Run pending migrations |
+
+## Getting Help
+
+```bash
+pnpm cli help
+```

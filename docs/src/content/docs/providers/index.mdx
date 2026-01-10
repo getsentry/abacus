@@ -1,0 +1,45 @@
+---
+title: Providers Overview
+description: Configure data sources for Abacus
+sidebar:
+  order: 1
+---
+
+import { Card, CardGrid, Aside } from '@astrojs/starlight/components';
+
+Abacus supports multiple providers for tracking AI coding tool usage. Each provider is optional—configure only the ones you use.
+
+<CardGrid>
+  <Card title="Claude Code" icon="seti:config">
+    Track token usage via the Anthropic Admin API. Includes cost tracking, model breakdown, and automatic API key mapping.
+
+    [Set up Claude Code →](/abacus/providers/claude-code/)
+  </Card>
+
+  <Card title="Cursor" icon="seti:config">
+    Import usage data via the Cursor Admin API or CSV export. Supports token counts, costs, and model breakdown.
+
+    [Set up Cursor →](/abacus/providers/cursor/)
+  </Card>
+
+  <Card title="GitHub Commits" icon="github">
+    Track AI-attributed commits across your organization. Detects Co-Authored-By headers from Claude, Cursor, Copilot, and more.
+
+    [Set up GitHub Commits →](/abacus/providers/github-commits/)
+  </Card>
+</CardGrid>
+
+## Provider Comparison
+
+| Feature | Claude Code | Cursor | GitHub Commits |
+|---------|-------------|--------|----------------|
+| Token Usage | Yes | Yes | No |
+| Cost Tracking | Yes | Yes | No |
+| Model Breakdown | Yes | Yes | No |
+| Commit Attribution | No | No | Yes |
+| Real-time Sync | No (daily) | No (hourly) | Yes (webhook) |
+| Historical Backfill | Yes | Yes | Yes (90 days) |
+
+<Aside type="tip">
+  For the most complete picture of AI adoption, we recommend configuring at least one usage provider (Claude Code or Cursor) alongside GitHub Commits.
+</Aside>

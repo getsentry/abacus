@@ -1,0 +1,69 @@
+---
+title: Quick Start
+description: Deploy Abacus to Vercel in minutes
+sidebar:
+  order: 1
+---
+
+import { Steps, Aside } from '@astrojs/starlight/components';
+
+Get Abacus running in production with Vercel.
+
+<Steps>
+
+1. **Deploy to Vercel**
+
+   [![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/getsentry/abacus)
+
+2. **Create Postgres Database**
+
+   ```bash
+   vercel storage create postgres
+   ```
+
+   This automatically sets `POSTGRES_URL` in your environment.
+
+3. **Set Up Google OAuth**
+
+   1. Go to [Google Cloud Console](https://console.cloud.google.com/) → **APIs & Services → Credentials**
+   2. Create an OAuth 2.0 Client ID (Web application)
+   3. Add redirect URI: `https://your-app.vercel.app/api/auth/callback/google`
+   4. Copy the Client ID and Client Secret
+
+4. **Configure Environment Variables**
+
+   Set these in Vercel project settings (**Settings → Environment Variables**):
+
+   | Variable | Description |
+   |----------|-------------|
+   | `GOOGLE_CLIENT_ID` | From step 3 |
+   | `GOOGLE_CLIENT_SECRET` | From step 3 |
+   | `NEXT_PUBLIC_DOMAIN` | Email domain to restrict access (e.g., `sentry.io`) |
+   | `BETTER_AUTH_SECRET` | Run: `openssl rand -base64 32` |
+   | `CRON_SECRET` | Run: `openssl rand -hex 32` |
+
+5. **Configure Providers**
+
+   Add credentials for the providers you want to use:
+
+   | Variable | Provider |
+   |----------|----------|
+   | `ANTHROPIC_ADMIN_KEY` | [Claude Code](/abacus/providers/claude-code/) |
+   | `CURSOR_ADMIN_KEY` | [Cursor](/abacus/providers/cursor/) |
+   | `GITHUB_APP_*` | [GitHub Commits](/abacus/providers/github-commits/) |
+
+6. **Deploy**
+
+   Redeploy to apply environment variables. Migrations run automatically on build.
+
+</Steps>
+
+<Aside type="tip">
+  Each provider is optional. Start with just one and add more later as needed.
+</Aside>
+
+## Next Steps
+
+- [Set up providers](/abacus/providers/) to start collecting data
+- [Configure cron jobs](/abacus/automation/cron-jobs/) for automated syncing
+- [Use the CLI](/abacus/cli/) for manual operations and backfills

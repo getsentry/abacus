@@ -1,0 +1,99 @@
+---
+title: Usage Data
+description: Sync and backfill token usage from Claude Code and Cursor
+sidebar:
+  order: 2
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+Sync token consumption data from Claude Code (Anthropic) and Cursor.
+
+## Sync Recent Data
+
+Sync the last N days of usage data:
+
+```bash
+# Sync all providers (last 7 days)
+pnpm cli sync
+
+# Sync specific provider
+pnpm cli sync anthropic --days 30
+pnpm cli sync cursor --days 7
+
+# Skip API key mapping sync (faster)
+pnpm cli sync --skip-mappings
+```
+
+## Backfill Historical Data
+
+For longer time ranges, use backfill:
+
+```bash
+# Anthropic backfill (requires --from and --to)
+pnpm cli backfill anthropic --from 2025-01-01 --to 2025-06-01
+
+# Cursor backfill
+pnpm cli backfill cursor --from 2025-01-01 --to 2025-06-01
+```
+
+### Backfill Management
+
+Mark a backfill as complete (prevents cron from re-running):
+
+```bash
+pnpm cli backfill:complete anthropic
+pnpm cli backfill:complete cursor
+```
+
+Reset to allow re-backfilling:
+
+```bash
+pnpm cli backfill:reset anthropic
+pnpm cli backfill:reset cursor
+```
+
+## Check Sync Status
+
+View the current state of each provider:
+
+```bash
+pnpm cli anthropic:status
+pnpm cli cursor:status
+```
+
+Shows last sync time, records synced, and any errors.
+
+## Check for Data Gaps
+
+Identify missing days in usage data:
+
+```bash
+# Check all providers
+pnpm cli gaps
+
+# Check specific provider
+pnpm cli gaps anthropic
+pnpm cli gaps cursor
+```
+
+## Import from CSV
+
+Import Cursor usage from a CSV export (useful when API isn't available):
+
+```bash
+pnpm cli import:cursor-csv /path/to/export.csv
+```
+
+<Aside type="tip">
+  CSV import is useful for historical data before you had API access, or for bulk imports.
+</Aside>
+
+## Sync Options
+
+| Option | Description |
+|--------|-------------|
+| `--days <n>` | Number of days to sync (default: 7) |
+| `--from <date>` | Start date for backfill (YYYY-MM-DD) |
+| `--to <date>` | End date for backfill (YYYY-MM-DD) |
+| `--skip-mappings` | Skip API key mapping sync (faster) |

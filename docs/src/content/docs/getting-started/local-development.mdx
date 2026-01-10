@@ -1,0 +1,90 @@
+---
+title: Local Development
+description: Run Abacus locally for development and testing
+sidebar:
+  order: 2
+---
+
+import { Steps, Code, Aside } from '@astrojs/starlight/components';
+
+Run Abacus on your local machine for development.
+
+## Prerequisites
+
+- Node.js 18+
+- pnpm
+- PostgreSQL database (local or remote)
+
+## Setup
+
+<Steps>
+
+1. **Clone and install dependencies**
+
+   ```bash
+   git clone https://github.com/getsentry/abacus.git
+   cd abacus
+   pnpm install
+   ```
+
+2. **Create environment file**
+
+   Create `.env.local` with your credentials:
+
+   ```bash
+   cat > .env.local << 'EOF'
+   POSTGRES_URL=postgres://...
+   BETTER_AUTH_SECRET=your-secret-here
+   GOOGLE_CLIENT_ID=your-client-id
+   GOOGLE_CLIENT_SECRET=your-client-secret
+   NEXT_PUBLIC_DOMAIN=yourcompany.com
+   CRON_SECRET=your-cron-secret
+
+   # Providers (optional)
+   ANTHROPIC_ADMIN_KEY=sk-admin-...
+   CURSOR_ADMIN_KEY=...
+   EOF
+   ```
+
+3. **Run database migrations**
+
+   ```bash
+   pnpm cli db:migrate
+   ```
+
+4. **Start the development server**
+
+   ```bash
+   pnpm dev
+   ```
+
+   Open [http://localhost:3000](http://localhost:3000).
+
+</Steps>
+
+<Aside type="note">
+  Add `http://localhost:3000/api/auth/callback/google` to your Google OAuth redirect URIs for local development.
+</Aside>
+
+## Local PostgreSQL with Docker
+
+If you don't have a remote PostgreSQL database, use Docker:
+
+```bash
+docker-compose up -d
+```
+
+This starts a local PostgreSQL instance. Use the connection string:
+
+```
+POSTGRES_URL=postgres://postgres:postgres@localhost:5432/abacus
+```
+
+## Available Scripts
+
+| Command | Description |
+|---------|-------------|
+| `pnpm dev` | Start development server |
+| `pnpm build` | Build for production |
+| `pnpm lint` | Run ESLint |
+| `pnpm cli <cmd>` | Run CLI commands |

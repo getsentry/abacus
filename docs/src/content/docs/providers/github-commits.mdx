@@ -1,0 +1,131 @@
+---
+title: GitHub Commits
+description: Track AI-attributed commits via GitHub App
+sidebar:
+  order: 4
+---
+
+import { Steps, Aside } from '@astrojs/starlight/components';
+
+Track AI-attributed commits across your organization by detecting `Co-Authored-By` headers from Claude, Cursor, Copilot, and other AI tools.
+
+## Creating a GitHub App
+
+<Steps>
+
+1. Go to **GitHub → Your Organization → Settings → Developer settings → GitHub Apps → New GitHub App**
+
+2. Configure basic info:
+   - **GitHub App name**: `Abacus Commit Tracker` (must be unique across GitHub)
+   - **Homepage URL**: Your Abacus deployment URL (e.g., `https://abacus.yourcompany.com`)
+
+3. Configure webhook:
+   - **Webhook URL**: `https://your-app.vercel.app/api/webhooks/github`
+   - **Webhook secret**: Generate with `openssl rand -hex 32` and save it for later
+
+4. Set permissions (under "Permissions & events"):
+   - **Repository permissions**:
+     - **Contents**: Read-only (required to fetch commit history)
+     - **Metadata**: Read-only (automatically granted)
+   - **Subscribe to events**:
+     - Check **Push** (this triggers the webhook)
+
+5. Configure installation access:
+   - **Where can this GitHub App be installed?**: Select **"Only on this account"**
+
+6. Click **Create GitHub App**
+
+7. After creation, on the app settings page:
+   - Note the **App ID** (shown near the top)
+   - Scroll down and click **Generate a private key** (downloads a `.pem` file)
+
+8. Install the app on your organization:
+   - Go to **Install App** in the left sidebar
+   - Click **Install** next to your organization
+   - Choose **All repositories** or select specific repos
+   - Note the **Installation ID** from the URL: `github.com/organizations/ORG/settings/installations/INSTALLATION_ID`
+
+</Steps>
+
+## Environment Variables
+
+```bash
+# GitHub App credentials (required for production)
+GITHUB_APP_ID=123456
+GITHUB_APP_PRIVATE_KEY="-----BEGIN RSA PRIVATE KEY-----\n...\n-----END RSA PRIVATE KEY-----"
+GITHUB_APP_INSTALLATION_ID=12345678
+GITHUB_WEBHOOK_SECRET=your-webhook-secret
+```
+
+<Aside type="note">
+  The private key must be the full PEM content. In Vercel, you can paste the entire key including newlines, or escape newlines as `\n`.
+</Aside>
+
+## Local Development Token
+
+For local development, use a **fine-grained personal access token** instead of a GitHub App:
+
+<Steps>
+
+1. Go to **GitHub → Settings → Developer settings → Fine-grained tokens**
+
+2. Generate new token with:
+   - **Repository access**: Select specific repos or "All repositories"
+   - **Permissions**: Contents (read-only)
+
+3. Set `GITHUB_TOKEN` in `.env.local`
+
+</Steps>
+
+```bash
+# For local development only
+GITHUB_TOKEN=github_pat_...
+```
+
+## Sync Behavior
+
+| Setting | Value |
+|---------|-------|
+| Real-time | Webhook receives push events instantly |
+| Backfill | Cron job runs every 6 hours (90-day target) |
+| Detection | Identifies commits with AI attribution patterns |
+
+## Detected Patterns
+
+| Pattern | Tool |
+|---------|------|
+| `Co-Authored-By: Claude <*@anthropic.com>` | Claude Code |
+| `🤖 Generated with [Claude Code]` | Claude Code |
+| `Co-Authored-By: Codex <*>` | Codex |
+| `Co-Authored-By: GitHub Copilot <*>` | GitHub Copilot |
+| `Co-Authored-By: Copilot <*>` | GitHub Copilot |
+| Author: `copilot-swe-agent[bot]` | GitHub Copilot |
+| `Co-Authored-By: Cursor <*>` | Cursor |
+| `Co-Authored-By: Windsurf <*>` | Windsurf |
+| `Co-Authored-By: Codeium <*>` | Windsurf |
+
+## Manual Sync
+
+Test detection without database:
+
+```bash
+pnpm cli github:sync getsentry/sentry --dry-run
+```
+
+Check sync status:
+
+```bash
+pnpm cli github:status
+```
+
+Sync specific repo:
+
+```bash
+pnpm cli github:sync getsentry/sentry --days 30
+```
+
+Backfill all repos:
+
+```bash
+pnpm cli backfill github --from 2024-10-01
+```

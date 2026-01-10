@@ -80,3 +80,21 @@ Use `ui-design` skill when creating or modifying frontend components. Covers col
 ## Tips & Guides
 
 Use `write-tip` skill when editing tips. Key files: `src/lib/tips.ts`, `.claude/skills/write-tip/SKILL.md`
+
+## Documentation
+
+Documentation lives in `docs/` (Astro Starlight, deployed to GitHub Pages).
+
+**Keep docs in sync with code.** When changing these areas, update the corresponding docs:
+
+| Code Change | Update Docs |
+|-------------|-------------|
+| CLI commands (usage sync) | `docs/src/content/docs/cli/usage-data.mdx` |
+| CLI commands (commits) | `docs/src/content/docs/cli/commit-data.mdx` |
+| CLI commands (mappings) | `docs/src/content/docs/cli/identity-mappings.mdx` |
+| Environment variables | `docs/src/content/docs/getting-started/environment-variables.mdx` |
+| Provider setup/behavior | `docs/src/content/docs/providers/*.mdx` |
+| Cron schedules / Vercel config | `docs/src/content/docs/deployment/vercel.mdx` |
+| Project structure | `docs/src/content/docs/development/architecture.mdx` |
+
+Use `write-docs` skill when creating or updating documentation. See `.claude/skills/write-docs/SKILL.md`

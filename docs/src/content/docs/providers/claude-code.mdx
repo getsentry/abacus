@@ -1,0 +1,79 @@
+---
+title: Claude Code
+description: Track Claude Code usage via the Anthropic Admin API
+sidebar:
+  order: 2
+---
+
+import { Steps, Aside } from '@astrojs/starlight/components';
+
+Claude Code usage is tracked via the Anthropic Admin API.
+
+## Getting the API Key
+
+<Steps>
+
+1. Go to [Anthropic Console](https://console.anthropic.com/) → **Settings → Admin API keys**
+
+2. Click **Create Key** (requires org admin access)
+
+3. Copy the key (starts with `sk-admin-`)
+
+4. Set the environment variable:
+
+   ```bash
+   ANTHROPIC_ADMIN_KEY=sk-admin-...
+   ```
+
+</Steps>
+
+## Sync Behavior
+
+| Setting | Value |
+|---------|-------|
+| Schedule | Daily at 6 AM UTC |
+| Data | Token counts, model, cost, API key ID |
+| User Mapping | API keys are mapped to emails via the Anthropic API |
+
+<Aside type="note">
+  Unmapped API keys appear in the Abacus UI for manual assignment. Use the [mappings CLI commands](/abacus/cli/mappings/) to manage these.
+</Aside>
+
+## Manual Sync
+
+Sync recent data:
+
+```bash
+pnpm cli sync anthropic --days 7
+```
+
+Backfill historical data:
+
+```bash
+pnpm cli backfill anthropic --from 2025-01-01 --to 2025-06-01
+```
+
+Check sync status:
+
+```bash
+pnpm cli anthropic:status
+```
+
+## User Mapping
+
+The Anthropic Admin API provides API key IDs but not always user emails. Abacus automatically syncs mappings from the API, but some keys may need manual assignment.
+
+To view and manage mappings:
+
+```bash
+# List current mappings
+pnpm cli mappings
+
+# Sync from Anthropic API
+pnpm cli mappings:sync
+
+# Interactive assignment of unmapped keys
+pnpm cli mappings:fix
+```
+
+See [API Key Mappings](/abacus/cli/mappings/) for more details.
