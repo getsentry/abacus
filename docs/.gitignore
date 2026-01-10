@@ -1,0 +1,14 @@
+# Build
+dist/
+
+# Generated types
+.astro/
+
+# Dependencies
+node_modules/
+
+# Logs
+pnpm-debug.log*
+
+# macOS
+.DS_Store
