@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { mockAuthenticated, mockUnauthenticated } from '@/test-utils/auth';
-import { seedRepositoryWithCommits, insertRepository } from '@/test-utils/fixtures';
+import { seedRepositoryWithCommits } from '@/test-utils/fixtures';
 import { GET } from './route';
 
 async function seedTestData() {
