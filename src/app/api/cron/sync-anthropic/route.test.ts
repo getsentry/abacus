@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { GET, POST } from './route';
+import { GET } from './route';
 
 describe('GET /api/cron/sync-anthropic', () => {
   beforeEach(() => {
@@ -34,7 +34,12 @@ describe('GET /api/cron/sync-anthropic', () => {
     expect(response.status).toBe(200);
     const data = await response.json();
     expect(data.skipped).toBe(true);
+    expect(data.reason).toContain('ANTHROPIC_ADMIN_KEY');
   });
+
+  // Note: Full integration testing of the sync flow would require
+  // disabling transaction-based isolation, which is complex.
+  // The sync logic is tested via manual testing and staging.
 });
 
 describe('POST /api/cron/sync-anthropic', () => {
@@ -43,6 +48,7 @@ describe('POST /api/cron/sync-anthropic', () => {
   });
 
   it('returns 401 without authorization header', async () => {
+    const { POST } = await import('./route');
     const response = await POST(
       new Request('http://localhost/api/cron/sync-anthropic', { method: 'POST' })
     );

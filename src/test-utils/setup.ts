@@ -58,6 +58,10 @@ if (dbUrl) {
 let pgliteClient: import('@electric-sql/pglite').PGlite | null = null;
 let pgliteDb: ReturnType<typeof import('drizzle-orm/pglite').drizzle> | null = null;
 
+// Track transaction depth for savepoint-based nested transaction support
+// Depth 0 = no transaction, 1 = test transaction, 2+ = nested (uses savepoints)
+let transactionDepth = 0;
+
 vi.mock('@vercel/postgres', async () => {
   const { PGlite } = await import('@electric-sql/pglite');
   const { drizzle } = await import('drizzle-orm/pglite');
@@ -72,6 +76,55 @@ vi.mock('@vercel/postgres', async () => {
   const { apply } = await pushSchema(schema, pgliteDb as never);
   await apply();
 
+  // Helper to handle transaction commands with savepoint support
+  const handleTransactionCommand = async (query: string): Promise<{ rows: unknown[] } | null> => {
+    const upperQuery = query.trim().toUpperCase();
+
+    if (upperQuery === 'BEGIN' || upperQuery === 'BEGIN TRANSACTION' || upperQuery === 'START TRANSACTION') {
+      if (transactionDepth > 0) {
+        // Already in a transaction - use savepoint instead
+        transactionDepth++;
+        await pgliteClient!.query(`SAVEPOINT sp_${transactionDepth}`);
+        return { rows: [] };
+      }
+      transactionDepth = 1;
+      await pgliteClient!.query('BEGIN');
+      return { rows: [] };
+    }
+
+    if (upperQuery === 'COMMIT' || upperQuery === 'END' || upperQuery === 'END TRANSACTION') {
+      if (transactionDepth > 1) {
+        // Release savepoint for nested transaction
+        await pgliteClient!.query(`RELEASE SAVEPOINT sp_${transactionDepth}`);
+        transactionDepth--;
+        return { rows: [] };
+      }
+      if (transactionDepth === 1) {
+        transactionDepth = 0;
+        await pgliteClient!.query('COMMIT');
+        return { rows: [] };
+      }
+      return { rows: [] };
+    }
+
+    if (upperQuery === 'ROLLBACK') {
+      if (transactionDepth > 1) {
+        // Rollback to savepoint for nested transaction
+        await pgliteClient!.query(`ROLLBACK TO SAVEPOINT sp_${transactionDepth}`);
+        transactionDepth--;
+        return { rows: [] };
+      }
+      if (transactionDepth === 1) {
+        transactionDepth = 0;
+        await pgliteClient!.query('ROLLBACK');
+        return { rows: [] };
+      }
+      return { rows: [] };
+    }
+
+    return null; // Not a transaction command
+  };
+
   // Create sql template function that forwards to PGlite
   // Returns object with .rows to match @vercel/postgres interface
   const sql = async function (strings: TemplateStringsArray, ...values: unknown[]) {
@@ -84,11 +137,19 @@ vi.mock('@vercel/postgres', async () => {
       }
     });
 
+    // Handle transaction commands with savepoint support
+    const txResult = await handleTransactionCommand(query);
+    if (txResult !== null) return txResult;
+
     const result = await pgliteClient!.query(query, values as never[]);
     return { rows: result.rows };
   };
 
   sql.query = async (text: string, params?: unknown[]) => {
+    // Handle transaction commands with savepoint support
+    const txResult = await handleTransactionCommand(text);
+    if (txResult !== null) return txResult;
+
     const result = await pgliteClient!.query(text, params as never[]);
     return { rows: result.rows };
   };
@@ -99,12 +160,14 @@ vi.mock('@vercel/postgres', async () => {
 // Transaction management for test isolation
 beforeEach(async () => {
   if (pgliteClient) {
+    transactionDepth = 1; // Mark that we're in the test transaction
     await pgliteClient.query('BEGIN');
   }
 });
 
 afterEach(async () => {
   if (pgliteClient) {
+    transactionDepth = 0; // Reset for next test
     await pgliteClient.query('ROLLBACK');
   }
 });

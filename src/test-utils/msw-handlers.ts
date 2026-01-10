@@ -58,6 +58,24 @@ const anthropicHandlers = [
       has_more: false,
     });
   }),
+
+  // Individual API key lookup
+  http.get('https://api.anthropic.com/v1/organizations/api_keys/:keyId', () => {
+    return HttpResponse.json({
+      id: 'test-key-123',
+      name: 'Test API Key',
+      created_by: { id: 'user-123', name: 'Test User' },
+    });
+  }),
+
+  // Individual user lookup
+  http.get('https://api.anthropic.com/v1/organizations/users/:userId', () => {
+    return HttpResponse.json({
+      id: 'user-123',
+      name: 'Test User',
+      email: 'test@example.com',
+    });
+  }),
 ];
 
 /**
@@ -136,3 +154,74 @@ const githubHandlers = [
 // Combine all handlers and create server
 export const handlers = [...anthropicHandlers, ...cursorHandlers, ...githubHandlers];
 export const server = setupServer(...handlers);
+
+// =============================================================================
+// Error Handlers - Use with server.use() in specific tests
+// =============================================================================
+
+/**
+ * Error handlers for testing failure scenarios.
+ * Usage in tests:
+ *   import { errorHandlers } from '@/test-utils/msw-handlers';
+ *   server.use(errorHandlers.anthropic500);
+ */
+export const errorHandlers = {
+  // Anthropic API errors
+  anthropic500: http.get('https://api.anthropic.com/*', () => {
+    return HttpResponse.json(
+      { error: { message: 'Internal server error' } },
+      { status: 500 }
+    );
+  }),
+
+  anthropicRateLimit: http.get('https://api.anthropic.com/*', () => {
+    return HttpResponse.json(
+      { error: { message: 'Rate limit exceeded' } },
+      { status: 429 }
+    );
+  }),
+
+  anthropicUnauthorized: http.get('https://api.anthropic.com/*', () => {
+    return HttpResponse.json(
+      { error: { message: 'Invalid API key' } },
+      { status: 401 }
+    );
+  }),
+
+  // Cursor API errors
+  cursor500: http.post('https://api.cursor.com/*', () => {
+    return HttpResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    );
+  }),
+
+  cursorRateLimit: http.post('https://api.cursor.com/*', () => {
+    return HttpResponse.json(
+      { error: 'Rate limit exceeded' },
+      { status: 429 }
+    );
+  }),
+
+  // GitHub API errors
+  github500: http.get('https://api.github.com/*', () => {
+    return HttpResponse.json(
+      { message: 'Internal server error' },
+      { status: 500 }
+    );
+  }),
+
+  githubRateLimit: http.get('https://api.github.com/*', () => {
+    return HttpResponse.json(
+      { message: 'API rate limit exceeded' },
+      { status: 403 }
+    );
+  }),
+
+  githubNotFound: http.get('https://api.github.com/repos/:owner/:repo', () => {
+    return HttpResponse.json(
+      { message: 'Not Found' },
+      { status: 404 }
+    );
+  }),
+};
