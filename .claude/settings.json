@@ -37,6 +37,7 @@
       "Bash(node --version:*)",
       "Bash(pnpm list:*)",
       "Bash(pnpm why:*)",
+      "Bash(pnpm test:*)",
       "Bash(tsc --version:*)",
 
       "Bash(docker --version:*)",

@@ -73,6 +73,23 @@ Normalize at write-time via `normalizeModelName()`: `sonnet-4`, `opus-4.5 (T)`, 
 - Thresholds: Power User 3M+, In Flow 1M+, Building Momentum 250K+
 - See `src/lib/adoption.ts`
 
+## Testing
+
+Tests use Vitest with colocated test files. Use `write-tests` skill when adding tests.
+
+```bash
+pnpm test              # Run all tests
+pnpm test:watch        # Watch mode
+```
+
+**Key rules:**
+- Tests colocated next to source: `foo.ts` → `foo.test.ts`
+- Every protected route must have an auth test (401 for unauthenticated)
+- Mock external APIs via MSW, mock auth via `@/test-utils/auth`
+- Uses PGlite for in-memory PostgreSQL (no Docker required)
+
+See `.claude/skills/write-tests/SKILL.md` for full workflow.
+
 ## Frontend & UI
 
 Use `ui-design` skill when creating or modifying frontend components. Covers color palette, typography, shared components, and design patterns. See `.claude/skills/ui-design/SKILL.md`
