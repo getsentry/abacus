@@ -15,13 +15,19 @@ export function escapeLikePattern(input: string): string {
 /**
  * Validate that a string is a valid ISO date (YYYY-MM-DD format).
  * Returns true if valid, false otherwise.
+ * Also validates that the date is a real calendar date (e.g., rejects "2024-02-30").
  */
 export function isValidDateString(dateStr: string): boolean {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
     return false;
   }
-  const date = new Date(dateStr);
-  return !isNaN(date.getTime());
+  // Parse as UTC to avoid timezone issues
+  const date = new Date(dateStr + 'T00:00:00Z');
+  if (isNaN(date.getTime())) {
+    return false;
+  }
+  // Verify the parsed date matches the input (catches invalid dates like Feb 30)
+  return date.toISOString().startsWith(dateStr);
 }
 
 export function formatTokens(n: number | bigint | string): string {

@@ -1237,6 +1237,11 @@ export async function getUserPercentile(
     return 0; // User not found or doesn't meet min days threshold
   }
 
+  // Handle single user case - they are the top (and only) user
+  if (totalUsers === 1) {
+    return 100;
+  }
+
   // Calculate percentile (0 = worst, 100 = best)
   // Position 0 (best) = 100th percentile
   // Position last = 0th percentile

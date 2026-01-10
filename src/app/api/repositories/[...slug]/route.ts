@@ -34,9 +34,14 @@ async function handler(
   const { searchParams } = new URL(request.url);
   const startDate = searchParams.get('startDate');
   const endDate = searchParams.get('endDate');
-  const commitsLimit = parseInt(searchParams.get('commitsLimit') || '50');
-  const commitsOffset = parseInt(searchParams.get('commitsOffset') || '0');
-  const aiFilter = (searchParams.get('aiFilter') || 'all') as 'all' | 'ai' | 'human';
+  const commitsLimitParsed = parseInt(searchParams.get('commitsLimit') || '50', 10);
+  const commitsLimit = Number.isNaN(commitsLimitParsed) ? 50 : Math.min(Math.max(commitsLimitParsed, 1), 100);
+  const commitsOffsetParsed = parseInt(searchParams.get('commitsOffset') || '0', 10);
+  const commitsOffset = Number.isNaN(commitsOffsetParsed) ? 0 : Math.max(commitsOffsetParsed, 0);
+  const aiFilterParam = searchParams.get('aiFilter') || 'all';
+  const aiFilter: 'all' | 'ai' | 'human' = ['all', 'ai', 'human'].includes(aiFilterParam)
+    ? (aiFilterParam as 'all' | 'ai' | 'human')
+    : 'all';
   const includeComparison = searchParams.get('comparison') === 'true';
 
   if (startDate && !isValidDateString(startDate)) {
