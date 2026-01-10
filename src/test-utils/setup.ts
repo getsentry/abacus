@@ -2,16 +2,53 @@ import { vi, beforeAll, beforeEach, afterEach, afterAll } from 'vitest';
 import '@testing-library/jest-dom/vitest';
 import { server } from './msw-handlers';
 
-/**
- * Global Test Setup
- *
- * Uses PGlite for in-memory PostgreSQL testing:
- * - No Docker required
- * - Fast (WebAssembly PostgreSQL)
- * - Real PostgreSQL behavior
- * - Automatic schema push
- * - Transaction isolation per test
- */
+// =============================================================================
+// Test Environment Variables - Hardcoded defaults for test isolation
+// =============================================================================
+
+// Explicitly unset database URLs to ensure PGlite mock is used
+delete process.env.POSTGRES_URL;
+delete process.env.DATABASE_URL;
+
+// Set test defaults for common env vars (can be overridden with vi.stubEnv)
+process.env.CRON_SECRET = 'test-cron-secret';
+process.env.GITHUB_WEBHOOK_SECRET = 'test-webhook-secret';
+process.env.ANTHROPIC_ADMIN_KEY = 'test-anthropic-key';
+process.env.CURSOR_ADMIN_KEY = 'test-cursor-key';
+
+// =============================================================================
+// Safety Check - Ensure tests never run against production database
+// =============================================================================
+
+const dbUrl = process.env.POSTGRES_URL || process.env.DATABASE_URL;
+if (dbUrl) {
+  try {
+    const parsed = new URL(dbUrl);
+    const safeHosts = ['localhost', '127.0.0.1', '::1'];
+    const isDangerous =
+      !safeHosts.includes(parsed.hostname) ||
+      parsed.hostname.includes('neon.tech') ||
+      parsed.hostname.includes('vercel') ||
+      parsed.hostname.includes('supabase') ||
+      parsed.hostname.includes('planetscale');
+
+    if (isDangerous) {
+      throw new Error(
+        `\n\n` +
+          `${'='.repeat(70)}\n` +
+          `DANGER: Test database URL points to "${parsed.hostname}"\n` +
+          `${'='.repeat(70)}\n\n` +
+          `Tests must use localhost or leave POSTGRES_URL unset.\n` +
+          `The test suite uses PGlite (in-memory) and does not need a real database.\n\n` +
+          `If you see this error, you may have loaded .env.local by mistake.\n` +
+          `${'='.repeat(70)}\n`
+      );
+    }
+  } catch (e) {
+    if (e instanceof Error && e.message.includes('DANGER')) throw e;
+    // Invalid URL format - let it pass, will fail elsewhere if actually used
+  }
+}
 
 // =============================================================================
 // PGlite Database Setup - Mock @vercel/postgres with in-memory PGlite
