@@ -11,8 +11,8 @@ export default defineConfig({
     include: ['src/**/*.test.ts', 'src/**/*.test.tsx'],
     fileParallelism: false,
   },
-  // Point to empty dir to prevent loading .env.local (test env vars are in setup.ts)
-  envDir: './src/test-utils',
+  // Disable .env file loading - test env vars are set in setup.ts
+  envDir: false,
   resolve: {
     alias: { '@': path.resolve(__dirname, './src') },
   },
