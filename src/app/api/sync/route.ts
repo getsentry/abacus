@@ -26,7 +26,12 @@ async function postHandler(request: Request) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const body = await request.json().catch(() => ({}));
+  let body: { startDate?: string; endDate?: string; includeMappings?: boolean; mappingsOnly?: boolean };
+  try {
+    body = await request.json();
+  } catch {
+    return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
+  }
   const { startDate, endDate, includeMappings, mappingsOnly } = body;
 
   // Validate date parameters if provided

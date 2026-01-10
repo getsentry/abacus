@@ -461,11 +461,11 @@ export async function getOrCreateRepository(source: string, fullName: string): P
     return existing.rows[0].id;
   }
 
-  // Create new
+  // Create new (use ON CONFLICT DO UPDATE to allow RETURNING)
   const result = await sql`
     INSERT INTO repositories (source, full_name)
     VALUES (${source}, ${fullName})
-    ON CONFLICT (source, full_name) DO UPDATE SET source = ${source}
+    ON CONFLICT (source, full_name) DO UPDATE SET full_name = EXCLUDED.full_name
     RETURNING id
   `;
 

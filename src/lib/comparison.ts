@@ -45,8 +45,9 @@ export function getPreviousPeriodDates(
   startDate: string,
   endDate: string
 ): { prevStartDate: string; prevEndDate: string } {
-  const start = new Date(startDate);
-  const end = new Date(endDate);
+  // Parse as UTC to avoid timezone issues
+  const start = new Date(startDate + 'T00:00:00Z');
+  const end = new Date(endDate + 'T00:00:00Z');
 
   // Calculate the duration of the period in days
   const durationMs = end.getTime() - start.getTime();
@@ -54,11 +55,11 @@ export function getPreviousPeriodDates(
 
   // Previous period ends the day before current period starts
   const prevEnd = new Date(start);
-  prevEnd.setDate(prevEnd.getDate() - 1);
+  prevEnd.setUTCDate(prevEnd.getUTCDate() - 1);
 
   // Previous period starts durationDays before its end
   const prevStart = new Date(prevEnd);
-  prevStart.setDate(prevStart.getDate() - durationDays + 1);
+  prevStart.setUTCDate(prevStart.getUTCDate() - durationDays + 1);
 
   return {
     prevStartDate: formatDateISO(prevStart),
