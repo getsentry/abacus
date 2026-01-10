@@ -75,7 +75,7 @@ Normalize at write-time via `normalizeModelName()`: `sonnet-4`, `opus-4.5 (T)`, 
 
 ## Testing
 
-Tests use Vitest with a flat structure in `tests/`. Use `write-tests` skill when adding tests.
+Tests use Vitest with colocated test files. Use `write-tests` skill when adding tests.
 
 ```bash
 pnpm test              # Run all tests
@@ -83,11 +83,10 @@ pnpm test:watch        # Watch mode
 ```
 
 **Key rules:**
-- All tests in `tests/` directory (flat, not nested)
-- Naming: `{module}.test.ts`, `{route}-route.test.ts`, `{page}-page.test.tsx`
-- Database tests MUST use localhost (safety check blocks cloud DBs)
-- Mock external APIs via MSW, mock auth for protected routes
-- No unnecessary mocks - use real DB for integration tests
+- Tests colocated next to source: `foo.ts` → `foo.test.ts`
+- Every protected route must have an auth test (401 for unauthenticated)
+- Mock external APIs via MSW, mock auth via `@/test-utils/auth`
+- Uses PGlite for in-memory PostgreSQL (no Docker required)
 
 See `.claude/skills/write-tests/SKILL.md` for full workflow.
 
