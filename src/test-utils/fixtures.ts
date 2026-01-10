@@ -1,4 +1,4 @@
-import { sql } from '@vercel/postgres';
+import { db, repositories, commits } from '@/lib/db';
 
 /**
  * Test fixture helpers for seeding database with test data.
@@ -19,13 +19,15 @@ export interface TestRepository {
  */
 export async function insertRepository(repo: TestRepository): Promise<number> {
   const source = repo.source || 'github';
-  const result = await sql`
-    INSERT INTO repositories (source, full_name)
-    VALUES (${source}, ${repo.fullName})
-    ON CONFLICT (source, full_name) DO UPDATE SET full_name = EXCLUDED.full_name
-    RETURNING id
-  `;
-  return result.rows[0].id;
+  const result = await db
+    .insert(repositories)
+    .values({ source, fullName: repo.fullName })
+    .onConflictDoUpdate({
+      target: [repositories.source, repositories.fullName],
+      set: { fullName: repo.fullName },
+    })
+    .returning({ id: repositories.id });
+  return result[0].id;
 }
 
 // =============================================================================
@@ -59,26 +61,33 @@ export async function insertCommit(commit: TestCommit): Promise<number> {
   const additions = commit.additions ?? 10;
   const deletions = commit.deletions ?? 5;
 
-  const result = await sql`
-    INSERT INTO commits (
-      repo_id, commit_id, author_email, author_id, committed_at,
-      message, ai_tool, ai_model, additions, deletions
-    )
-    VALUES (
-      ${commit.repoId}, ${commitId}, ${commit.authorEmail}, ${authorId},
-      ${commit.committedAt}::timestamp, ${message}, ${aiTool}, ${aiModel},
-      ${additions}, ${deletions}
-    )
-    ON CONFLICT (repo_id, commit_id) DO UPDATE SET
-      author_email = EXCLUDED.author_email,
-      message = EXCLUDED.message,
-      ai_tool = EXCLUDED.ai_tool,
-      ai_model = EXCLUDED.ai_model,
-      additions = EXCLUDED.additions,
-      deletions = EXCLUDED.deletions
-    RETURNING id
-  `;
-  return result.rows[0].id;
+  const result = await db
+    .insert(commits)
+    .values({
+      repoId: commit.repoId,
+      commitId,
+      authorEmail: commit.authorEmail,
+      authorId,
+      committedAt: new Date(commit.committedAt),
+      message,
+      aiTool,
+      aiModel,
+      additions,
+      deletions,
+    })
+    .onConflictDoUpdate({
+      target: [commits.repoId, commits.commitId],
+      set: {
+        authorEmail: commit.authorEmail,
+        message,
+        aiTool,
+        aiModel,
+        additions,
+        deletions,
+      },
+    })
+    .returning({ id: commits.id });
+  return result[0].id;
 }
 
 // =============================================================================

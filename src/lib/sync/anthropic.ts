@@ -1,7 +1,7 @@
 import { insertUsageRecord, getIdentityMappings } from '../queries';
-import { calculateCost } from '../db';
+import { db, calculateCost, syncState, usageRecords } from '../db';
 import { normalizeModelName } from '../utils';
-import { sql } from '@vercel/postgres';
+import { eq, min } from 'drizzle-orm';
 
 interface AnthropicUsageResult {
   api_key_id: string | null;
@@ -45,66 +45,88 @@ const SYNC_STATE_ID = 'anthropic';
 
 // Get Anthropic sync state from database
 export async function getAnthropicSyncState(): Promise<{ lastSyncedDate: string | null; lastSyncAt: string | null }> {
-  const result = await sql`
-    SELECT last_synced_hour_end, last_sync_at FROM sync_state WHERE id = ${SYNC_STATE_ID}
-  `;
-  if (result.rows.length === 0) {
+  const result = await db
+    .select({
+      lastSyncedHourEnd: syncState.lastSyncedHourEnd,
+      lastSyncAt: syncState.lastSyncAt,
+    })
+    .from(syncState)
+    .where(eq(syncState.id, SYNC_STATE_ID));
+
+  if (result.length === 0) {
     return { lastSyncedDate: null, lastSyncAt: null };
   }
-  const row = result.rows[0];
+  const row = result[0];
   return {
     // Date string of last synced data (e.g., "2025-01-08")
-    lastSyncedDate: row.last_synced_hour_end || null,
+    lastSyncedDate: row.lastSyncedHourEnd || null,
     // Actual timestamp when sync ran (for freshness check)
-    lastSyncAt: row.last_sync_at ? new Date(row.last_sync_at).toISOString() : null
+    lastSyncAt: row.lastSyncAt ? new Date(row.lastSyncAt).toISOString() : null
   };
 }
 
 // Update Anthropic sync state
 async function updateAnthropicSyncState(lastSyncedDate: string): Promise<void> {
-  await sql`
-    INSERT INTO sync_state (id, last_sync_at, last_synced_hour_end)
-    VALUES (${SYNC_STATE_ID}, NOW(), ${lastSyncedDate})
-    ON CONFLICT (id) DO UPDATE SET
-      last_sync_at = NOW(),
-      last_synced_hour_end = ${lastSyncedDate}
-  `;
+  await db
+    .insert(syncState)
+    .values({
+      id: SYNC_STATE_ID,
+      lastSyncAt: new Date(),
+      lastSyncedHourEnd: lastSyncedDate,
+    })
+    .onConflictDoUpdate({
+      target: syncState.id,
+      set: {
+        lastSyncAt: new Date(),
+        lastSyncedHourEnd: lastSyncedDate,
+      },
+    });
 }
 
 
 // Get backfill state - derives oldest date from actual usage data
 export async function getAnthropicBackfillState(): Promise<{ oldestDate: string | null; isComplete: boolean }> {
   // Get actual oldest date from usage_records (source of truth)
-  const usageResult = await sql`
-    SELECT MIN(date)::text as oldest_date FROM usage_records WHERE tool = 'claude_code'
-  `;
-  const oldestDate = usageResult.rows[0]?.oldest_date || null;
+  const usageResult = await db
+    .select({ oldestDate: min(usageRecords.date) })
+    .from(usageRecords)
+    .where(eq(usageRecords.tool, 'claude_code'));
+  const oldestDate = usageResult[0]?.oldestDate || null;
 
   // Check if backfill has been explicitly marked complete (hit API's data limit)
-  const stateResult = await sql`
-    SELECT backfill_complete FROM sync_state WHERE id = ${SYNC_STATE_ID}
-  `;
-  const isComplete = stateResult.rows[0]?.backfill_complete === true;
+  const stateResult = await db
+    .select({ backfillComplete: syncState.backfillComplete })
+    .from(syncState)
+    .where(eq(syncState.id, SYNC_STATE_ID));
+  const isComplete = stateResult[0]?.backfillComplete === true;
 
   return { oldestDate, isComplete };
 }
 
 // Mark backfill as complete (hit API's data limit - no more historical data)
 async function markAnthropicBackfillComplete(): Promise<void> {
-  await sql`
-    INSERT INTO sync_state (id, last_sync_at, backfill_complete)
-    VALUES (${SYNC_STATE_ID}, NOW(), true)
-    ON CONFLICT (id) DO UPDATE SET
-      last_sync_at = NOW(),
-      backfill_complete = true
-  `;
+  await db
+    .insert(syncState)
+    .values({
+      id: SYNC_STATE_ID,
+      lastSyncAt: new Date(),
+      backfillComplete: true,
+    })
+    .onConflictDoUpdate({
+      target: syncState.id,
+      set: {
+        lastSyncAt: new Date(),
+        backfillComplete: true,
+      },
+    });
 }
 
 // Reset backfill complete flag (allows backfill to retry)
 export async function resetAnthropicBackfillComplete(): Promise<void> {
-  await sql`
-    UPDATE sync_state SET backfill_complete = false WHERE id = ${SYNC_STATE_ID}
-  `;
+  await db
+    .update(syncState)
+    .set({ backfillComplete: false })
+    .where(eq(syncState.id, SYNC_STATE_ID));
 }
 
 /**

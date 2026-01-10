@@ -54,9 +54,14 @@ if (dbUrl) {
 // PGlite Database Setup - Mock @vercel/postgres with in-memory PGlite
 // =============================================================================
 
-// Store references for transaction management
+// Store references for transaction management and db access
 let pgliteClient: import('@electric-sql/pglite').PGlite | null = null;
-let pgliteDb: ReturnType<typeof import('drizzle-orm/pglite').drizzle> | null = null;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let pgliteDb: any = null;
+
+// Shared reference for db mock (allows @/lib/db mock to access pgliteDb)
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const dbRef: { current: any } = { current: null };
 
 // Track transaction depth for savepoint-based nested transaction support
 // Depth 0 = no transaction, 1 = test transaction, 2+ = nested (uses savepoints)
@@ -70,6 +75,7 @@ vi.mock('@vercel/postgres', async () => {
   // Create in-memory PGlite instance
   pgliteClient = new PGlite();
   pgliteDb = drizzle(pgliteClient, { schema });
+  dbRef.current = pgliteDb;
 
   // Push schema to in-memory database
   const { pushSchema } = await import('drizzle-kit/api');
@@ -155,6 +161,34 @@ vi.mock('@vercel/postgres', async () => {
   };
 
   return { sql };
+});
+
+// Mock @/lib/db to use the PGlite-backed Drizzle instance
+// This enables Drizzle query builder methods (db.insert, db.select, etc.) in tests
+vi.mock('@/lib/db', async (importOriginal) => {
+  const original = await importOriginal<typeof import('../lib/db')>();
+  const schema = await import('../lib/schema');
+  const drizzleOrm = await import('drizzle-orm');
+
+  return {
+    // Proxy db to always use current pgliteDb (handles initialization timing)
+    get db() {
+      if (!dbRef.current) {
+        throw new Error('Database not initialized - ensure @vercel/postgres mock runs first');
+      }
+      return dbRef.current;
+    },
+    // Re-export schema
+    ...schema,
+    // Re-export sql helper from drizzle-orm
+    sql: drizzleOrm.sql,
+    // Keep vercelSql for backward compatibility (proxies to pgliteDb)
+    get vercelSql() {
+      return dbRef.current;
+    },
+    // Re-export calculateCost from actual module
+    calculateCost: original.calculateCost,
+  };
 });
 
 // Transaction management for test isolation

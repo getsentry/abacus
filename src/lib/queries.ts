@@ -1,4 +1,6 @@
-import { sql } from '@vercel/postgres';
+import { sql as vercelSql } from '@vercel/postgres';
+import { db, usageRecords, identityMappings, repositories, commits, commitAttributions } from './db';
+import { eq, and, count, sql } from 'drizzle-orm';
 import { DEFAULT_DAYS } from './constants';
 import { escapeLikePattern } from './utils';
 import {
@@ -51,7 +53,16 @@ export async function getOverallStats(startDate?: string, endDate?: string): Pro
   const effectiveStartDate = startDate || '1970-01-01';
   const effectiveEndDate = endDate || '9999-12-31';
 
-  const result = await sql`
+  const result = await db.execute<{
+    totalTokens: number;
+    totalCost: number;
+    totalInputTokens: number;
+    totalOutputTokens: number;
+    totalCacheReadTokens: number;
+    activeUsers: number;
+    claudeCodeTokens: number;
+    cursorTokens: number;
+  }>(sql`
     SELECT
       COALESCE(SUM(input_tokens + cache_write_tokens + output_tokens), 0)::bigint as "totalTokens",
       COALESCE(SUM(cost), 0)::float as "totalCost",
@@ -61,16 +72,16 @@ export async function getOverallStats(startDate?: string, endDate?: string): Pro
       COUNT(DISTINCT email)::int as "activeUsers",
       COALESCE(SUM(CASE WHEN tool = 'claude_code' THEN input_tokens + cache_write_tokens + output_tokens ELSE 0 END), 0)::bigint as "claudeCodeTokens",
       COALESCE(SUM(CASE WHEN tool = 'cursor' THEN input_tokens + cache_write_tokens + output_tokens ELSE 0 END), 0)::bigint as "cursorTokens"
-    FROM usage_records
+    FROM ${usageRecords}
     WHERE date >= ${effectiveStartDate} AND date <= ${effectiveEndDate}
-  `;
+  `);
 
   // User counts per tool need separate subqueries since COUNT DISTINCT with CASE doesn't work
-  const userCountsResult = await sql`
+  const userCountsResult = await db.execute<{ claudeCodeUsers: number; cursorUsers: number }>(sql`
     SELECT
-      (SELECT COUNT(DISTINCT email) FROM usage_records WHERE tool = 'claude_code' AND date >= ${effectiveStartDate} AND date <= ${effectiveEndDate})::int as "claudeCodeUsers",
-      (SELECT COUNT(DISTINCT email) FROM usage_records WHERE tool = 'cursor' AND date >= ${effectiveStartDate} AND date <= ${effectiveEndDate})::int as "cursorUsers"
-  `;
+      (SELECT COUNT(DISTINCT email) FROM ${usageRecords} WHERE tool = 'claude_code' AND date >= ${effectiveStartDate} AND date <= ${effectiveEndDate})::int as "claudeCodeUsers",
+      (SELECT COUNT(DISTINCT email) FROM ${usageRecords} WHERE tool = 'cursor' AND date >= ${effectiveStartDate} AND date <= ${effectiveEndDate})::int as "cursorUsers"
+  `);
 
   return {
     ...result.rows[0],
@@ -97,7 +108,7 @@ export async function getOverallStatsWithComparison(
 ): Promise<UsageStatsWithComparison> {
   const { prevStartDate, prevEndDate } = getPreviousPeriodDates(startDate, endDate);
 
-  const result = await sql`
+  const result = await vercelSql`
     SELECT
       -- Current period
       COALESCE(SUM(CASE WHEN date >= ${startDate} AND date <= ${endDate}
@@ -129,7 +140,7 @@ export async function getOverallStatsWithComparison(
 
   // User counts need separate subqueries since COUNT DISTINCT with CASE doesn't work as expected
   // COUNT(DISTINCT email) automatically excludes NULLs
-  const userCountsResult = await sql`
+  const userCountsResult = await vercelSql`
     SELECT
       (SELECT COUNT(DISTINCT email) FROM usage_records WHERE date >= ${startDate} AND date <= ${endDate})::int as "activeUsers",
       (SELECT COUNT(DISTINCT email) FROM usage_records WHERE date >= ${prevStartDate} AND date <= ${prevEndDate})::int as "prevActiveUsers",
@@ -171,14 +182,14 @@ export interface UnattributedStats {
 }
 
 export async function getUnattributedStats(): Promise<UnattributedStats> {
-  const result = await sql`
+  const result = await db.execute<{ totalTokens: number; totalCost: number }>(sql`
     SELECT
       COALESCE(SUM(input_tokens + cache_write_tokens + output_tokens), 0)::bigint as "totalTokens",
       COALESCE(SUM(cost), 0)::float as "totalCost"
-    FROM usage_records
+    FROM ${usageRecords}
     WHERE email IS NULL
-  `;
-  return result.rows[0] as UnattributedStats;
+  `);
+  return result.rows[0];
 }
 
 export async function getUserSummaries(
@@ -195,7 +206,7 @@ export async function getUserSummaries(
 
   // Single query with CTEs to avoid N+1 problem for favoriteModel
   const result = searchPattern
-    ? await sql`
+    ? await vercelSql`
         WITH user_stats AS (
           SELECT
             email,
@@ -233,7 +244,7 @@ export async function getUserSummaries(
         ORDER BY us."totalTokens" DESC
         LIMIT ${limit} OFFSET ${offset}
       `
-    : await sql`
+    : await vercelSql`
         WITH user_stats AS (
           SELECT
             email,
@@ -277,7 +288,7 @@ export async function getUserSummaries(
 
 export async function getUserDetails(email: string) {
 
-  const summaryResult = await sql`
+  const summaryResult = await vercelSql`
     SELECT
       email,
       SUM(input_tokens + cache_write_tokens + output_tokens)::bigint as "totalTokens",
@@ -291,7 +302,7 @@ export async function getUserDetails(email: string) {
     GROUP BY email
   `;
 
-  const modelResult = await sql`
+  const modelResult = await vercelSql`
     SELECT
       model,
       SUM(input_tokens + cache_write_tokens + output_tokens)::bigint as tokens,
@@ -302,7 +313,7 @@ export async function getUserDetails(email: string) {
     ORDER BY tokens DESC
   `;
 
-  const dailyResult = await sql`
+  const dailyResult = await vercelSql`
     SELECT
       date::text,
       SUM(CASE WHEN tool = 'claude_code' THEN input_tokens + cache_write_tokens + output_tokens ELSE 0 END)::bigint as "claudeCode",
@@ -358,7 +369,7 @@ export async function getUserDetailsExtended(
   startDate: string,
   endDate: string
 ): Promise<UserDetailsExtended> {
-  const summaryResult = await sql`
+  const summaryResult = await vercelSql`
     SELECT
       email,
       SUM(input_tokens + cache_write_tokens + output_tokens)::bigint as "totalTokens",
@@ -377,7 +388,7 @@ export async function getUserDetailsExtended(
     GROUP BY email
   `;
 
-  const modelResult = await sql`
+  const modelResult = await vercelSql`
     SELECT
       model,
       SUM(input_tokens + cache_write_tokens + output_tokens)::bigint as tokens,
@@ -392,7 +403,7 @@ export async function getUserDetailsExtended(
     ORDER BY tokens DESC
   `;
 
-  const dailyResult = await sql`
+  const dailyResult = await vercelSql`
     WITH date_series AS (
       SELECT generate_series(
         ${startDate}::date,
@@ -426,7 +437,7 @@ export async function getModelBreakdown(startDate?: string, endDate?: string): P
   const effectiveStartDate = startDate || '1970-01-01';
   const effectiveEndDate = endDate || '9999-12-31';
 
-  const result = await sql`
+  const result = await vercelSql`
     SELECT
       model,
       SUM(input_tokens + cache_write_tokens + output_tokens)::bigint as tokens,
@@ -450,7 +461,7 @@ export async function getModelBreakdown(startDate?: string, endDate?: string): P
 
 export async function getDailyUsage(startDate: string, endDate: string): Promise<DailyUsage[]> {
 
-  const result = await sql`
+  const result = await vercelSql`
     WITH date_series AS (
       SELECT generate_series(
         ${startDate}::date,
@@ -473,58 +484,76 @@ export async function getDailyUsage(startDate: string, endDate: string): Promise
 }
 
 export async function getUnmappedToolRecords(tool: string = 'claude_code'): Promise<{ tool_record_id: string; usage_count: number }[]> {
-
-  const result = await sql`
+  const result = await db.execute<{ tool_record_id: string; usage_count: number }>(sql`
     SELECT
       tool_record_id,
       COUNT(*)::int as usage_count
-    FROM usage_records
+    FROM ${usageRecords}
     WHERE tool = ${tool}
       AND email IS NULL
       AND tool_record_id IS NOT NULL
     GROUP BY tool_record_id
     ORDER BY usage_count DESC
-  `;
+  `);
 
-  return result.rows as { tool_record_id: string; usage_count: number }[];
+  return result.rows;
 }
 
 export async function getIdentityMappings(source?: string): Promise<{ source: string; external_id: string; email: string }[]> {
+  const baseQuery = db
+    .select({
+      source: identityMappings.source,
+      external_id: identityMappings.externalId,
+      email: identityMappings.email,
+    })
+    .from(identityMappings);
+
   const result = source
-    ? await sql`SELECT source, external_id, email FROM identity_mappings WHERE source = ${source}`
-    : await sql`SELECT source, external_id, email FROM identity_mappings`;
-  return result.rows as { source: string; external_id: string; email: string }[];
+    ? await baseQuery.where(eq(identityMappings.source, source))
+    : await baseQuery;
+
+  return result;
 }
 
 export async function setIdentityMapping(source: string, externalId: string, email: string): Promise<void> {
-  await sql`
-    INSERT INTO identity_mappings (source, external_id, email)
-    VALUES (${source}, ${externalId}, ${email})
-    ON CONFLICT (source, external_id) DO UPDATE SET email = ${email}
-  `;
+  await db
+    .insert(identityMappings)
+    .values({ source, externalId, email })
+    .onConflictDoUpdate({
+      target: [identityMappings.source, identityMappings.externalId],
+      set: { email },
+    });
 
   // Update existing records based on source type
   if (source === 'claude_code' || source === 'cursor') {
     // For API tools: update usage records
-    await sql`
-      UPDATE usage_records SET email = ${email}
-      WHERE tool = ${source} AND tool_record_id = ${externalId}
-    `;
+    await db
+      .update(usageRecords)
+      .set({ email })
+      .where(and(
+        eq(usageRecords.tool, source),
+        eq(usageRecords.toolRecordId, externalId)
+      ));
   } else {
     // For VCS providers (github, gitlab, etc.): update commit author emails
-    await sql`
-      UPDATE commits c
+    await db.execute(sql`
+      UPDATE ${commits} c
       SET author_email = ${email}
-      FROM repositories r
+      FROM ${repositories} r
       WHERE c.repo_id = r.id
         AND r.source = ${source}
         AND c.author_id = ${externalId}
-    `;
+    `);
   }
 }
 
 export async function deleteIdentityMapping(source: string, externalId: string): Promise<void> {
-  await sql`DELETE FROM identity_mappings WHERE source = ${source} AND external_id = ${externalId}`;
+  await db
+    .delete(identityMappings)
+    .where(and(
+      eq(identityMappings.source, source),
+      eq(identityMappings.externalId, externalId)
+    ));
 }
 
 /**
@@ -538,27 +567,26 @@ export async function resolveUserEmail(usernameOrEmail: string): Promise<string 
   }
 
   // Look up by username prefix (escape to prevent LIKE injection)
-  const result = await sql`
-    SELECT DISTINCT email FROM usage_records
+  const result = await db.execute<{ email: string }>(sql`
+    SELECT DISTINCT email FROM ${usageRecords}
     WHERE email LIKE ${escapeLikePattern(usernameOrEmail) + '@%'}
     LIMIT 1
-  `;
+  `);
 
   return result.rows[0]?.email || null;
 }
 
 export async function getKnownEmails(): Promise<string[]> {
-
-  const result = await sql`
+  const result = await db.execute<{ email: string }>(sql`
     SELECT DISTINCT email FROM (
-      SELECT email FROM usage_records WHERE tool = 'cursor' AND email IS NOT NULL
+      SELECT email FROM ${usageRecords} WHERE tool = 'cursor' AND email IS NOT NULL
       UNION
-      SELECT email FROM identity_mappings
+      SELECT email FROM ${identityMappings}
       UNION
-      SELECT email FROM usage_records WHERE email LIKE '%@%' AND email IS NOT NULL
+      SELECT email FROM ${usageRecords} WHERE email LIKE '%@%' AND email IS NOT NULL
     ) AS combined
     ORDER BY email ASC
-  `;
+  `);
 
   return result.rows.map(r => r.email);
 }
@@ -613,7 +641,7 @@ export async function getAllUsersPivot(
 
   // Get stats for specified date range, but lastActive from all time
   const result = searchPattern
-    ? await sql`
+    ? await vercelSql`
         SELECT
           r.email,
           SUM(r.input_tokens + r.cache_write_tokens + r.output_tokens)::bigint as "totalTokens",
@@ -641,7 +669,7 @@ export async function getAllUsersPivot(
         GROUP BY r.email, la."lastActive"
         ORDER BY "totalTokens" DESC
       `
-    : await sql`
+    : await vercelSql`
         SELECT
           r.email,
           SUM(r.input_tokens + r.cache_write_tokens + r.output_tokens)::bigint as "totalTokens",
@@ -739,8 +767,8 @@ export async function insertUsageRecord(record: {
   cost: number;
   toolRecordId?: string;
 }): Promise<void> {
-  await sql`
-    INSERT INTO usage_records (date, email, tool, model, raw_model, input_tokens, cache_write_tokens, cache_read_tokens, output_tokens, cost, tool_record_id)
+  await db.execute(sql`
+    INSERT INTO ${usageRecords} (date, email, tool, model, raw_model, input_tokens, cache_write_tokens, cache_read_tokens, output_tokens, cost, tool_record_id)
     VALUES (${record.date}, ${record.email}, ${record.tool}, ${record.model}, ${record.rawModel || null}, ${record.inputTokens}, ${record.cacheWriteTokens}, ${record.cacheReadTokens}, ${record.outputTokens}, ${record.cost}, ${record.toolRecordId || null})
     ON CONFLICT (date, COALESCE(email, ''), tool, COALESCE(raw_model, ''), COALESCE(tool_record_id, ''))
     DO UPDATE SET
@@ -750,13 +778,19 @@ export async function insertUsageRecord(record: {
       cache_read_tokens = EXCLUDED.cache_read_tokens,
       output_tokens = EXCLUDED.output_tokens,
       cost = EXCLUDED.cost
-  `;
+  `);
 }
 
 // Get existing mapping for an identity
 export async function getIdentityMapping(source: string, externalId: string): Promise<string | null> {
-  const result = await sql`SELECT email FROM identity_mappings WHERE source = ${source} AND external_id = ${externalId}`;
-  return result.rows[0]?.email || null;
+  const result = await db
+    .select({ email: identityMappings.email })
+    .from(identityMappings)
+    .where(and(
+      eq(identityMappings.source, source),
+      eq(identityMappings.externalId, externalId)
+    ));
+  return result[0]?.email || null;
 }
 
 export interface LifetimeStats {
@@ -771,7 +805,7 @@ export interface LifetimeStats {
 
 export async function getLifetimeStats(): Promise<LifetimeStats> {
   const [usageResult, commitsResult, reposResult] = await Promise.all([
-    sql`
+    vercelSql`
       SELECT
         COALESCE(SUM(input_tokens + cache_write_tokens + output_tokens), 0)::bigint as "totalTokens",
         COALESCE(SUM(cost), 0)::float as "totalCost",
@@ -779,13 +813,13 @@ export async function getLifetimeStats(): Promise<LifetimeStats> {
         MIN(date)::text as "firstRecordDate"
       FROM usage_records
     `,
-    sql`
+    vercelSql`
       SELECT
         COUNT(*)::int as "totalCommits",
         COUNT(*) FILTER (WHERE ai_tool IS NOT NULL)::int as "aiAttributedCommits"
       FROM commits
     `,
-    sql`
+    vercelSql`
       SELECT COUNT(*)::int as "totalRepos" FROM repositories
     `,
   ]);
@@ -808,7 +842,7 @@ export interface UserLifetimeStats {
 
 export async function getUserLifetimeStats(email: string): Promise<UserLifetimeStats> {
   const [statsResult, toolResult, recordDayResult] = await Promise.all([
-    sql`
+    vercelSql`
       SELECT
         COALESCE(SUM(input_tokens + cache_write_tokens + output_tokens), 0)::bigint as "totalTokens",
         COALESCE(SUM(cost), 0)::float as "totalCost",
@@ -816,7 +850,7 @@ export async function getUserLifetimeStats(email: string): Promise<UserLifetimeS
       FROM usage_records
       WHERE email = ${email}
     `,
-    sql`
+    vercelSql`
       SELECT tool, SUM(input_tokens + cache_write_tokens + output_tokens)::bigint as tokens
       FROM usage_records
       WHERE email = ${email}
@@ -824,7 +858,7 @@ export async function getUserLifetimeStats(email: string): Promise<UserLifetimeS
       ORDER BY tokens DESC
       LIMIT 1
     `,
-    sql`
+    vercelSql`
       SELECT date::text, SUM(input_tokens + cache_write_tokens + output_tokens)::bigint as tokens
       FROM usage_records
       WHERE email = ${email}
@@ -930,7 +964,7 @@ export async function getCommitStats(startDate?: string, endDate?: string): Prom
   const effectiveEndDate = endDate || '9999-12-31';
 
   const [overallResult, toolBreakdownResult, repoCountResult] = await Promise.all([
-    sql`
+    vercelSql`
       SELECT
         COUNT(*)::int as "totalCommits",
         COUNT(*) FILTER (WHERE ai_tool IS NOT NULL)::int as "aiAssistedCommits",
@@ -942,7 +976,7 @@ export async function getCommitStats(startDate?: string, endDate?: string): Prom
       WHERE committed_at >= ${effectiveStartDate}::timestamp
         AND committed_at < (${effectiveEndDate}::date + interval '1 day')
     `,
-    sql`
+    vercelSql`
       SELECT
         ai_tool as tool,
         COUNT(*)::int as commits,
@@ -955,7 +989,7 @@ export async function getCommitStats(startDate?: string, endDate?: string): Prom
       GROUP BY ai_tool
       ORDER BY commits DESC
     `,
-    sql`
+    vercelSql`
       SELECT COUNT(DISTINCT repo_id)::int as count
       FROM commits
       WHERE committed_at >= ${effectiveStartDate}::timestamp
@@ -1002,7 +1036,7 @@ export async function getCommitStatsWithComparison(
 
   const [currentStats, prevResult] = await Promise.all([
     getCommitStats(startDate, endDate),
-    sql`
+    vercelSql`
       SELECT
         COUNT(*)::int as "totalCommits",
         COUNT(*) FILTER (WHERE ai_tool IS NOT NULL)::int as "aiAssistedCommits",
@@ -1076,7 +1110,7 @@ export async function getRepositoryPivot(
   const searchPattern = search ? `%${escapeLikePattern(search)}%` : null;
 
   const result = searchPattern
-    ? await sql`
+    ? await vercelSql`
         SELECT
           r.id,
           r.source,
@@ -1102,7 +1136,7 @@ export async function getRepositoryPivot(
         HAVING COUNT(c.id) > 0
         ORDER BY "totalCommits" DESC
       `
-    : await sql`
+    : await vercelSql`
         SELECT
           r.id,
           r.source,
@@ -1174,7 +1208,7 @@ export async function getDailyCommitStats(
   startDate: string,
   endDate: string
 ): Promise<DailyCommitStats[]> {
-  const result = await sql`
+  const result = await vercelSql`
     WITH date_series AS (
       SELECT generate_series(
         ${startDate}::date,
@@ -1207,7 +1241,7 @@ export async function getUserPercentile(
   endDate: string
 ): Promise<number> {
   // Get all users' avgTokensPerDay for the period
-  const result = await sql`
+  const result = await vercelSql`
     SELECT
       email,
       CASE
@@ -1316,12 +1350,18 @@ export async function getRepositoryByFullName(
   source: string,
   fullName: string
 ): Promise<{ id: number; source: string; fullName: string } | null> {
-  const result = await sql`
-    SELECT id, source, full_name as "fullName"
-    FROM repositories
-    WHERE source = ${source} AND full_name = ${fullName}
-  `;
-  return result.rows[0] as { id: number; source: string; fullName: string } | null;
+  const result = await db
+    .select({
+      id: repositories.id,
+      source: repositories.source,
+      fullName: repositories.fullName,
+    })
+    .from(repositories)
+    .where(and(
+      eq(repositories.source, source),
+      eq(repositories.fullName, fullName)
+    ));
+  return result[0] || null;
 }
 
 export async function getRepositoryDetails(
@@ -1332,7 +1372,7 @@ export async function getRepositoryDetails(
   const effectiveStartDate = startDate || '1970-01-01';
   const effectiveEndDate = endDate || '9999-12-31';
 
-  const result = await sql`
+  const result = await vercelSql`
     SELECT
       r.id,
       r.source,
@@ -1391,7 +1431,7 @@ export async function getRepositoryDetailsWithComparison(
 
   const [currentDetails, prevResult] = await Promise.all([
     getRepositoryDetails(repoId, startDate, endDate),
-    sql`
+    vercelSql`
       SELECT
         COUNT(c.id)::int as "totalCommits",
         COUNT(c.id) FILTER (WHERE c.ai_tool IS NOT NULL)::int as "aiAssistedCommits",
@@ -1435,20 +1475,20 @@ export interface RepositoryDataRange {
 export async function getRepositoryDataRange(
   repoId: number
 ): Promise<RepositoryDataRange> {
-  const result = await sql`
-    SELECT
-      MIN(committed_at)::text as "firstCommit",
-      MAX(committed_at)::text as "lastCommit",
-      COUNT(*)::int as "totalCommits"
-    FROM commits
-    WHERE repo_id = ${repoId}
-  `;
+  const result = await db
+    .select({
+      firstCommit: sql<string>`MIN(committed_at)::text`,
+      lastCommit: sql<string>`MAX(committed_at)::text`,
+      totalCommits: count(),
+    })
+    .from(commits)
+    .where(eq(commits.repoId, repoId));
 
-  const row = result.rows[0];
+  const row = result[0];
   return {
     firstCommit: row?.firstCommit || null,
     lastCommit: row?.lastCommit || null,
-    totalCommits: row?.totalCommits || 0,
+    totalCommits: Number(row?.totalCommits) || 0,
   };
 }
 
@@ -1472,7 +1512,7 @@ export async function getRepositoryCommits(
     aiCondition = 'AND c.ai_tool IS NULL';
   }
 
-  const countResult = await sql.query(`
+  const countResult = await vercelSql.query(`
     SELECT COUNT(*)::int as count
     FROM commits c
     WHERE c.repo_id = $1
@@ -1481,7 +1521,7 @@ export async function getRepositoryCommits(
       ${aiCondition}
   `, [repoId, effectiveStartDate, effectiveEndDate]);
 
-  const result = await sql.query(`
+  const result = await vercelSql.query(`
     SELECT
       c.id,
       c.commit_id as "commitId",
@@ -1508,7 +1548,7 @@ export async function getRepositoryCommits(
   const attributionsByCommitId: Map<number, CommitAttributionData[]> = new Map();
 
   if (commitIds.length > 0) {
-    const attrResult = await sql.query(`
+    const attrResult = await vercelSql.query(`
       SELECT
         commit_id as "commitId",
         ai_tool as "aiTool",
@@ -1552,7 +1592,7 @@ export async function getRepositoryAuthors(
   const effectiveStartDate = startDate || '1970-01-01';
   const effectiveEndDate = endDate || '9999-12-31';
 
-  const result = await sql`
+  const result = await vercelSql`
     SELECT
       c.author_email as "authorEmail",
       COUNT(*)::int as "totalCommits",
@@ -1580,7 +1620,7 @@ export async function getRepositoryDailyStats(
   startDate: string,
   endDate: string
 ): Promise<DailyRepoCommitStats[]> {
-  const result = await sql`
+  const result = await vercelSql`
     WITH date_series AS (
       SELECT generate_series(
         ${startDate}::date,
@@ -1622,7 +1662,7 @@ export async function getModelTrends(
   startDate: string,
   endDate: string
 ): Promise<ModelTrendData[]> {
-  const result = await sql`
+  const result = await vercelSql`
     WITH date_series AS (
       SELECT generate_series(
         ${startDate}::date,
@@ -1672,7 +1712,7 @@ export async function getToolTrends(
   startDate: string,
   endDate: string
 ): Promise<ToolTrendData[]> {
-  const result = await sql`
+  const result = await vercelSql`
     WITH date_series AS (
       SELECT generate_series(
         ${startDate}::date,
@@ -1729,7 +1769,7 @@ export async function getUserCommitStats(
   const effectiveEndDate = endDate || '9999-12-31';
 
   const [overallResult, toolBreakdownResult] = await Promise.all([
-    sql`
+    vercelSql`
       SELECT
         COUNT(*)::int as "totalCommits",
         COUNT(*) FILTER (WHERE ai_tool IS NOT NULL)::int as "aiAssistedCommits"
@@ -1738,7 +1778,7 @@ export async function getUserCommitStats(
         AND committed_at >= ${effectiveStartDate}::timestamp
         AND committed_at < (${effectiveEndDate}::date + interval '1 day')
     `,
-    sql`
+    vercelSql`
       SELECT
         ai_tool as tool,
         COUNT(*)::int as commits

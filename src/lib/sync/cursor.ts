@@ -1,6 +1,7 @@
 import { insertUsageRecord } from '../queries';
 import { normalizeModelName } from '../utils';
-import { sql } from '@vercel/postgres';
+import { db, syncState, usageRecords } from '../db';
+import { eq, min } from 'drizzle-orm';
 
 interface CursorUsageEvent {
   userEmail: string;
@@ -54,59 +55,78 @@ export function getPreviousCompleteHourEnd(): Date {
 
 // Get Cursor sync state from database
 export async function getCursorSyncState(): Promise<{ lastSyncedHourEnd: number | null }> {
-  const result = await sql`
-    SELECT last_synced_hour_end FROM sync_state WHERE id = ${SYNC_STATE_ID}
-  `;
-  if (result.rows.length === 0 || !result.rows[0].last_synced_hour_end) {
+  const result = await db
+    .select({ lastSyncedHourEnd: syncState.lastSyncedHourEnd })
+    .from(syncState)
+    .where(eq(syncState.id, SYNC_STATE_ID));
+
+  if (result.length === 0 || !result[0].lastSyncedHourEnd) {
     return { lastSyncedHourEnd: null };
   }
-  return { lastSyncedHourEnd: parseInt(result.rows[0].last_synced_hour_end) };
+  return { lastSyncedHourEnd: parseInt(result[0].lastSyncedHourEnd) };
 }
 
 // Update Cursor sync state
 async function updateCursorSyncState(lastSyncedHourEnd: number): Promise<void> {
-  await sql`
-    INSERT INTO sync_state (id, last_sync_at, last_synced_hour_end)
-    VALUES (${SYNC_STATE_ID}, NOW(), ${lastSyncedHourEnd.toString()})
-    ON CONFLICT (id) DO UPDATE SET
-      last_sync_at = NOW(),
-      last_synced_hour_end = ${lastSyncedHourEnd.toString()}
-  `;
+  await db
+    .insert(syncState)
+    .values({
+      id: SYNC_STATE_ID,
+      lastSyncAt: new Date(),
+      lastSyncedHourEnd: lastSyncedHourEnd.toString(),
+    })
+    .onConflictDoUpdate({
+      target: syncState.id,
+      set: {
+        lastSyncAt: new Date(),
+        lastSyncedHourEnd: lastSyncedHourEnd.toString(),
+      },
+    });
 }
 
 // Get backfill state - derives oldest date from actual usage data
 export async function getCursorBackfillState(): Promise<{ oldestDate: string | null; isComplete: boolean }> {
   // Get actual oldest date from usage_records (source of truth)
-  const usageResult = await sql`
-    SELECT MIN(date)::text as oldest_date FROM usage_records WHERE tool = 'cursor'
-  `;
-  const oldestDate = usageResult.rows[0]?.oldest_date || null;
+  const usageResult = await db
+    .select({ oldestDate: min(usageRecords.date) })
+    .from(usageRecords)
+    .where(eq(usageRecords.tool, 'cursor'));
+  const oldestDate = usageResult[0]?.oldestDate || null;
 
   // Check if backfill has been explicitly marked complete (hit API's data limit)
-  const stateResult = await sql`
-    SELECT backfill_complete FROM sync_state WHERE id = ${SYNC_STATE_ID}
-  `;
-  const isComplete = stateResult.rows[0]?.backfill_complete === true;
+  const stateResult = await db
+    .select({ backfillComplete: syncState.backfillComplete })
+    .from(syncState)
+    .where(eq(syncState.id, SYNC_STATE_ID));
+  const isComplete = stateResult[0]?.backfillComplete === true;
 
   return { oldestDate, isComplete };
 }
 
 // Mark backfill as complete (hit API's data limit - no more historical data)
 async function markCursorBackfillComplete(): Promise<void> {
-  await sql`
-    INSERT INTO sync_state (id, last_sync_at, backfill_complete)
-    VALUES (${SYNC_STATE_ID}, NOW(), true)
-    ON CONFLICT (id) DO UPDATE SET
-      last_sync_at = NOW(),
-      backfill_complete = true
-  `;
+  await db
+    .insert(syncState)
+    .values({
+      id: SYNC_STATE_ID,
+      lastSyncAt: new Date(),
+      backfillComplete: true,
+    })
+    .onConflictDoUpdate({
+      target: syncState.id,
+      set: {
+        lastSyncAt: new Date(),
+        backfillComplete: true,
+      },
+    });
 }
 
 // Reset backfill complete flag (allows backfill to retry)
 export async function resetCursorBackfillComplete(): Promise<void> {
-  await sql`
-    UPDATE sync_state SET backfill_complete = false WHERE id = ${SYNC_STATE_ID}
-  `;
+  await db
+    .update(syncState)
+    .set({ backfillComplete: false })
+    .where(eq(syncState.id, SYNC_STATE_ID));
 }
 
 function getCursorAuthHeader(): string | null {
