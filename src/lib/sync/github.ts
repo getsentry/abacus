@@ -1,4 +1,5 @@
-import { sql } from '@vercel/postgres';
+import { db, repositories, commits, identityMappings, commitAttributions, syncState } from '../db';
+import { eq, and, min, sql } from 'drizzle-orm';
 
 // ============================================
 // Types
@@ -453,23 +454,26 @@ async function githubFetch(url: string, token: string): Promise<Response> {
  */
 export async function getOrCreateRepository(source: string, fullName: string): Promise<number> {
   // Try to get existing
-  const existing = await sql`
-    SELECT id FROM repositories WHERE source = ${source} AND full_name = ${fullName}
-  `;
+  const existing = await db
+    .select({ id: repositories.id })
+    .from(repositories)
+    .where(and(eq(repositories.source, source), eq(repositories.fullName, fullName)));
 
-  if (existing.rows.length > 0) {
-    return existing.rows[0].id;
+  if (existing.length > 0) {
+    return existing[0].id;
   }
 
   // Create new (use ON CONFLICT DO UPDATE to allow RETURNING)
-  const result = await sql`
-    INSERT INTO repositories (source, full_name)
-    VALUES (${source}, ${fullName})
-    ON CONFLICT (source, full_name) DO UPDATE SET full_name = EXCLUDED.full_name
-    RETURNING id
-  `;
+  const result = await db
+    .insert(repositories)
+    .values({ source, fullName })
+    .onConflictDoUpdate({
+      target: [repositories.source, repositories.fullName],
+      set: { fullName },
+    })
+    .returning({ id: repositories.id });
 
-  return result.rows[0].id;
+  return result[0].id;
 }
 
 // ============================================
@@ -522,26 +526,34 @@ async function insertCommit(commit: CommitInsert): Promise<void> {
   if (commit.authorId) {
     if (isRealWorkEmail(commit.authorEmail)) {
       // Real work email - create/update the mapping for future use
-      await sql`
-        INSERT INTO identity_mappings (source, external_id, email)
-        VALUES ('github', ${commit.authorId}, ${commit.authorEmail})
-        ON CONFLICT (source, external_id) DO NOTHING
-      `;
+      await db
+        .insert(identityMappings)
+        .values({
+          source: 'github',
+          externalId: commit.authorId,
+          email: commit.authorEmail!,
+        })
+        .onConflictDoNothing({
+          target: [identityMappings.source, identityMappings.externalId],
+        });
     } else {
       // Noreply/anonymous email - try to resolve using existing mapping
-      const mapping = await sql`
-        SELECT email FROM identity_mappings
-        WHERE source = 'github' AND external_id = ${commit.authorId}
-      `;
-      if (mapping.rows.length > 0) {
-        resolvedEmail = mapping.rows[0].email;
+      const mapping = await db
+        .select({ email: identityMappings.email })
+        .from(identityMappings)
+        .where(and(
+          eq(identityMappings.source, 'github'),
+          eq(identityMappings.externalId, commit.authorId)
+        ));
+      if (mapping.length > 0) {
+        resolvedEmail = mapping[0].email;
       }
     }
   }
 
   // Insert commit with message (ai_tool/ai_model still set for backward compatibility)
-  const result = await sql`
-    INSERT INTO commits (
+  const result = await db.execute<{ id: number }>(sql`
+    INSERT INTO ${commits} (
       repo_id, commit_id, author_email, author_id, committed_at,
       message, ai_tool, ai_model, additions, deletions
     )
@@ -560,20 +572,29 @@ async function insertCommit(commit: CommitInsert): Promise<void> {
       additions = COALESCE(EXCLUDED.additions, commits.additions),
       deletions = COALESCE(EXCLUDED.deletions, commits.deletions)
     RETURNING id
-  `;
+  `);
 
   const commitDbId = result.rows[0]?.id;
 
   // Insert all attributions to junction table
   if (commitDbId && commit.attributions && commit.attributions.length > 0) {
     for (const attr of commit.attributions) {
-      await sql`
-        INSERT INTO commit_attributions (commit_id, ai_tool, ai_model, confidence, source)
-        VALUES (${commitDbId}, ${attr.tool}, ${attr.model || null}, 'detected', ${attr.source || null})
-        ON CONFLICT (commit_id, ai_tool) DO UPDATE SET
-          ai_model = COALESCE(EXCLUDED.ai_model, commit_attributions.ai_model),
-          source = COALESCE(EXCLUDED.source, commit_attributions.source)
-      `;
+      await db
+        .insert(commitAttributions)
+        .values({
+          commitId: commitDbId,
+          aiTool: attr.tool,
+          aiModel: attr.model || null,
+          confidence: 'detected',
+          source: attr.source || null,
+        })
+        .onConflictDoUpdate({
+          target: [commitAttributions.commitId, commitAttributions.aiTool],
+          set: {
+            aiModel: sql`COALESCE(EXCLUDED.ai_model, ${commitAttributions.aiModel})`,
+            source: sql`COALESCE(EXCLUDED.source, ${commitAttributions.source})`,
+          },
+        });
     }
   }
 }
@@ -583,55 +604,73 @@ async function insertCommit(commit: CommitInsert): Promise<void> {
 // ============================================
 
 export async function getGitHubSyncState(): Promise<{ lastSyncedDate: string | null }> {
-  const result = await sql`
-    SELECT last_synced_hour_end FROM sync_state WHERE id = ${SYNC_STATE_ID}
-  `;
-  if (result.rows.length === 0 || !result.rows[0].last_synced_hour_end) {
+  const result = await db
+    .select({ lastSyncedHourEnd: syncState.lastSyncedHourEnd })
+    .from(syncState)
+    .where(eq(syncState.id, SYNC_STATE_ID));
+
+  if (result.length === 0 || !result[0].lastSyncedHourEnd) {
     return { lastSyncedDate: null };
   }
-  return { lastSyncedDate: result.rows[0].last_synced_hour_end };
+  return { lastSyncedDate: result[0].lastSyncedHourEnd };
 }
 
 async function updateGitHubSyncState(lastSyncedDate: string): Promise<void> {
-  await sql`
-    INSERT INTO sync_state (id, last_sync_at, last_synced_hour_end)
-    VALUES (${SYNC_STATE_ID}, NOW(), ${lastSyncedDate})
-    ON CONFLICT (id) DO UPDATE SET
-      last_sync_at = NOW(),
-      last_synced_hour_end = ${lastSyncedDate}
-  `;
+  await db
+    .insert(syncState)
+    .values({
+      id: SYNC_STATE_ID,
+      lastSyncAt: new Date(),
+      lastSyncedHourEnd: lastSyncedDate,
+    })
+    .onConflictDoUpdate({
+      target: syncState.id,
+      set: {
+        lastSyncAt: new Date(),
+        lastSyncedHourEnd: lastSyncedDate,
+      },
+    });
 }
 
 export async function getGitHubBackfillState(): Promise<{ oldestDate: string | null; isComplete: boolean }> {
   // Get oldest commit date from database
-  const usageResult = await sql`
-    SELECT MIN(committed_at::date)::text as oldest_date FROM commits
-  `;
+  const usageResult = await db.execute<{ oldest_date: string | null }>(sql`
+    SELECT MIN(committed_at::date)::text as oldest_date FROM ${commits}
+  `);
   const oldestDate = usageResult.rows[0]?.oldest_date || null;
 
   // Check if backfill is marked complete
-  const stateResult = await sql`
-    SELECT backfill_complete FROM sync_state WHERE id = ${SYNC_STATE_ID}
-  `;
-  const isComplete = stateResult.rows[0]?.backfill_complete === true;
+  const stateResult = await db
+    .select({ backfillComplete: syncState.backfillComplete })
+    .from(syncState)
+    .where(eq(syncState.id, SYNC_STATE_ID));
+  const isComplete = stateResult[0]?.backfillComplete === true;
 
   return { oldestDate, isComplete };
 }
 
 async function markGitHubBackfillComplete(): Promise<void> {
-  await sql`
-    INSERT INTO sync_state (id, last_sync_at, backfill_complete)
-    VALUES (${SYNC_STATE_ID}, NOW(), true)
-    ON CONFLICT (id) DO UPDATE SET
-      last_sync_at = NOW(),
-      backfill_complete = true
-  `;
+  await db
+    .insert(syncState)
+    .values({
+      id: SYNC_STATE_ID,
+      lastSyncAt: new Date(),
+      backfillComplete: true,
+    })
+    .onConflictDoUpdate({
+      target: syncState.id,
+      set: {
+        lastSyncAt: new Date(),
+        backfillComplete: true,
+      },
+    });
 }
 
 export async function resetGitHubBackfillComplete(): Promise<void> {
-  await sql`
-    UPDATE sync_state SET backfill_complete = false WHERE id = ${SYNC_STATE_ID}
-  `;
+  await db
+    .update(syncState)
+    .set({ backfillComplete: false })
+    .where(eq(syncState.id, SYNC_STATE_ID));
 }
 
 // ============================================
@@ -867,14 +906,14 @@ export async function syncGitHubRepo(
         return result;
       }
 
-      const commits: GitHubCommitResponse[] = await response.json();
+      const fetchedCommits: GitHubCommitResponse[] = await response.json();
 
-      if (commits.length === 0) {
+      if (fetchedCommits.length === 0) {
         hasMore = false;
         continue;
       }
 
-      for (const commit of commits) {
+      for (const commit of fetchedCommits) {
         try {
           // Skip merge commits (2+ parents) - they don't represent actual code changes
           if (commit.parents && commit.parents.length > 1) {
@@ -882,13 +921,17 @@ export async function syncGitHubRepo(
           }
 
           // Check if commit already exists in DB with line stats populated
-          const existing = await sql`
-            SELECT id, additions, deletions FROM commits
-            WHERE repo_id = ${repoId} AND commit_id = ${commit.sha}
-          `;
+          const existing = await db
+            .select({
+              id: commits.id,
+              additions: commits.additions,
+              deletions: commits.deletions,
+            })
+            .from(commits)
+            .where(and(eq(commits.repoId, repoId), eq(commits.commitId, commit.sha)));
 
           // If commit exists and has line stats (not null), skip it entirely
-          if (existing.rows.length > 0 && existing.rows[0].additions !== null) {
+          if (existing.length > 0 && existing[0].additions !== null) {
             continue;
           }
 
@@ -932,9 +975,9 @@ export async function syncGitHubRepo(
         }
       }
 
-      log(`  ${repoFullName}: Page ${page}, ${commits.length} commits (${result.aiAttributedCommits} AI Attributed)`);
+      log(`  ${repoFullName}: Page ${page}, ${fetchedCommits.length} commits (${result.aiAttributedCommits} AI Attributed)`);
 
-      if (commits.length < perPage) {
+      if (fetchedCommits.length < perPage) {
         hasMore = false;
       } else {
         page++;
@@ -1158,17 +1201,21 @@ export async function cleanupMergeCommits(
   }
 
   // Get all commits grouped by repo
-  const commits = await sql`
+  const allCommits = await db.execute<{
+    id: number;
+    commit_id: string;
+    full_name: string;
+  }>(sql`
     SELECT c.id, c.commit_id, r.full_name
-    FROM commits c
-    JOIN repositories r ON r.id = c.repo_id
+    FROM ${commits} c
+    JOIN ${repositories} r ON r.id = c.repo_id
     ORDER BY r.full_name, c.committed_at
-  `;
+  `);
 
-  log(`Checking ${commits.rows.length} commits for merge status...`);
+  log(`Checking ${allCommits.rows.length} commits for merge status...`);
 
   let lastRepo = '';
-  for (const commit of commits.rows) {
+  for (const commit of allCommits.rows) {
     result.checked++;
 
     // Log progress every repo change
@@ -1186,7 +1233,7 @@ export async function cleanupMergeCommits(
 
         if (!options.dryRun) {
           // Delete commit (CASCADE will handle commit_attributions)
-          await sql`DELETE FROM commits WHERE id = ${commit.id}`;
+          await db.delete(commits).where(eq(commits.id, commit.id));
           result.deleted++;
         } else {
           result.deleted++; // Count as "would be deleted"
@@ -1201,7 +1248,7 @@ export async function cleanupMergeCommits(
 
     // Progress update every 100 commits
     if (result.checked % 100 === 0) {
-      log(`  Progress: ${result.checked}/${commits.rows.length} checked, ${result.deleted} merge commits ${options.dryRun ? 'found' : 'deleted'}`);
+      log(`  Progress: ${result.checked}/${allCommits.rows.length} checked, ${result.deleted} merge commits ${options.dryRun ? 'found' : 'deleted'}`);
     }
   }
 

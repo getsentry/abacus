@@ -8,9 +8,10 @@
  * automatically sync verified domain emails for org members.
  */
 
-import { sql } from '@vercel/postgres';
 import { getIdentityMappings, setIdentityMapping } from '../queries';
 import { getGitHubToken } from './github';
+import { db, commits, repositories, identityMappings } from '../db';
+import { sql } from 'drizzle-orm';
 
 const SOURCE = 'github';
 const GITHUB_ORG = process.env.GITHUB_ORG || 'getsentry';
@@ -177,18 +178,18 @@ export async function syncGitHubMemberEmails(
  * Check if there are unattributed commits that need mapping.
  */
 export async function hasUnattributedCommits(): Promise<boolean> {
-  const result = await sql`
+  const result = await db.execute<{ has_unattributed: boolean }>(sql`
     SELECT EXISTS (
       SELECT 1
-      FROM commits c
-      JOIN repositories r ON c.repo_id = r.id
-      LEFT JOIN identity_mappings m ON m.source = r.source AND m.external_id = c.author_id
+      FROM ${commits} c
+      JOIN ${repositories} r ON c.repo_id = r.id
+      LEFT JOIN ${identityMappings} m ON m.source = r.source AND m.external_id = c.author_id
       WHERE r.source = 'github'
         AND c.author_id IS NOT NULL
         AND m.external_id IS NULL
       LIMIT 1
     ) as has_unattributed
-  `;
+  `);
   return result.rows[0]?.has_unattributed === true;
 }
 
@@ -238,26 +239,26 @@ export async function getUnmappedGitHubUsers(): Promise<{
   commitCount: number;
   sampleEmail: string | null;
 }[]> {
-  const result = await sql`
+  const result = await db.execute<{
+    authorId: string;
+    commitCount: number;
+    sampleEmail: string | null;
+  }>(sql`
     SELECT
       c.author_id as "authorId",
       COUNT(*)::int as "commitCount",
       MIN(c.author_email) as "sampleEmail"
-    FROM commits c
-    JOIN repositories r ON c.repo_id = r.id
-    LEFT JOIN identity_mappings m ON m.source = r.source AND m.external_id = c.author_id
+    FROM ${commits} c
+    JOIN ${repositories} r ON c.repo_id = r.id
+    LEFT JOIN ${identityMappings} m ON m.source = r.source AND m.external_id = c.author_id
     WHERE r.source = 'github'
       AND c.author_id IS NOT NULL
       AND m.external_id IS NULL
     GROUP BY c.author_id
     ORDER BY "commitCount" DESC
-  `;
+  `);
 
-  return result.rows as {
-    authorId: string;
-    commitCount: number;
-    sampleEmail: string | null;
-  }[];
+  return result.rows;
 }
 
 /**
@@ -271,17 +272,20 @@ export async function getGitHubUsersWithMappingStatus(org?: string): Promise<{
   isMapped: boolean;
 }[]> {
   // First, get all unique author_ids from commits
-  const commitAuthors = await sql`
+  const commitAuthors = await db.execute<{
+    authorId: string;
+    commitCount: number;
+  }>(sql`
     SELECT
       c.author_id as "authorId",
       COUNT(*)::int as "commitCount"
-    FROM commits c
-    JOIN repositories r ON c.repo_id = r.id
+    FROM ${commits} c
+    JOIN ${repositories} r ON c.repo_id = r.id
     WHERE r.source = 'github'
       AND c.author_id IS NOT NULL
     GROUP BY c.author_id
     ORDER BY "commitCount" DESC
-  `;
+  `);
 
   // Get existing mappings
   const mappings = await getIdentityMappings(SOURCE);
