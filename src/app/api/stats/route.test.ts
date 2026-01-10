@@ -1,14 +1,8 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
 import { insertUsageRecord } from '@/lib/queries';
+import { mockAuthenticated, mockUnauthenticated } from '@/test-utils/auth';
+import { GET } from './route';
 
-vi.mock('@/lib/auth', () => ({
-  getSession: vi.fn(),
-}));
-
-import { getSession } from '@/lib/auth';
-import { GET } from '@/app/api/stats/route';
-
-// Helper to seed test data
 async function seedTestData() {
   await insertUsageRecord({
     date: '2025-01-01',
@@ -26,15 +20,13 @@ async function seedTestData() {
 
 describe('GET /api/stats', () => {
   beforeEach(async () => {
-    vi.clearAllMocks();
     await seedTestData();
   });
 
   it('returns 401 for unauthenticated requests', async () => {
-    vi.mocked(getSession).mockResolvedValueOnce(null);
+    await mockUnauthenticated();
 
-    const request = new Request('http://localhost/api/stats');
-    const response = await GET(request);
+    const response = await GET(new Request('http://localhost/api/stats'));
 
     expect(response.status).toBe(401);
     const data = await response.json();
@@ -42,12 +34,9 @@ describe('GET /api/stats', () => {
   });
 
   it('returns 400 for invalid startDate format', async () => {
-    vi.mocked(getSession).mockResolvedValueOnce({
-      user: { email: 'test@example.com', name: 'Test' },
-    } as never);
+    await mockAuthenticated();
 
-    const request = new Request('http://localhost/api/stats?startDate=invalid');
-    const response = await GET(request);
+    const response = await GET(new Request('http://localhost/api/stats?startDate=invalid'));
 
     expect(response.status).toBe(400);
     const data = await response.json();
@@ -55,12 +44,9 @@ describe('GET /api/stats', () => {
   });
 
   it('returns 400 for invalid endDate format', async () => {
-    vi.mocked(getSession).mockResolvedValueOnce({
-      user: { email: 'test@example.com', name: 'Test' },
-    } as never);
+    await mockAuthenticated();
 
-    const request = new Request('http://localhost/api/stats?endDate=01-01-2025');
-    const response = await GET(request);
+    const response = await GET(new Request('http://localhost/api/stats?endDate=01-01-2025'));
 
     expect(response.status).toBe(400);
     const data = await response.json();
@@ -68,14 +54,11 @@ describe('GET /api/stats', () => {
   });
 
   it('returns stats for authenticated users', async () => {
-    vi.mocked(getSession).mockResolvedValueOnce({
-      user: { email: 'test@example.com', name: 'Test' },
-    } as never);
+    await mockAuthenticated();
 
-    const request = new Request(
-      'http://localhost/api/stats?startDate=2025-01-01&endDate=2025-01-31'
+    const response = await GET(
+      new Request('http://localhost/api/stats?startDate=2025-01-01&endDate=2025-01-31')
     );
-    const response = await GET(request);
 
     expect(response.status).toBe(200);
     const data = await response.json();

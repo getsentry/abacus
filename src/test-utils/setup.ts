@@ -79,6 +79,15 @@ afterAll(async () => {
 });
 
 // =============================================================================
+// Auth Mock - Global mock for @/lib/auth
+// =============================================================================
+
+vi.mock('@/lib/auth', () => ({
+  getSession: vi.fn().mockResolvedValue(null),
+  requireSession: vi.fn().mockRejectedValue(new Error('Unauthorized')),
+}));
+
+// =============================================================================
 // MSW Setup for External API Mocking
 // =============================================================================
 

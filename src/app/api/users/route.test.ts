@@ -1,14 +1,8 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
 import { insertUsageRecord } from '@/lib/queries';
+import { mockAuthenticated, mockUnauthenticated } from '@/test-utils/auth';
+import { GET } from './route';
 
-vi.mock('@/lib/auth', () => ({
-  getSession: vi.fn(),
-}));
-
-import { getSession } from '@/lib/auth';
-import { GET } from '@/app/api/users/route';
-
-// Helper to seed test data
 async function seedTestData() {
   await insertUsageRecord({
     date: '2025-01-01',
@@ -38,15 +32,13 @@ async function seedTestData() {
 
 describe('GET /api/users', () => {
   beforeEach(async () => {
-    vi.clearAllMocks();
     await seedTestData();
   });
 
   it('returns 401 for unauthenticated requests', async () => {
-    vi.mocked(getSession).mockResolvedValueOnce(null);
+    await mockUnauthenticated();
 
-    const request = new Request('http://localhost/api/users');
-    const response = await GET(request);
+    const response = await GET(new Request('http://localhost/api/users'));
 
     expect(response.status).toBe(401);
     const data = await response.json();
@@ -54,14 +46,11 @@ describe('GET /api/users', () => {
   });
 
   it('returns user summaries for authenticated users', async () => {
-    vi.mocked(getSession).mockResolvedValueOnce({
-      user: { email: 'test@example.com', name: 'Test' },
-    } as never);
+    await mockAuthenticated();
 
-    const request = new Request(
-      'http://localhost/api/users?startDate=2025-01-01&endDate=2025-01-31'
+    const response = await GET(
+      new Request('http://localhost/api/users?startDate=2025-01-01&endDate=2025-01-31')
     );
-    const response = await GET(request);
 
     expect(response.status).toBe(200);
     const users = await response.json();
@@ -69,14 +58,11 @@ describe('GET /api/users', () => {
   });
 
   it('supports pagination', async () => {
-    vi.mocked(getSession).mockResolvedValueOnce({
-      user: { email: 'test@example.com', name: 'Test' },
-    } as never);
+    await mockAuthenticated();
 
-    const request = new Request(
-      'http://localhost/api/users?startDate=2025-01-01&endDate=2025-01-31&limit=1&offset=0'
+    const response = await GET(
+      new Request('http://localhost/api/users?startDate=2025-01-01&endDate=2025-01-31&limit=1&offset=0')
     );
-    const response = await GET(request);
 
     expect(response.status).toBe(200);
     const users = await response.json();
@@ -84,14 +70,11 @@ describe('GET /api/users', () => {
   });
 
   it('supports search filtering', async () => {
-    vi.mocked(getSession).mockResolvedValueOnce({
-      user: { email: 'test@example.com', name: 'Test' },
-    } as never);
+    await mockAuthenticated();
 
-    const request = new Request(
-      'http://localhost/api/users?startDate=2025-01-01&endDate=2025-01-31&search=user1'
+    const response = await GET(
+      new Request('http://localhost/api/users?startDate=2025-01-01&endDate=2025-01-31&search=user1')
     );
-    const response = await GET(request);
 
     expect(response.status).toBe(200);
     const users = await response.json();
