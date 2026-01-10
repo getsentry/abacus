@@ -1,0 +1,119 @@
+---
+title: Architecture
+description: Understanding the Abacus codebase structure
+sidebar:
+  order: 1
+---
+
+## Directory Structure
+
+```
+src/
+├── app/
+│   ├── page.tsx              # Main dashboard
+│   ├── users/                # Users list and profiles
+│   ├── team/                 # Team pivot table
+│   ├── commits/              # Commits dashboard
+│   ├── status/               # Sync status page
+│   └── api/
+│       ├── auth/             # Authentication (better-auth)
+│       ├── cron/             # Cron job endpoints
+│       └── webhooks/         # GitHub webhook handler
+├── components/               # Reusable React components
+├── lib/
+│   ├── schema.ts             # Drizzle ORM schema
+│   ├── queries.ts            # Database queries
+│   ├── auth.ts               # Authentication config
+│   ├── sync/                 # Provider sync modules
+│   │   ├── anthropic.ts      # Claude Code sync
+│   │   ├── cursor.ts         # Cursor sync
+│   │   ├── github.ts         # GitHub commits
+│   │   └── index.ts          # Sync orchestration
+│   └── utils.ts              # Utility functions
+└── scripts/
+    └── cli/                  # CLI tool commands
+```
+
+## Key Concepts
+
+### Usage Records
+
+All usage data is stored in the `usage_records` table with a consistent structure:
+
+- `date` - The day the usage occurred
+- `email` - User email address
+- `tool` - Provider name (claude-code, cursor, etc.)
+- `model` - AI model used
+- `input_tokens` / `output_tokens` - Token counts
+- `cost` - Calculated cost in USD
+
+### Sync State
+
+The `sync_state` table tracks incremental sync progress per provider:
+
+- Last sync timestamp
+- Backfill status (in progress, complete)
+- Cursor position for paginated APIs
+
+### Identity Mappings
+
+The `identity_mappings` table maps provider-specific IDs to user emails:
+
+- API key IDs → email (Claude Code)
+- Provider user IDs → email (Cursor)
+- GitHub usernames → email
+
+## Database
+
+Abacus uses PostgreSQL with Drizzle ORM.
+
+### Schema Location
+
+Schema is defined in `src/lib/schema.ts`.
+
+### Migrations
+
+Migrations are stored in `/drizzle/` and run automatically on build.
+
+Generate a new migration after schema changes:
+
+```bash
+pnpm db:generate
+```
+
+Run migrations manually:
+
+```bash
+pnpm cli db:migrate
+```
+
+## Authentication
+
+Abacus uses [better-auth](https://github.com/better-auth/better-auth) with Google OAuth.
+
+- Sessions stored in database
+- Email domain restriction via `NEXT_PUBLIC_DOMAIN`
+- All routes require authentication except `/sign-in` and `/api/auth/*`
+
+## API Routes
+
+All API routes follow the same pattern:
+
+```typescript
+import { NextResponse } from 'next/server';
+import { wrapRouteHandlerWithSentry } from '@sentry/nextjs';
+import { getSession } from '@/lib/auth';
+
+async function handler(request: Request) {
+  const session = await getSession();
+  if (!session) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+  // handler logic
+}
+
+export const GET = wrapRouteHandlerWithSentry(handler, {
+  method: 'GET',
+  parameterizedRoute: '/api/your-route',
+});
+```

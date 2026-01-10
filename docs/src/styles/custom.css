@@ -1,0 +1,177 @@
+/* Import Outfit font for display text */
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap');
+
+/* Force dark theme only - override all theme variants */
+:root,
+[data-theme='light'],
+[data-theme='dark'] {
+  /* Background: #050507 (Abacus near-black) */
+  --sl-color-black: #050507;
+  --sl-color-bg: #050507;
+  --sl-color-bg-nav: rgba(255, 255, 255, 0.02);
+  --sl-color-bg-sidebar: #050507;
+
+  /* Gray scale mapped to white opacity levels (Abacus text hierarchy) */
+  --sl-color-gray-1: rgba(255, 255, 255, 1);      /* Primary text */
+  --sl-color-gray-2: rgba(255, 255, 255, 0.7);    /* Secondary text */
+  --sl-color-gray-3: rgba(255, 255, 255, 0.5);    /* Muted text */
+  --sl-color-gray-4: rgba(255, 255, 255, 0.3);    /* Faint text */
+  --sl-color-gray-5: rgba(255, 255, 255, 0.1);    /* Subtle borders */
+  --sl-color-gray-6: rgba(255, 255, 255, 0.05);   /* Very subtle borders */
+  --sl-color-white: #ffffff;
+
+  /* Primary accent: Amber #f59e0b */
+  --sl-color-accent-low: rgba(245, 158, 11, 0.2);
+  --sl-color-accent: #f59e0b;
+  --sl-color-accent-high: #fbbf24;
+
+  /* Text colors */
+  --sl-color-text: rgba(255, 255, 255, 0.7);
+  --sl-color-text-accent: #f59e0b;
+
+  /* Borders using white/5 opacity (Abacus style) */
+  --sl-color-hairline: rgba(255, 255, 255, 0.05);
+  --sl-color-hairline-light: rgba(255, 255, 255, 0.03);
+
+  /* Code block backgrounds */
+  --sl-color-bg-inline-code: rgba(255, 255, 255, 0.05);
+
+  /* Typography */
+  --sl-font: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  --sl-font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
+/* Apply Outfit to headings */
+h1, h2, h3, h4, h5, h6,
+.sl-markdown-content h1,
+.sl-markdown-content h2,
+.sl-markdown-content h3,
+.sl-markdown-content h4,
+.sl-markdown-content h5,
+.sl-markdown-content h6 {
+  font-family: 'Outfit', ui-sans-serif, system-ui, sans-serif;
+  letter-spacing: -0.02em;
+}
+
+/* Site title in header */
+.site-title,
+[data-pagefind-meta="title"] {
+  font-family: 'Outfit', ui-sans-serif, system-ui, sans-serif;
+  font-weight: 600;
+}
+
+/* Custom scrollbar matching Abacus */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.02);
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+/* Badge/tag colors using Abacus palette */
+.sl-badge {
+  font-family: 'Outfit', ui-sans-serif, system-ui, sans-serif;
+}
+
+/* Tip badge: Emerald */
+.sl-badge.tip,
+.starlight-aside--tip {
+  --sl-color-asides-text-accent: #34d399;
+  border-color: rgba(52, 211, 153, 0.2);
+  background: rgba(52, 211, 153, 0.1);
+}
+
+/* Note badge: Cyan */
+.sl-badge.note,
+.starlight-aside--note {
+  --sl-color-asides-text-accent: #06b6d4;
+  border-color: rgba(6, 182, 212, 0.2);
+  background: rgba(6, 182, 212, 0.1);
+}
+
+/* Caution badge: Amber */
+.sl-badge.caution,
+.starlight-aside--caution {
+  --sl-color-asides-text-accent: #f59e0b;
+  border-color: rgba(245, 158, 11, 0.2);
+  background: rgba(245, 158, 11, 0.1);
+}
+
+/* Danger badge: Red */
+.sl-badge.danger,
+.starlight-aside--danger {
+  --sl-color-asides-text-accent: #f87171;
+  border-color: rgba(248, 113, 113, 0.2);
+  background: rgba(248, 113, 113, 0.1);
+}
+
+/* Hide theme toggle (dark mode only) */
+starlight-theme-select {
+  display: none !important;
+}
+
+/* Card styling to match Abacus */
+.card {
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  background: rgba(255, 255, 255, 0.02);
+  border-radius: 8px;
+}
+
+/* Links */
+a {
+  color: #f59e0b;
+}
+
+a:hover {
+  color: #fbbf24;
+}
+
+/* Code blocks */
+pre {
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  background: rgba(255, 255, 255, 0.02) !important;
+}
+
+/* Tables */
+table {
+  border-color: rgba(255, 255, 255, 0.05);
+}
+
+th {
+  background: rgba(255, 255, 255, 0.02);
+  font-family: 'Outfit', ui-sans-serif, system-ui, sans-serif;
+  font-weight: 500;
+}
+
+td, th {
+  border-color: rgba(255, 255, 255, 0.05);
+}
+
+/* Sidebar active item */
+nav.sidebar a[aria-current="page"] {
+  background: rgba(245, 158, 11, 0.1);
+  color: #f59e0b;
+  border-left: 2px solid #f59e0b;
+}
+
+/* Search input */
+input[type="search"] {
+  background: rgba(255, 255, 255, 0.02);
+  border-color: rgba(255, 255, 255, 0.05);
+}
+
+input[type="search"]:focus {
+  border-color: rgba(245, 158, 11, 0.5);
+  background: rgba(255, 255, 255, 0.04);
+}

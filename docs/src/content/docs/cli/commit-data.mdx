@@ -1,0 +1,124 @@
+---
+title: Commit Data
+description: Sync AI-attributed commits from GitHub repositories
+sidebar:
+  order: 3
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+Sync AI-attributed commits from GitHub by detecting `Co-Authored-By` headers.
+
+## Sync Commits
+
+Sync commits from a specific repository:
+
+```bash
+# Sync last 90 days (default)
+pnpm cli github:sync getsentry/sentry
+
+# Sync last 30 days
+pnpm cli github:sync getsentry/sentry --days 30
+```
+
+### Sync Options
+
+| Option | Description |
+|--------|-------------|
+| `--days <n>` | Sync last N days (default: 90) |
+| `--from <date>` | Backfill from date (syncs all repos) |
+| `--reset` | Delete existing commits first |
+| `--full` | Reset and sync from 2024-01-01 |
+| `--dry-run` | Preview without writing to database |
+| `--retry` | Retry failed requests with backoff |
+
+### Full Reset
+
+To completely rebuild commit data:
+
+```bash
+# Reset and backfill from a specific date
+pnpm cli github:sync --reset --from 2024-01-01
+
+# Shorthand for the above
+pnpm cli github:sync --full
+```
+
+<Aside type="caution">
+  `--reset` deletes existing commits before syncing. Use with care.
+</Aside>
+
+## Dry Run
+
+Test detection without writing to the database:
+
+```bash
+pnpm cli github:sync getsentry/sentry --dry-run
+```
+
+Useful for verifying your GitHub App setup.
+
+## Backfill All Repositories
+
+Backfill historical commits across all repos the GitHub App can access:
+
+```bash
+pnpm cli backfill github --from 2024-10-01
+```
+
+Mark backfill complete:
+
+```bash
+pnpm cli backfill:complete github
+```
+
+## Check Sync Status
+
+View sync state and statistics:
+
+```bash
+pnpm cli github:status
+```
+
+## Debug Commits
+
+Inspect commits stored in the database:
+
+```bash
+# Show recent commits for a repo
+pnpm cli github:commits getsentry/sentry
+
+# Limit results
+pnpm cli github:commits getsentry/sentry --limit 50
+```
+
+## User Identity Mapping
+
+Map GitHub usernames to work emails:
+
+```bash
+# List users and their mapping status
+pnpm cli github:users
+
+# Sync emails from GitHub org (requires GraphQL access)
+pnpm cli github:users:sync
+
+# Manually map a user
+pnpm cli github:users:map 12345678 user@company.com
+```
+
+<Aside type="note">
+  GitHub commits are attributed to the commit author's GitHub username. Use these commands to map usernames to your organization's email addresses.
+</Aside>
+
+## Cleanup
+
+Remove merge commits that were incorrectly tracked:
+
+```bash
+# Dry run
+pnpm cli github:cleanup-merges --dry-run
+
+# Execute
+pnpm cli github:cleanup-merges
+```

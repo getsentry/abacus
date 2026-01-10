@@ -1,0 +1,91 @@
+---
+title: Cursor
+description: Track Cursor usage via API or CSV import
+sidebar:
+  order: 3
+---
+
+import { Steps, Tabs, TabItem, Aside } from '@astrojs/starlight/components';
+
+Cursor usage can be imported via API or CSV.
+
+<Tabs>
+  <TabItem label="API Sync">
+    ## Option A: API Sync
+
+    <Steps>
+
+    1. Go to [Cursor Team Settings](https://cursor.com/settings/team)
+
+    2. Request admin API access from Cursor support
+
+    3. Set the environment variable:
+
+       ```bash
+       CURSOR_ADMIN_KEY=...
+       ```
+
+    </Steps>
+
+    ### Sync Behavior
+
+    | Setting | Value |
+    |---------|-------|
+    | Schedule | Hourly |
+    | Data | Token counts, model, user email, cost |
+
+    ### Manual Sync
+
+    ```bash
+    pnpm cli sync cursor --days 7
+    ```
+
+    Check sync status:
+
+    ```bash
+    pnpm cli cursor:status
+    ```
+  </TabItem>
+
+  <TabItem label="CSV Import">
+    ## Option B: CSV Import
+
+    Faster for large historical imports when API access isn't available.
+
+    <Steps>
+
+    1. Export from Cursor team dashboard → **Usage/Analytics → Export CSV**
+
+    2. Import the file:
+
+       ```bash
+       pnpm cli import:cursor-csv /path/to/export.csv
+       ```
+
+    </Steps>
+
+    <Aside type="tip">
+      CSV import is particularly useful for historical backfills or when you want to import data before you had API access.
+    </Aside>
+  </TabItem>
+</Tabs>
+
+## Backfill Historical Data
+
+For API-based backfills:
+
+```bash
+pnpm cli backfill cursor --from 2025-01-01 --to 2025-06-01
+```
+
+Mark backfill as complete:
+
+```bash
+pnpm cli backfill:complete cursor
+```
+
+Reset backfill status to re-run:
+
+```bash
+pnpm cli backfill:reset cursor
+```

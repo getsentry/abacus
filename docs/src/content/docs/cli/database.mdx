@@ -1,0 +1,42 @@
+---
+title: Database
+description: Database migrations, statistics, and maintenance
+sidebar:
+  order: 5
+---
+
+## Migrations
+
+Apply pending database migrations:
+
+```bash
+pnpm cli db:migrate
+```
+
+Migrations also run automatically on `pnpm build`.
+
+## Statistics
+
+View database statistics:
+
+```bash
+pnpm cli stats
+```
+
+Shows:
+- Total usage records
+- Records per provider
+- Date range of data
+- Top users by token count
+
+## Fix Duplicates
+
+Remove duplicate usage records (rare, but can happen from sync issues):
+
+```bash
+# Dry run - see what would be deleted
+pnpm cli fix:duplicates
+
+# Execute the cleanup
+pnpm cli fix:duplicates --execute
+```

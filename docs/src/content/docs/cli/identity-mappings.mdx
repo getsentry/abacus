@@ -1,0 +1,63 @@
+---
+title: Identity Mappings
+description: Map provider IDs to user email addresses
+sidebar:
+  order: 4
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+Abacus needs to map provider-specific identifiers to user email addresses. This page covers identity mapping for Claude Code API keys.
+
+<Aside type="note">
+  For GitHub user mapping, see [Commit Data](/abacus/cli/commit-data/#user-identity-mapping).
+</Aside>
+
+## Claude Code API Key Mappings
+
+The Anthropic Admin API returns usage by API key ID, not user email. Abacus maintains a mapping table to associate keys with users.
+
+### View Current Mappings
+
+```bash
+pnpm cli mappings
+```
+
+Shows all mapped API keys with their associated emails.
+
+### Sync from Anthropic
+
+Pull the latest mappings from the Anthropic API:
+
+```bash
+# Sync recently active keys
+pnpm cli mappings:sync
+
+# Sync all keys (slower but complete)
+pnpm cli mappings:sync --full
+```
+
+<Aside type="tip">
+  Run `mappings:sync` after adding new team members or API keys.
+</Aside>
+
+### Fix Unmapped Keys
+
+Interactive tool to assign emails to unmapped API keys:
+
+```bash
+pnpm cli mappings:fix
+```
+
+Prompts you to enter the email address for each unmapped key.
+
+## How Mapping Works
+
+1. Usage data is synced with API key IDs
+2. `mappings:sync` pulls known mappings from Anthropic
+3. Unmapped keys appear in the Abacus UI
+4. Use `mappings:fix` or the web UI to manually assign remaining keys
+
+## Web UI
+
+Unmapped API keys also appear in the Abacus web interface. Look for the "Mapping Assistant" on the status page to assign keys through the UI.

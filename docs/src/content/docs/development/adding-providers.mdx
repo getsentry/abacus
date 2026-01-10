@@ -1,0 +1,153 @@
+---
+title: Adding Providers
+description: How to add support for new AI tools
+sidebar:
+  order: 2
+---
+
+import { Steps, Aside } from '@astrojs/starlight/components';
+
+Abacus is designed to be extensible. Here's how to add support for a new AI coding tool.
+
+## Overview
+
+<Steps>
+
+1. Create a sync module in `src/lib/sync/`
+2. Add cron routes in `src/app/api/cron/`
+3. Add CLI commands in `scripts/cli/`
+4. Update the status page
+
+</Steps>
+
+## Step 1: Create Sync Module
+
+Create `src/lib/sync/your-provider.ts`:
+
+```typescript
+import { db } from '@/lib/db';
+import { usageRecords, syncState } from '@/lib/schema';
+
+export async function syncYourProvider(days: number = 7) {
+  // 1. Fetch data from provider API
+  const data = await fetchFromProviderAPI(days);
+
+  // 2. Transform to usage records format
+  const records = data.map(item => ({
+    date: item.date,
+    email: item.userEmail,
+    tool: 'your-provider',  // Unique identifier
+    model: item.model,
+    inputTokens: item.inputTokens,
+    outputTokens: item.outputTokens,
+    cost: calculateCost(item),
+  }));
+
+  // 3. Upsert records (handles deduplication)
+  await db.insert(usageRecords)
+    .values(records)
+    .onConflictDoUpdate({
+      target: [usageRecords.date, usageRecords.email, usageRecords.tool, usageRecords.model],
+      set: {
+        inputTokens: sql`excluded.input_tokens`,
+        outputTokens: sql`excluded.output_tokens`,
+        cost: sql`excluded.cost`,
+      },
+    });
+
+  // 4. Update sync state
+  await updateSyncState('your-provider', new Date());
+
+  return records.length;
+}
+```
+
+<Aside type="tip">
+  Use a unique `tool` identifier that won't conflict with existing providers. This appears in the UI and database.
+</Aside>
+
+## Step 2: Add Cron Routes
+
+Create `src/app/api/cron/sync-your-provider/route.ts`:
+
+```typescript
+import { NextResponse } from 'next/server';
+import { syncYourProvider } from '@/lib/sync/your-provider';
+
+export async function POST(request: Request) {
+  // Verify cron secret
+  const authHeader = request.headers.get('authorization');
+  if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  try {
+    const count = await syncYourProvider();
+    return NextResponse.json({ success: true, records: count });
+  } catch (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+}
+```
+
+Add to `vercel.json`:
+
+```json
+{
+  "crons": [
+    {
+      "path": "/api/cron/sync-your-provider",
+      "schedule": "0 * * * *"
+    }
+  ]
+}
+```
+
+## Step 3: Add CLI Commands
+
+Add commands to `scripts/cli/index.ts`:
+
+```typescript
+import { syncYourProvider } from '../src/lib/sync/your-provider';
+
+program
+  .command('sync:your-provider')
+  .option('--days <n>', 'Days to sync', '7')
+  .action(async (options) => {
+    const count = await syncYourProvider(parseInt(options.days));
+    console.log(`Synced ${count} records`);
+  });
+
+program
+  .command('your-provider:status')
+  .action(async () => {
+    const state = await getSyncState('your-provider');
+    console.log(`Last sync: ${state.lastSync}`);
+  });
+```
+
+## Step 4: Update Status Page
+
+Add your provider to `src/app/status/page.tsx` to show sync status in the UI.
+
+## Data Requirements
+
+Each provider should store data in `usage_records` with:
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `date` | Yes | Date of usage (day precision) |
+| `email` | Yes | User email address |
+| `tool` | Yes | Your provider identifier |
+| `model` | Yes | AI model name |
+| `inputTokens` | Yes | Input token count |
+| `outputTokens` | Yes | Output token count |
+| `cost` | No | Cost in USD |
+
+## Best Practices
+
+1. **Aggregate by date/email/model** before inserting to reduce record count
+2. **Use upsert logic** to handle duplicate syncs gracefully
+3. **Store API cursors** in `sync_state` for incremental syncs
+4. **Normalize model names** using `normalizeModelName()` for consistency
+5. **Handle rate limits** with exponential backoff

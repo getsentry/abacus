@@ -1,0 +1,66 @@
+---
+title: Environment Variables
+description: Complete reference for all Abacus environment variables
+sidebar:
+  order: 3
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+## Required Variables
+
+These variables are required for Abacus to function:
+
+| Variable | Description |
+|----------|-------------|
+| `POSTGRES_URL` | PostgreSQL connection string |
+| `BETTER_AUTH_SECRET` | Secret for session encryption. Generate with: `openssl rand -base64 32` |
+| `GOOGLE_CLIENT_ID` | Google OAuth client ID |
+| `GOOGLE_CLIENT_SECRET` | Google OAuth client secret |
+| `NEXT_PUBLIC_DOMAIN` | Email domain to restrict access (e.g., `sentry.io`) |
+| `CRON_SECRET` | Secret for authenticating cron job requests. Generate with: `openssl rand -hex 32` |
+
+## Provider Variables
+
+### Claude Code (Anthropic)
+
+| Variable | Description |
+|----------|-------------|
+| `ANTHROPIC_ADMIN_KEY` | Anthropic Admin API key (starts with `sk-admin-`) |
+
+See [Claude Code setup](/abacus/providers/claude-code/) for details.
+
+### Cursor
+
+| Variable | Description |
+|----------|-------------|
+| `CURSOR_ADMIN_KEY` | Cursor Admin API key |
+
+See [Cursor setup](/abacus/providers/cursor/) for details.
+
+### GitHub Commits
+
+| Variable | Description |
+|----------|-------------|
+| `GITHUB_APP_ID` | GitHub App ID |
+| `GITHUB_APP_PRIVATE_KEY` | GitHub App private key (full PEM content) |
+| `GITHUB_APP_INSTALLATION_ID` | Installation ID for your organization |
+| `GITHUB_WEBHOOK_SECRET` | Webhook secret for verifying requests |
+
+For local development only:
+
+| Variable | Description |
+|----------|-------------|
+| `GITHUB_TOKEN` | Fine-grained personal access token (alternative to App) |
+
+See [GitHub Commits setup](/abacus/providers/github-commits/) for details.
+
+## Optional Variables
+
+| Variable | Description |
+|----------|-------------|
+| `NEXT_PUBLIC_SENTRY_DSN` | Sentry DSN for error tracking |
+
+<Aside type="tip">
+  In Vercel, you can paste multi-line values (like the GitHub private key) directly. The newlines will be preserved.
+</Aside>
