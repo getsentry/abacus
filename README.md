@@ -2,7 +2,7 @@
 
 Track and analyze AI coding tool usage across your team. Supports multiple providers with a modular architecture.
 
-![Abacus Dashboard](docs/screenshot.png)
+![Abacus Dashboard](docs/src/assets/screenshot.png)
 
 ## Features
 
