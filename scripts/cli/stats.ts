@@ -26,6 +26,6 @@ export async function cmdStats() {
     console.log(`\nDate range: ${dateRange.rows[0].min_date} to ${dateRange.rows[0].max_date}`);
   }
 
-  const mappingsCount = await sql`SELECT COUNT(*) as count FROM tool_identity_mappings`;
+  const mappingsCount = await sql`SELECT COUNT(*) as count FROM identity_mappings`;
   console.log(`\nTool identity mappings: ${mappingsCount.rows[0].count}`);
 }

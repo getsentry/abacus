@@ -258,8 +258,8 @@ export async function syncAnthropicUsage(
 
 /**
  * Sync Anthropic usage for the cron job.
- * Runs hourly to provide same-day visibility into usage data.
- * Syncs from yesterday to today - today's data will be partial until EOD.
+ * Runs every 6 hours. Syncs from yesterday to today.
+ * Note: Anthropic API has ~24h lag, so today's data is usually empty.
  */
 export async function syncAnthropicCron(): Promise<SyncResult> {
   const adminKey = process.env.ANTHROPIC_ADMIN_KEY;

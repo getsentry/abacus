@@ -2,7 +2,7 @@
   "crons": [
     {
       "path": "/api/cron/sync-anthropic",
-      "schedule": "0 * * * *"
+      "schedule": "0 */6 * * *"
     },
     {
       "path": "/api/cron/sync-cursor",
