@@ -11,7 +11,6 @@
       "Bash(tail:*)",
       "Bash(cat:*)",
       "Bash(tree:*)",
-
       "Bash(git status:*)",
       "Bash(git log:*)",
       "Bash(git diff:*)",
@@ -24,7 +23,6 @@
       "Bash(git fetch:*)",
       "Bash(git ls-files:*)",
       "Bash(git blame:*)",
-
       "Bash(gh pr view:*)",
       "Bash(gh pr list:*)",
       "Bash(gh pr checks:*)",
@@ -36,19 +34,16 @@
       "Bash(gh run logs:*)",
       "Bash(gh repo view:*)",
       "Bash(gh api:*)",
-
       "Bash(node --version:*)",
       "Bash(pnpm list:*)",
       "Bash(pnpm why:*)",
       "Bash(pnpm test:*)",
       "Bash(tsc --version:*)",
-
       "Bash(docker --version:*)",
       "Bash(docker ps:*)",
       "Bash(docker images:*)",
       "Bash(docker-compose ps:*)",
       "Bash(docker-compose config:*)",
-
       "WebFetch(domain:docs.anthropic.com)",
       "WebFetch(domain:docs.sentry.io)",
       "WebFetch(domain:develop.sentry.dev)",
@@ -61,7 +56,6 @@
       "WebFetch(domain:www.better-auth.com)",
       "WebFetch(domain:orm.drizzle.team)",
       "WebFetch(domain:vitest.dev)",
-
       "Skill(sentry-skills:commit)",
       "Skill(sentry-skills:create-pr)",
       "Skill(sentry-skills:code-review)",
@@ -70,7 +64,6 @@
       "Skill(sentry-skills:iterate-pr)",
       "Skill(sentry-skills:claude-settings-audit)",
       "Skill(sentry-skills:agents-md)",
-
       "mcp__sentry__whoami",
       "mcp__sentry__find_teams",
       "mcp__sentry__find_releases",
@@ -83,5 +76,9 @@
       "mcp__sentry__search_issue_events"
     ],
     "deny": []
+  },
+  "enabledPlugins": {
+    "pr-review-toolkit@claude-plugins-official": true,
+    "sentry-skills@sentry-skills": true
   }
 }

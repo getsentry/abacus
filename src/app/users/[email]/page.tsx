@@ -1,9 +1,10 @@
 'use client';
 
 import { useState, useEffect, useCallback, Suspense, useMemo } from 'react';
-import { useParams } from 'next/navigation';
+import { useParams, useSearchParams, useRouter } from 'next/navigation';
 import { useTimeRange } from '@/contexts/TimeRangeContext';
 import { motion, AnimatePresence } from 'framer-motion';
+import { RawUsageTable } from '@/components/RawUsageTable';
 import { StatCard } from '@/components/StatCard';
 import { UsageChart } from '@/components/UsageChart';
 import { TimeRangeSelector } from '@/components/TimeRangeSelector';
@@ -127,10 +128,29 @@ interface UserDetails {
 
 function UserDetailContent() {
   const params = useParams();
+  const searchParams = useSearchParams();
+  const router = useRouter();
   const { range, setRange, days, isPending, getDateParams } = useTimeRange();
 
   // URL uses username (e.g., /users/david), API resolves to full email
   const username = decodeURIComponent(params.email as string);
+
+  // Tab state from URL
+  const activeTab = searchParams.get('tab') || 'overview';
+
+  const setActiveTab = useCallback((tab: string) => {
+    const params = new URLSearchParams(searchParams.toString());
+    if (tab === 'overview') {
+      params.delete('tab');
+      // Clear raw usage specific params
+      params.delete('tool');
+      params.delete('model');
+      params.delete('page');
+    } else {
+      params.set('tab', tab);
+    }
+    router.push(`?${params.toString()}`, { scroll: false });
+  }, [searchParams, router]);
 
   const [data, setData] = useState<UserDetails | null>(null);
   const [loading, setLoading] = useState(true);
@@ -288,11 +308,43 @@ function UserDetailContent() {
           </div>
         ) : data?.summary ? (
           <div className="space-y-4 sm:space-y-6">
-            {/* Time Range Selector */}
-            <div className="flex items-center justify-end">
+            {/* Time Range Selector and Tab Navigation */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              {/* Tab Navigation */}
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={() => setActiveTab('overview')}
+                  className={`px-4 py-2 rounded font-mono text-xs transition-colors cursor-pointer ${
+                    activeTab === 'overview'
+                      ? 'bg-white/[0.08] text-white border-b-2 border-amber-500'
+                      : 'text-white/50 hover:text-white/70 hover:bg-white/[0.04]'
+                  }`}
+                >
+                  Overview
+                </button>
+                <button
+                  onClick={() => setActiveTab('raw')}
+                  className={`px-4 py-2 rounded font-mono text-xs transition-colors cursor-pointer ${
+                    activeTab === 'raw'
+                      ? 'bg-white/[0.08] text-white border-b-2 border-amber-500'
+                      : 'text-white/50 hover:text-white/70 hover:bg-white/[0.04]'
+                  }`}
+                >
+                  Raw Usage
+                </button>
+              </div>
               <TimeRangeSelector value={range} onChange={setRange} isPending={isPending} />
             </div>
 
+            {/* Tab Content */}
+            {activeTab === 'raw' ? (
+              <RawUsageTable
+                email={email}
+                startDate={getDateParams().startDate}
+                endDate={getDateParams().endDate}
+              />
+            ) : (
+            <>
             {/* Stats Row */}
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
               <StatCard
@@ -685,6 +737,8 @@ function UserDetailContent() {
                 </div>
               </div>
             </motion.div>
+            </>
+            )}
           </div>
         ) : (
           <div className="flex h-64 items-center justify-center">
