@@ -1,81 +1,51 @@
-import * as fs from 'fs';
+import { drizzle } from 'drizzle-orm/postgres-js';
+import { migrate } from 'drizzle-orm/postgres-js/migrator';
+import postgres from 'postgres';
 import * as path from 'path';
-import { sql } from '@vercel/postgres';
+import * as fs from 'fs';
 
 export async function cmdDbMigrate() {
   console.log('🗃️  Running database migrations\n');
 
-  if (!process.env.POSTGRES_URL) {
+  const connectionString = process.env.POSTGRES_URL;
+  if (!connectionString) {
     console.log('⚠️  POSTGRES_URL not set, skipping migrations');
     return;
   }
 
-  const migrationsDir = path.join(process.cwd(), 'drizzle');
+  const migrationClient = postgres(connectionString, { max: 1 });
+  const db = drizzle(migrationClient);
 
-  // Get all .sql files sorted by name
-  const files = fs.readdirSync(migrationsDir)
-    .filter(f => f.endsWith('.sql'))
-    .sort();
+  try {
+    const migrationsFolder = path.join(process.cwd(), 'drizzle');
 
-  if (files.length === 0) {
-    console.log('No migration files found in ./drizzle/');
-    return;
-  }
+    // Read journal to check what migrations exist
+    const journalPath = path.join(migrationsFolder, 'meta', '_journal.json');
+    const journal = JSON.parse(fs.readFileSync(journalPath, 'utf-8'));
 
-  console.log(`Found ${files.length} migration file(s)\n`);
+    // Check what's already applied in the database
+    const applied = await migrationClient`SELECT hash FROM drizzle.__drizzle_migrations` as { hash: string }[];
+    const appliedSet = new Set(applied.map(r => r.hash));
 
-  // Create migrations tracking table if it doesn't exist
-  await sql`
-    CREATE TABLE IF NOT EXISTS "_migrations" (
-      "id" SERIAL PRIMARY KEY,
-      "name" TEXT NOT NULL UNIQUE,
-      "applied_at" TIMESTAMP NOT NULL DEFAULT NOW()
-    )
-  `;
+    // Find pending migrations
+    const pending = journal.entries.filter((e: { tag: string }) => !appliedSet.has(e.tag));
 
-  // Get already applied migrations
-  const applied = await sql`SELECT name FROM "_migrations"`;
-  const appliedSet = new Set(applied.rows.map(r => r.name));
-
-  let migrationsRun = 0;
-
-  for (const file of files) {
-    if (appliedSet.has(file)) {
-      console.log(`✓ ${file} (already applied)`);
-      continue;
+    if (pending.length === 0) {
+      console.log(`✓ All ${applied.length} migrations already applied`);
+      return;
     }
 
-    console.log(`→ ${file}`);
+    console.log(`Found ${pending.length} pending migration(s):`);
+    pending.forEach((p: { tag: string }) => console.log(`  → ${p.tag}`));
+    console.log();
 
-    const filePath = path.join(migrationsDir, file);
-    const content = fs.readFileSync(filePath, 'utf-8');
+    await migrate(db, { migrationsFolder });
 
-    // Split by semicolons, strip comment lines, filter empty statements
-    const statements = content
-      .split(';')
-      .map(s => s
-        .split('\n')
-        .filter(line => !line.trim().startsWith('--'))
-        .join('\n')
-        .trim()
-      )
-      .filter(s => s.length > 0);
-
-    for (const stmt of statements) {
-      try {
-        await sql.query(stmt);
-      } catch (err) {
-        console.error(`  Error executing statement: ${err}`);
-        console.error(`  Statement: ${stmt.slice(0, 100)}...`);
-        throw err;
-      }
-    }
-
-    // Record migration as applied
-    await sql`INSERT INTO "_migrations" (name) VALUES (${file})`;
-    console.log(`  ✓ Applied`);
-    migrationsRun++;
+    console.log('✓ Migrations complete!');
+  } catch (error) {
+    console.error('Migration error:', error);
+    throw error;
+  } finally {
+    await migrationClient.end();
   }
-
-  console.log(`\n✓ Done! ${migrationsRun} migration(s) applied.`);
 }

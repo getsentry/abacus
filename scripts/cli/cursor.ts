@@ -87,10 +87,11 @@ export async function cmdImportCursorCsv(filePath: string) {
 
   console.log(`Parsed ${rows.length} rows\n`);
 
-  // Aggregate by date/email/model (same as API import)
+  // Aggregate by date/email/rawModel (same as API import)
   interface AggregatedRecord {
     email: string;
     model: string;
+    rawModel: string;
     inputTokens: number;
     outputTokens: number;
     cacheWriteTokens: number;
@@ -105,7 +106,8 @@ export async function cmdImportCursorCsv(filePath: string) {
     const timestamp = new Date(row.Date);
     const date = timestamp.toISOString().split('T')[0];
     const email = row.User;
-    const model = normalizeModelName(row.Model);
+    const rawModel = row.Model;
+    const model = normalizeModelName(rawModel);
 
     const inputTokens = parseInt(row['Input (w/o Cache Write)']) || 0;
     const cacheWriteTokens = parseInt(row['Input (w/ Cache Write)']) || 0;
@@ -120,7 +122,8 @@ export async function cmdImportCursorCsv(filePath: string) {
       continue;
     }
 
-    const key = [date, email, model].join('\0');
+    // Use rawModel in key to match API sync behavior
+    const key = [date, email, rawModel].join('\0');
     const existing = aggregated.get(key);
 
     if (existing) {
@@ -133,6 +136,7 @@ export async function cmdImportCursorCsv(filePath: string) {
       aggregated.set(key, {
         email,
         model,
+        rawModel,
         inputTokens,
         outputTokens,
         cacheWriteTokens,
@@ -167,6 +171,7 @@ export async function cmdImportCursorCsv(filePath: string) {
         email: data.email,
         tool: 'cursor',
         model: data.model,
+        rawModel: data.rawModel,
         inputTokens: data.inputTokens,
         cacheWriteTokens: data.cacheWriteTokens,
         cacheReadTokens: data.cacheReadTokens,
