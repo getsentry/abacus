@@ -1806,3 +1806,118 @@ export async function getUserCommitStats(
     })),
   };
 }
+
+// ============================================================================
+// Raw Usage Records (for user profile detail view)
+// ============================================================================
+
+export interface RawUsageRecord {
+  id: number;
+  date: string;
+  tool: string;
+  model: string;
+  totalTokens: number;
+  cost: number;
+}
+
+export interface RawUsageResult {
+  records: RawUsageRecord[];
+  totalCount: number;
+}
+
+export async function getUserRawUsage(
+  email: string,
+  startDate: string,
+  endDate: string,
+  page: number = 0,
+  limit: number = 50,
+  toolFilter?: string,
+  modelFilter?: string
+): Promise<RawUsageResult> {
+  const offset = page * limit;
+
+  // Build filter conditions
+  let toolCondition = '';
+  let modelCondition = '';
+  const params: (string | number)[] = [email, startDate, endDate];
+
+  if (toolFilter) {
+    params.push(toolFilter);
+    toolCondition = `AND tool = $${params.length}`;
+  }
+  if (modelFilter) {
+    params.push(modelFilter);
+    modelCondition = `AND model = $${params.length}`;
+  }
+
+  params.push(limit, offset);
+
+  const [recordsResult, countResult] = await Promise.all([
+    vercelSql.query(`
+      SELECT
+        id,
+        date::text,
+        tool,
+        model,
+        (input_tokens + cache_write_tokens + output_tokens)::bigint as "totalTokens",
+        cost::float
+      FROM usage_records
+      WHERE email = $1
+        AND date >= $2 AND date <= $3
+        ${toolCondition}
+        ${modelCondition}
+      ORDER BY date DESC, id DESC
+      LIMIT $${params.length - 1} OFFSET $${params.length}
+    `, params),
+    vercelSql.query(`
+      SELECT COUNT(*)::int as count
+      FROM usage_records
+      WHERE email = $1
+        AND date >= $2 AND date <= $3
+        ${toolCondition}
+        ${modelCondition}
+    `, params.slice(0, -2)) // Exclude limit and offset for count
+  ]);
+
+  return {
+    records: recordsResult.rows.map(row => ({
+      ...row,
+      totalTokens: Number(row.totalTokens),
+      cost: Number(row.cost),
+    })) as RawUsageRecord[],
+    totalCount: countResult.rows[0].count,
+  };
+}
+
+export interface UsageFilters {
+  tools: string[];
+  models: string[];
+}
+
+export async function getUserUsageFilters(
+  email: string,
+  startDate: string,
+  endDate: string
+): Promise<UsageFilters> {
+  const [toolsResult, modelsResult] = await Promise.all([
+    vercelSql`
+      SELECT DISTINCT tool
+      FROM usage_records
+      WHERE email = ${email}
+        AND date >= ${startDate} AND date <= ${endDate}
+      ORDER BY tool ASC
+    `,
+    vercelSql`
+      SELECT DISTINCT model
+      FROM usage_records
+      WHERE email = ${email}
+        AND date >= ${startDate} AND date <= ${endDate}
+      ORDER BY model ASC
+    `
+  ]);
+
+  return {
+    tools: toolsResult.rows.map(r => r.tool),
+    models: modelsResult.rows.map(r => r.model),
+  };
+}
