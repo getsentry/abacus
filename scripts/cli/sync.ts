@@ -61,7 +61,7 @@ export async function cmdSync(days: number = 7, tools: ('anthropic' | 'cursor')[
   console.log('\n✓ Sync complete!');
 }
 
-export async function cmdBackfill(tool: 'anthropic' | 'cursor', fromDate: string, toDate: string) {
+export async function cmdBackfill(tool: 'anthropic' | 'cursor', fromDate: string) {
   // Check if provider is configured
   if (tool === 'anthropic' && !process.env.ANTHROPIC_ADMIN_KEY) {
     console.error('❌ ANTHROPIC_ADMIN_KEY not configured');
@@ -72,7 +72,7 @@ export async function cmdBackfill(tool: 'anthropic' | 'cursor', fromDate: string
     return;
   }
 
-  console.log(`📥 Backfilling ${tool} from ${fromDate} to ${toDate}\n`);
+  console.log(`📥 Backfilling ${tool} backwards to ${fromDate}\n`);
 
   if (tool === 'anthropic') {
     // Sync API key mappings first

@@ -1,3 +1,4 @@
+import * as Sentry from '@sentry/nextjs';
 import { insertUsageRecord, getIdentityMappings } from '../queries';
 import { db, calculateCost, syncState, usageRecords } from '../db';
 import { normalizeModelName } from '../utils';
@@ -192,6 +193,7 @@ export async function syncAnthropicUsage(
 
       // On rate limit, immediately abort - don't retry
       if (response.status === 429) {
+        console.warn('[Anthropic Sync] Rate limited - will retry on next run');
         const errorText = await response.text();
         result.success = false;
         result.errors.push(`Anthropic API rate limited: ${errorText}`);
@@ -200,7 +202,9 @@ export async function syncAnthropicUsage(
 
       if (!response.ok) {
         const errorText = await response.text();
-        throw new Error(`Anthropic API error: ${response.status} - ${errorText}`);
+        const error = new Error(`Anthropic API error: ${response.status} - ${errorText}`);
+        Sentry.captureException(error);
+        throw error;
       }
 
       const data: AnthropicUsageResponse = await response.json();

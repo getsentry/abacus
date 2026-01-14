@@ -49,8 +49,8 @@ Commands:
   db:migrate            Run pending database migrations
   sync [tool] [--days N] [--skip-mappings]
                         Sync recent usage data (tool: anthropic|cursor, default: both)
-  backfill <tool> --from YYYY-MM-DD --to YYYY-MM-DD
-                        Backfill historical data for a specific tool
+  backfill <tool> --from YYYY-MM-DD
+                        Backfill historical data backwards to the specified date
   backfill:complete <tool>
                         Mark backfill as complete for a tool (anthropic|cursor|github)
   backfill:reset <tool> Reset backfill status for a tool (allows re-backfilling)
@@ -85,7 +85,7 @@ Commands:
 Examples:
   npm run cli sync --days 30
   npm run cli sync cursor --days 7
-  npm run cli backfill cursor --from 2024-01-01 --to 2025-01-01
+  npm run cli backfill cursor --from 2024-01-01
   npm run cli github:sync getsentry/sentry --days 30
   npm run cli github:sync --reset --from 2024-01-01   # Full reset and backfill
   npm run cli mappings:fix
@@ -180,13 +180,13 @@ async function main() {
         const tool = args[1] as 'anthropic' | 'cursor' | 'github';
         if (!tool || !['anthropic', 'cursor', 'github'].includes(tool)) {
           console.error('Error: Please specify tool (anthropic, cursor, or github)');
-          console.error('Usage: npm run cli backfill <tool> --from YYYY-MM-DD [--to YYYY-MM-DD]');
+          console.error('Usage: npm run cli backfill <tool> --from YYYY-MM-DD');
           break;
         }
         const fromIdx = args.indexOf('--from');
         if (fromIdx < 0) {
           console.error('Error: Please specify --from date');
-          console.error('Usage: npm run cli backfill <tool> --from YYYY-MM-DD [--to YYYY-MM-DD]');
+          console.error('Usage: npm run cli backfill <tool> --from YYYY-MM-DD');
           break;
         }
         const fromDate = args[fromIdx + 1];
@@ -199,22 +199,10 @@ async function main() {
           console.error('Error: --from date must be in YYYY-MM-DD format');
           break;
         }
-        // GitHub backfill only needs --from, others need --to as well
         if (tool === 'github') {
           await cmdGitHubBackfill(fromDate);
         } else {
-          const toIdx = args.indexOf('--to');
-          if (toIdx < 0) {
-            console.error('Error: Please specify --to date for anthropic/cursor backfill');
-            console.error('Usage: npm run cli backfill <tool> --from YYYY-MM-DD --to YYYY-MM-DD');
-            break;
-          }
-          const toDate = args[toIdx + 1];
-          if (!toDate || !dateRegex.test(toDate)) {
-            console.error('Error: --to date must be in YYYY-MM-DD format');
-            break;
-          }
-          await cmdBackfill(tool, fromDate, toDate);
+          await cmdBackfill(tool, fromDate);
         }
         break;
       }

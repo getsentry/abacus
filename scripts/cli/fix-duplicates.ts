@@ -8,13 +8,18 @@ import { sql } from '@vercel/postgres';
  *
  * Since ON CONFLICT includes raw_model, these weren't deduplicated.
  * This script removes the older, incorrect records.
+ *
+ * Ranking priority (keeps first, deletes rest):
+ * 1. Non-NULL raw_model (has provider data)
+ * 2. NULL raw_model (missing data, e.g. old CSV imports)
+ * 3. Higher ID as tiebreaker (newer record)
  */
 export async function cmdFixDuplicates(dryRun: boolean = true): Promise<void> {
   console.log(`\n${dryRun ? '🔍 DRY RUN - ' : ''}Fixing duplicate usage records\n`);
 
   // Find duplicates and identify which to delete
-  // Keep records where raw_model starts with 'claude-' (correct full name)
-  // Or if both have same raw_model format, keep the newer one (higher ID)
+  // Keep records with non-NULL raw_model, delete NULL ones
+  // If both have same NULL status, keep newer (higher ID)
   const duplicates = await sql`
     WITH ranked AS (
       SELECT
@@ -28,7 +33,7 @@ export async function cmdFixDuplicates(dryRun: boolean = true): Promise<void> {
         ROW_NUMBER() OVER (
           PARTITION BY date, email, model, tool, input_tokens, output_tokens, cache_write_tokens
           ORDER BY
-            CASE WHEN raw_model LIKE 'claude-%' THEN 0 ELSE 1 END,
+            CASE WHEN raw_model IS NULL THEN 1 ELSE 0 END,
             id DESC
         ) as rn
       FROM usage_records
@@ -67,7 +72,7 @@ export async function cmdFixDuplicates(dryRun: boolean = true): Promise<void> {
         ROW_NUMBER() OVER (
           PARTITION BY date, email, model, tool, input_tokens, output_tokens, cache_write_tokens
           ORDER BY
-            CASE WHEN raw_model LIKE 'claude-%' THEN 0 ELSE 1 END,
+            CASE WHEN raw_model IS NULL THEN 1 ELSE 0 END,
             id DESC
         ) as rn
       FROM usage_records

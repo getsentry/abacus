@@ -1,3 +1,4 @@
+import * as Sentry from '@sentry/nextjs';
 import { insertUsageRecord } from '../queries';
 import { normalizeModelName } from '../utils';
 import { db, syncState, usageRecords } from '../db';
@@ -221,6 +222,7 @@ async function fetchCursorUsage(
 
       // On rate limit, immediately abort - don't retry
       if (response.status === 429) {
+        console.warn('[Cursor Sync] Rate limited - will retry on next run');
         rateLimited = true;
         const errorText = await response.text();
         errors.push(`Cursor API rate limited: ${errorText}`);
@@ -229,6 +231,7 @@ async function fetchCursorUsage(
 
       if (!response.ok) {
         const errorText = await response.text();
+        Sentry.captureException(new Error(`Cursor API error: ${response.status} - ${errorText}`));
         errors.push(`Cursor API error: ${response.status} - ${errorText}`);
         break;
       }
@@ -376,12 +379,13 @@ export async function syncCursorCron(): Promise<SyncResult> {
 
   // Only update sync state if fetch was successful (no errors, not rate limited)
   // This ensures we'll retry failed hours on the next run
-  if (fetchErrors.length === 0 && !rateLimited) {
+  const success = fetchErrors.length === 0 && !rateLimited;
+  if (success) {
     await updateCursorSyncState(endMs);
   }
 
   return {
-    success: fetchErrors.length === 0 && !rateLimited,
+    success,
     recordsImported: imported,
     recordsSkipped: skipped,
     errors: [...fetchErrors, ...insertErrors],

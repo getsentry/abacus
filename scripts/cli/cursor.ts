@@ -1,7 +1,9 @@
 import * as fs from 'fs';
+import { eq, and, isNull } from 'drizzle-orm';
 import { getCursorSyncState, getPreviousCompleteHourEnd } from '../../src/lib/sync/cursor';
 import { insertUsageRecord } from '../../src/lib/queries';
 import { normalizeModelName } from '../../src/lib/utils';
+import { db, usageRecords } from '../../src/lib/db';
 
 export async function cmdCursorStatus() {
   console.log('🔄 Cursor Sync Status\n');
@@ -151,6 +153,7 @@ export async function cmdImportCursorCsv(filePath: string) {
   // Insert records
   let imported = 0;
   let skipped = 0;
+  let cleaned = 0;
   let errors = 0;
   let lastDate = '';
 
@@ -180,6 +183,23 @@ export async function cmdImportCursorCsv(filePath: string) {
       });
       imported++;
       process.stdout.write('.');
+
+      // Clean up any duplicate records with NULL raw_model for same (date, email, model, tool)
+      // Safe because we just inserted a record with proper rawModel
+      const deleteResult = await db.delete(usageRecords).where(
+        and(
+          eq(usageRecords.date, date),
+          data.email ? eq(usageRecords.email, data.email) : isNull(usageRecords.email),
+          eq(usageRecords.model, data.model),
+          eq(usageRecords.tool, 'cursor'),
+          isNull(usageRecords.rawModel)
+        )
+      );
+      const deletedCount = (deleteResult as { rowCount?: number }).rowCount ?? 0;
+      if (deletedCount > 0) {
+        cleaned += deletedCount;
+        process.stdout.write('c');
+      }
     } catch (err) {
       if (err instanceof Error && err.message.includes('duplicate')) {
         skipped++;
@@ -194,6 +214,7 @@ export async function cmdImportCursorCsv(filePath: string) {
 
   console.log(`\n\n✓ Import complete!`);
   console.log(`  Imported: ${imported}`);
+  console.log(`  Cleaned (null raw_model): ${cleaned}`);
   console.log(`  Skipped (duplicates): ${skipped}`);
   console.log(`  Errors: ${errors}`);
 }
