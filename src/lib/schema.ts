@@ -3,6 +3,7 @@ import {
   serial,
   varchar,
   integer,
+  bigint,
   real,
   date,
   timestamp,
@@ -35,12 +36,13 @@ export const identityMappings = pgTable('identity_mappings', {
 ]);
 
 /**
- * Usage records aggregated by date, user, tool, and model.
+ * Usage records - can be stored per-event (Cursor) or aggregated (Anthropic).
  *
- * The tool_record_id is a provider-specific identifier used for deduplication:
- * - Anthropic: API key ID (usage is reported per key)
- * - Cursor: null (usage is reported per email)
- * - Future providers: whatever unique ID they provide
+ * The deduplication strategy depends on the provider:
+ * - Cursor: Uses timestamp_ms for per-event granularity (each event is unique)
+ * - Anthropic: Uses tool_record_id (API key ID) for per-day aggregation
+ *
+ * The unique constraint includes both timestamp_ms and tool_record_id to support both patterns.
  */
 export const usageRecords = pgTable('usage_records', {
   id: serial('id').primaryKey(),
@@ -55,6 +57,8 @@ export const usageRecords = pgTable('usage_records', {
   outputTokens: integer('output_tokens').default(0),
   cost: real('cost').default(0),
   toolRecordId: varchar('tool_record_id', { length: 255 }),
+  // Epoch milliseconds timestamp for per-event deduplication (Cursor)
+  timestampMs: bigint('timestamp_ms', { mode: 'number' }),
   createdAt: timestamp('created_at').defaultNow(),
 }, (table) => [
   index('idx_usage_date').on(table.date),
@@ -62,13 +66,14 @@ export const usageRecords = pgTable('usage_records', {
   index('idx_usage_date_email').on(table.date, table.email),
   // Partial index for tool_record_id lookups (only where not null)
   index('idx_usage_tool_record_id').on(table.tool, table.toolRecordId),
-  // Unique index for deduplication using raw_model (preserves original model strings)
+  // Unique index for deduplication - includes timestamp_ms for per-event uniqueness
   uniqueIndex('idx_usage_unique').on(
     table.date,
     sql`COALESCE(${table.email}, '')`,
     table.tool,
     sql`COALESCE(${table.rawModel}, '')`,
-    sql`COALESCE(${table.toolRecordId}, '')`
+    sql`COALESCE(${table.toolRecordId}, '')`,
+    sql`COALESCE(${table.timestampMs}::text, '')`
   ),
 ]);
 

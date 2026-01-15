@@ -140,27 +140,6 @@ function getCursorAuthHeader(): string | null {
   return `Basic ${Buffer.from(credentials).toString('base64')}`;
 }
 
-interface AggregatedRecord {
-  email: string;
-  model: string;
-  rawModel: string;
-  inputTokens: number;
-  outputTokens: number;
-  cacheWriteTokens: number;
-  cacheReadTokens: number;
-  cost: number;
-}
-
-// Create a composite key that's safe to split (uses null character separator)
-function makeKey(date: string, email: string, model: string): string {
-  return [date, email, model].join('\0');
-}
-
-function parseKey(key: string): { date: string; email: string; model: string } {
-  const [date, email, model] = key.split('\0');
-  return { date, email, model };
-}
-
 /**
  * Sleep for a given number of milliseconds
  */
@@ -256,13 +235,15 @@ async function fetchCursorUsage(
 }
 
 /**
- * Process events into aggregated records and insert into database.
+ * Process events and insert directly into database (one row per event).
+ * Uses timestampMs for per-event deduplication - no aggregation needed.
  */
 async function processAndInsertEvents(
   events: CursorUsageEvent[]
 ): Promise<{ imported: number; skipped: number; errors: string[] }> {
-  const aggregated = new Map<string, AggregatedRecord>();
+  let imported = 0;
   let skipped = 0;
+  const errors: string[] = [];
 
   for (const event of events) {
     const tokenUsage = event.tokenUsage;
@@ -277,53 +258,26 @@ async function processAndInsertEvents(
       continue;
     }
 
-    // Convert timestamp string to date
-    const date = new Date(parseInt(event.timestamp)).toISOString().split('T')[0];
-    const email = event.userEmail;
-    const rawModel = event.model;
+    // Parse timestamp and derive date
+    const timestampMs = parseInt(event.timestamp);
+    const date = new Date(timestampMs).toISOString().split('T')[0];
+    // Normalize raw model: API returns 'default' but CSV exports 'auto' for the same thing
+    const rawModel = event.model === 'default' ? 'auto' : event.model;
     const model = normalizeModelName(rawModel);
-    // Use rawModel in key so different raw models stay as separate rows
-    const key = makeKey(date, email, rawModel);
 
-    const existing = aggregated.get(key);
-    if (existing) {
-      existing.inputTokens += tokenUsage?.inputTokens || 0;
-      existing.outputTokens += tokenUsage?.outputTokens || 0;
-      existing.cacheWriteTokens += tokenUsage?.cacheWriteTokens || 0;
-      existing.cacheReadTokens += tokenUsage?.cacheReadTokens || 0;
-      existing.cost += (tokenUsage?.totalCents || 0) / 100;
-    } else {
-      aggregated.set(key, {
-        email,
-        model,
-        rawModel,
-        inputTokens: tokenUsage?.inputTokens || 0,
-        outputTokens: tokenUsage?.outputTokens || 0,
-        cacheWriteTokens: tokenUsage?.cacheWriteTokens || 0,
-        cacheReadTokens: tokenUsage?.cacheReadTokens || 0,
-        cost: (tokenUsage?.totalCents || 0) / 100
-      });
-    }
-  }
-
-  // Insert aggregated records
-  let imported = 0;
-  const errors: string[] = [];
-
-  for (const [key, aggData] of aggregated) {
-    const { date } = parseKey(key);
     try {
       await insertUsageRecord({
         date,
-        email: aggData.email,
+        email: event.userEmail,
         tool: 'cursor',
-        model: aggData.model,
-        rawModel: aggData.rawModel,
-        inputTokens: aggData.inputTokens,
-        cacheWriteTokens: aggData.cacheWriteTokens,
-        cacheReadTokens: aggData.cacheReadTokens,
-        outputTokens: aggData.outputTokens,
-        cost: aggData.cost
+        model,
+        rawModel,
+        inputTokens: tokenUsage?.inputTokens || 0,
+        cacheWriteTokens: tokenUsage?.cacheWriteTokens || 0,
+        cacheReadTokens: tokenUsage?.cacheReadTokens || 0,
+        outputTokens: tokenUsage?.outputTokens || 0,
+        cost: (tokenUsage?.totalCents || 0) / 100,
+        timestampMs,
       });
       imported++;
     } catch (err) {

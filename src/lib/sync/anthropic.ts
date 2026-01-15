@@ -264,6 +264,8 @@ export async function syncAnthropicUsage(
  * Sync Anthropic usage for the cron job.
  * Runs every 6 hours. Syncs from yesterday to today.
  * Note: Anthropic API has ~24h lag, so today's data is usually empty.
+ *
+ * Safe to call frequently - returns early if already synced today.
  */
 export async function syncAnthropicCron(): Promise<SyncResult> {
   const adminKey = process.env.ANTHROPIC_ADMIN_KEY;
@@ -279,6 +281,18 @@ export async function syncAnthropicCron(): Promise<SyncResult> {
   // Get today's date
   const today = new Date();
   const todayStr = today.toISOString().split('T')[0];
+
+  // Check if we've already synced today - skip to avoid redundant API calls
+  const { lastSyncedDate } = await getAnthropicSyncState();
+  if (lastSyncedDate === todayStr) {
+    return {
+      success: true,
+      recordsImported: 0,
+      recordsSkipped: 0,
+      errors: [],
+      syncedRange: undefined  // Signal no actual sync occurred
+    };
+  }
 
   // Start from yesterday to catch any late-arriving data
   const yesterday = new Date();

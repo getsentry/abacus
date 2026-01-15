@@ -754,6 +754,9 @@ export async function getAllUsersPivot(
 }
 
 // Insert usage record
+// - Cursor: each event has unique timestampMs, conflicts only happen for true duplicates
+// - Anthropic: timestampMs is null, re-syncs may have updated totals so we DO UPDATE SET
+// Note: DO UPDATE SET is correct for both - Cursor conflicts are rare, Anthropic needs updates
 export async function insertUsageRecord(record: {
   date: string;
   email: string | null;
@@ -766,11 +769,12 @@ export async function insertUsageRecord(record: {
   outputTokens: number;
   cost: number;
   toolRecordId?: string;
+  timestampMs?: number;  // Epoch milliseconds for per-event deduplication (Cursor)
 }): Promise<void> {
   await db.execute(sql`
-    INSERT INTO ${usageRecords} (date, email, tool, model, raw_model, input_tokens, cache_write_tokens, cache_read_tokens, output_tokens, cost, tool_record_id)
-    VALUES (${record.date}, ${record.email}, ${record.tool}, ${record.model}, ${record.rawModel || null}, ${record.inputTokens}, ${record.cacheWriteTokens}, ${record.cacheReadTokens}, ${record.outputTokens}, ${record.cost}, ${record.toolRecordId || null})
-    ON CONFLICT (date, COALESCE(email, ''), tool, COALESCE(raw_model, ''), COALESCE(tool_record_id, ''))
+    INSERT INTO ${usageRecords} (date, email, tool, model, raw_model, input_tokens, cache_write_tokens, cache_read_tokens, output_tokens, cost, tool_record_id, timestamp_ms)
+    VALUES (${record.date}, ${record.email}, ${record.tool}, ${record.model}, ${record.rawModel ?? null}, ${record.inputTokens}, ${record.cacheWriteTokens}, ${record.cacheReadTokens}, ${record.outputTokens}, ${record.cost}, ${record.toolRecordId ?? null}, ${record.timestampMs ?? null})
+    ON CONFLICT (date, COALESCE(email, ''), tool, COALESCE(raw_model, ''), COALESCE(tool_record_id, ''), COALESCE(timestamp_ms::text, ''))
     DO UPDATE SET
       model = EXCLUDED.model,
       input_tokens = EXCLUDED.input_tokens,

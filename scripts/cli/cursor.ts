@@ -1,9 +1,7 @@
 import * as fs from 'fs';
-import { eq, and, isNull } from 'drizzle-orm';
 import { getCursorSyncState, getPreviousCompleteHourEnd } from '../../src/lib/sync/cursor';
 import { insertUsageRecord } from '../../src/lib/queries';
 import { normalizeModelName } from '../../src/lib/utils';
-import { db, usageRecords } from '../../src/lib/db';
 
 export async function cmdCursorStatus() {
   console.log('🔄 Cursor Sync Status\n');
@@ -89,23 +87,15 @@ export async function cmdImportCursorCsv(filePath: string) {
 
   console.log(`Parsed ${rows.length} rows\n`);
 
-  // Aggregate by date/email/rawModel (same as API import)
-  interface AggregatedRecord {
-    email: string;
-    model: string;
-    rawModel: string;
-    inputTokens: number;
-    outputTokens: number;
-    cacheWriteTokens: number;
-    cacheReadTokens: number;
-    cost: number;
-  }
-
-  const aggregated = new Map<string, AggregatedRecord>();
-  let skippedRows = 0;
+  // Insert per-event (no aggregation) - uses timestamp for deduplication
+  let imported = 0;
+  let skipped = 0;
+  let errors = 0;
+  let lastDate = '';
 
   for (const row of rows) {
     const timestamp = new Date(row.Date);
+    const timestampMs = timestamp.getTime();
     const date = timestamp.toISOString().split('T')[0];
     const email = row.User;
     const rawModel = row.Model;
@@ -120,45 +110,9 @@ export async function cmdImportCursorCsv(filePath: string) {
     // Skip rows with no tokens
     const totalTokens = inputTokens + outputTokens + cacheWriteTokens + cacheReadTokens;
     if (totalTokens === 0) {
-      skippedRows++;
+      skipped++;
       continue;
     }
-
-    // Use rawModel in key to match API sync behavior
-    const key = [date, email, rawModel].join('\0');
-    const existing = aggregated.get(key);
-
-    if (existing) {
-      existing.inputTokens += inputTokens;
-      existing.outputTokens += outputTokens;
-      existing.cacheWriteTokens += cacheWriteTokens;
-      existing.cacheReadTokens += cacheReadTokens;
-      existing.cost += cost;
-    } else {
-      aggregated.set(key, {
-        email,
-        model,
-        rawModel,
-        inputTokens,
-        outputTokens,
-        cacheWriteTokens,
-        cacheReadTokens,
-        cost
-      });
-    }
-  }
-
-  console.log(`Aggregated into ${aggregated.size} records (${skippedRows} empty rows skipped)\n`);
-
-  // Insert records
-  let imported = 0;
-  let skipped = 0;
-  let cleaned = 0;
-  let errors = 0;
-  let lastDate = '';
-
-  for (const [key, data] of aggregated) {
-    const [date] = key.split('\0');
 
     if (date !== lastDate) {
       if (lastDate) {
@@ -171,35 +125,19 @@ export async function cmdImportCursorCsv(filePath: string) {
     try {
       await insertUsageRecord({
         date,
-        email: data.email,
+        email,
         tool: 'cursor',
-        model: data.model,
-        rawModel: data.rawModel,
-        inputTokens: data.inputTokens,
-        cacheWriteTokens: data.cacheWriteTokens,
-        cacheReadTokens: data.cacheReadTokens,
-        outputTokens: data.outputTokens,
-        cost: data.cost
+        model,
+        rawModel,
+        inputTokens,
+        cacheWriteTokens,
+        cacheReadTokens,
+        outputTokens,
+        cost,
+        timestampMs,
       });
       imported++;
       process.stdout.write('.');
-
-      // Clean up any duplicate records with NULL raw_model for same (date, email, model, tool)
-      // Safe because we just inserted a record with proper rawModel
-      const deleteResult = await db.delete(usageRecords).where(
-        and(
-          eq(usageRecords.date, date),
-          data.email ? eq(usageRecords.email, data.email) : isNull(usageRecords.email),
-          eq(usageRecords.model, data.model),
-          eq(usageRecords.tool, 'cursor'),
-          isNull(usageRecords.rawModel)
-        )
-      );
-      const deletedCount = (deleteResult as { rowCount?: number }).rowCount ?? 0;
-      if (deletedCount > 0) {
-        cleaned += deletedCount;
-        process.stdout.write('c');
-      }
     } catch (err) {
       if (err instanceof Error && err.message.includes('duplicate')) {
         skipped++;
@@ -207,14 +145,13 @@ export async function cmdImportCursorCsv(filePath: string) {
       } else {
         errors++;
         process.stdout.write('E');
-        console.error(`\nError inserting ${key}:`, err);
+        console.error(`\nError inserting row:`, err);
       }
     }
   }
 
   console.log(`\n\n✓ Import complete!`);
   console.log(`  Imported: ${imported}`);
-  console.log(`  Cleaned (null raw_model): ${cleaned}`);
-  console.log(`  Skipped (duplicates): ${skipped}`);
+  console.log(`  Skipped (duplicates or empty): ${skipped}`);
   console.log(`  Errors: ${errors}`);
 }
