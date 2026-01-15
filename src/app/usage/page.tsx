@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useMemo, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { motion } from 'framer-motion';
-import { Activity, TrendingUp, Cpu } from 'lucide-react';
+import { Activity, TrendingUp, Cpu, Users } from 'lucide-react';
 import { StatCard } from '@/components/StatCard';
 import { AppHeader } from '@/components/AppHeader';
 import { TimeRangeSelector } from '@/components/TimeRangeSelector';
@@ -54,6 +54,8 @@ interface Stats {
   activeUsers: number;
   claudeCodeTokens: number;
   cursorTokens: number;
+  claudeCodeUsers: number;
+  cursorUsers: number;
   previousPeriod?: {
     totalTokens: number;
     totalCost: number;
@@ -300,6 +302,44 @@ function UsagePageContent() {
     if (!modelChartData.data.length) return 1;
     return Math.max(...modelChartData.data.map(d => Number(d.total) || 0), 1);
   }, [modelChartData]);
+
+  // Process tool trends into user chart data for Tool Adoption section
+  const toolUserChartData = useMemo(() => {
+    if (!toolTrends.length) return [];
+
+    // Group by date, get users per tool
+    const dateMap = new Map<string, { claudeCode: number; cursor: number }>();
+
+    for (const item of toolTrends) {
+      if (!dateMap.has(item.date)) {
+        dateMap.set(item.date, { claudeCode: 0, cursor: 0 });
+      }
+      const dayData = dateMap.get(item.date)!;
+      if (item.tool === 'claude_code') {
+        dayData.claudeCode = Number(item.users);
+      } else if (item.tool === 'cursor') {
+        dayData.cursor = Number(item.users);
+      }
+    }
+
+    return Array.from(dateMap.entries())
+      .map(([date, data]) => ({ date, ...data }))
+      .sort((a, b) => a.date.localeCompare(b.date));
+  }, [toolTrends]);
+
+  // Apply weekly aggregation to user chart data if needed
+  const toolUserDataFinal = useMemo(() => {
+    if (toolUserChartData.length > AGGREGATION_THRESHOLD) {
+      return aggregateToWeekly(toolUserChartData);
+    }
+    return toolUserChartData;
+  }, [toolUserChartData]);
+
+  // Max value for user chart
+  const maxUserValue = useMemo(() => {
+    if (!toolUserDataFinal.length) return 1;
+    return Math.max(...toolUserDataFinal.map(d => d.claudeCode + d.cursor), 1);
+  }, [toolUserDataFinal]);
 
   // Determine label frequency
   const maxLabels = 10;
@@ -724,6 +764,158 @@ function UsagePageContent() {
                 </table>
               </div>
             </AnimatedCard>
+
+            {/* Tool Adoption Section - Only show in tools view */}
+            {viewMode === 'tools' && stats && toolUserDataFinal.length > 0 && (
+              <AnimatedCard delay={0.5} padding="none" className="overflow-hidden">
+                <div className="px-6 py-4 border-b border-white/5">
+                  <SectionLabel days={days}>Active Users by Tool</SectionLabel>
+                </div>
+
+                {/* Active Users Over Time Chart */}
+                <div className="px-6 py-4">
+                  <div className="flex items-center justify-end gap-4 mb-4">
+                    <div className="flex items-center gap-1.5">
+                      <div className={`w-2 h-2 rounded-sm ${TOOL_CONFIGS.claude_code.bg}`} />
+                      <span className={`font-mono text-xs ${TOOL_CONFIGS.claude_code.text}`}>
+                        Claude Code: {stats.claudeCodeUsers} users
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <div className={`w-2 h-2 rounded-sm ${TOOL_CONFIGS.cursor.bg}`} />
+                      <span className={`font-mono text-xs ${TOOL_CONFIGS.cursor.text}`}>
+                        Cursor: {stats.cursorUsers} users
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="relative" style={{ height: '150px' }}>
+                    <div className="flex items-end gap-0.5 h-full">
+                      {toolUserDataFinal.map((item, i) => {
+                        const claudeHeight = maxUserValue > 0 ? (item.claudeCode / maxUserValue) * 100 : 0;
+                        const cursorHeight = maxUserValue > 0 ? (item.cursor / maxUserValue) * 100 : 0;
+                        const userLabelEvery = Math.max(1, Math.ceil(toolUserDataFinal.length / maxLabels));
+
+                        return (
+                          <div key={item.date} className="group relative flex-1 flex flex-col justify-end min-w-[3px]" style={{ height: '100%' }}>
+                            <div className="flex w-full flex-col gap-0.5 justify-end" style={{ height: '100%' }}>
+                              {claudeHeight > 0 && (
+                                <motion.div
+                                  initial={{ height: 0 }}
+                                  animate={{ height: `${claudeHeight}%` }}
+                                  transition={{ duration: 0.6, delay: Math.min(i * 0.02, 1) }}
+                                  className={`w-full rounded-t ${TOOL_CONFIGS.claude_code.bgChart}`}
+                                  style={{ minHeight: '2px' }}
+                                />
+                              )}
+                              {cursorHeight > 0 && (
+                                <motion.div
+                                  initial={{ height: 0 }}
+                                  animate={{ height: `${cursorHeight}%` }}
+                                  transition={{ duration: 0.6, delay: Math.min(i * 0.02 + 0.02, 1) }}
+                                  className={`w-full rounded-b ${TOOL_CONFIGS.cursor.bgChart}`}
+                                  style={{ minHeight: '2px' }}
+                                />
+                              )}
+                            </div>
+
+                            {i % userLabelEvery === 0 && (
+                              <span className="absolute -bottom-6 left-1/2 -translate-x-1/2 font-mono text-[10px] text-muted whitespace-nowrap">
+                                {formatDate(item.date)}
+                              </span>
+                            )}
+
+                            <TooltipContent>
+                              <div className="text-white/60 mb-1">{formatDate(item.date)}</div>
+                              <div className={TOOL_CONFIGS.claude_code.text}>Claude Code: {item.claudeCode} users</div>
+                              <div className={TOOL_CONFIGS.cursor.text}>Cursor: {item.cursor} users</div>
+                            </TooltipContent>
+                          </div>
+                        );
+                      })}
+                    </div>
+                    <div className="h-px bg-white/10 mt-1" />
+                  </div>
+                </div>
+
+                {/* Tool Adoption Summary Table */}
+                <div className="border-t border-white/5">
+                  <table className="w-full">
+                    <thead>
+                      <tr className="border-b border-white/10 bg-white/[0.02]">
+                        <th className="px-6 py-3 text-left font-mono text-[11px] uppercase tracking-wider text-white/60">
+                          Tool
+                        </th>
+                        <th className="px-6 py-3 text-right font-mono text-[11px] uppercase tracking-wider text-white/60">
+                          <div className="flex items-center justify-end gap-1">
+                            <Users className="w-3 h-3" />
+                            <span>Active Users</span>
+                          </div>
+                        </th>
+                        <th className="px-6 py-3 text-right font-mono text-[11px] uppercase tracking-wider text-white/60">
+                          Avg Tokens/User
+                        </th>
+                        <th className="px-6 py-3 text-left font-mono text-[11px] uppercase tracking-wider text-white/60 w-1/4">
+                          User Distribution
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {stats.claudeCodeUsers > 0 && (
+                        <tr className="border-b border-white/5 hover:bg-white/[0.02] transition-colors">
+                          <td className="px-6 py-3">
+                            <span className={`font-mono text-sm ${TOOL_CONFIGS.claude_code.text}`}>Claude Code</span>
+                          </td>
+                          <td className="px-6 py-3 text-right">
+                            <span className="font-mono text-sm text-white">{stats.claudeCodeUsers}</span>
+                          </td>
+                          <td className="px-6 py-3 text-right">
+                            <span className="font-mono text-sm text-white/70">
+                              {formatTokens(Math.round(stats.claudeCodeTokens / stats.claudeCodeUsers))}
+                            </span>
+                          </td>
+                          <td className="px-6 py-3">
+                            <div className="h-2 rounded-full bg-white/5 overflow-hidden">
+                              <motion.div
+                                initial={{ width: 0 }}
+                                animate={{ width: `${stats.activeUsers > 0 ? (stats.claudeCodeUsers / stats.activeUsers) * 100 : 0}%` }}
+                                transition={{ duration: 0.6 }}
+                                className={`h-full rounded-full ${TOOL_CONFIGS.claude_code.bg}`}
+                              />
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                      {stats.cursorUsers > 0 && (
+                        <tr className="border-b border-white/5 hover:bg-white/[0.02] transition-colors">
+                          <td className="px-6 py-3">
+                            <span className={`font-mono text-sm ${TOOL_CONFIGS.cursor.text}`}>Cursor</span>
+                          </td>
+                          <td className="px-6 py-3 text-right">
+                            <span className="font-mono text-sm text-white">{stats.cursorUsers}</span>
+                          </td>
+                          <td className="px-6 py-3 text-right">
+                            <span className="font-mono text-sm text-white/70">
+                              {formatTokens(Math.round(stats.cursorTokens / stats.cursorUsers))}
+                            </span>
+                          </td>
+                          <td className="px-6 py-3">
+                            <div className="h-2 rounded-full bg-white/5 overflow-hidden">
+                              <motion.div
+                                initial={{ width: 0 }}
+                                animate={{ width: `${stats.activeUsers > 0 ? (stats.cursorUsers / stats.activeUsers) * 100 : 0}%` }}
+                                transition={{ duration: 0.6, delay: 0.05 }}
+                                className={`h-full rounded-full ${TOOL_CONFIGS.cursor.bg}`}
+                              />
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </AnimatedCard>
+            )}
           </div>
         )}
         </PageContainer>
