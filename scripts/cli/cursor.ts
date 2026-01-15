@@ -134,7 +134,7 @@ export async function cmdImportCursorCsv(filePath: string) {
         cacheReadTokens,
         outputTokens,
         cost,
-        timestampMs,  // Per-event unique identifier
+        timestampMs,
       });
       imported++;
       process.stdout.write('.');

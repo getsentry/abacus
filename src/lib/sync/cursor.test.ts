@@ -107,20 +107,21 @@ describe('Cursor Sync', () => {
       expect(Number(records[0].outputTokens)).toBe(500);
     });
 
-    it('aggregates events by date, email, and rawModel', async () => {
-      const timestamp = new Date('2025-01-15T12:00:00Z').getTime().toString();
+    it('stores each event separately with different timestamps', async () => {
+      const timestamp1 = new Date('2025-01-15T12:00:00Z').getTime().toString();
+      const timestamp2 = new Date('2025-01-15T12:01:00Z').getTime().toString();
       mockCursorAPI([
         createCursorEvent({
           userEmail: 'user1@example.com',
           model: 'claude-3-5-sonnet-20241022',
-          timestamp,
+          timestamp: timestamp1,
           inputTokens: 1000,
           outputTokens: 500,
         }),
         createCursorEvent({
           userEmail: 'user1@example.com',
           model: 'claude-3-5-sonnet-20241022',
-          timestamp,
+          timestamp: timestamp2,
           inputTokens: 500,
           outputTokens: 250,
         }),
@@ -129,15 +130,19 @@ describe('Cursor Sync', () => {
       const result = await syncCursorUsage('2025-01-15', '2025-01-15');
 
       expect(result.success).toBe(true);
-      expect(result.recordsImported).toBe(1); // Aggregated into one record
+      expect(result.recordsImported).toBe(2); // One record per event
 
       const records = await db
         .select()
         .from(usageRecords)
         .where(eq(usageRecords.email, 'user1@example.com'));
-      expect(records).toHaveLength(1);
-      expect(Number(records[0].inputTokens)).toBe(1500); // 1000 + 500
-      expect(Number(records[0].outputTokens)).toBe(750); // 500 + 250
+      expect(records).toHaveLength(2);
+
+      // Total tokens across both records
+      const totalInput = records.reduce((sum, r) => sum + Number(r.inputTokens), 0);
+      const totalOutput = records.reduce((sum, r) => sum + Number(r.outputTokens), 0);
+      expect(totalInput).toBe(1500); // 1000 + 500
+      expect(totalOutput).toBe(750); // 500 + 250
     });
 
     it('keeps different rawModels as separate records', async () => {
@@ -410,8 +415,8 @@ describe('Cursor Sync', () => {
       expect(nonNullRecord!.rawModel).toBe('claude-3-5-sonnet-20241022');
     });
 
-    it('upserts when rawModel matches', async () => {
-      // Insert a record with proper rawModel
+    it('creates separate records per event (no aggregation)', async () => {
+      // Insert a record manually (no timestampMs)
       await insertUsageRecord({
         date: '2025-01-15',
         email: 'user1@example.com',
@@ -425,7 +430,7 @@ describe('Cursor Sync', () => {
         cost: 0.05,
       });
 
-      // Sync with same rawModel
+      // Sync event with same rawModel but different timestamp
       const timestamp = new Date('2025-01-15T12:00:00Z').getTime().toString();
       mockCursorAPI([
         createCursorEvent({
@@ -441,7 +446,8 @@ describe('Cursor Sync', () => {
 
       expect(result.success).toBe(true);
 
-      // Should upsert into existing record
+      // Per-event storage: each event creates a separate record
+      // Manual insert has timestampMs=null, sync has timestampMs=1736942400000
       const records = await db
         .select()
         .from(usageRecords)
@@ -451,9 +457,17 @@ describe('Cursor Sync', () => {
             eq(usageRecords.date, '2025-01-15')
           )
         );
-      expect(records).toHaveLength(1);
-      expect(Number(records[0].inputTokens)).toBe(2000); // Updated
-      expect(records[0].rawModel).toBe('claude-3-5-sonnet-20241022');
+      expect(records).toHaveLength(2);
+
+      // Both records should have the same rawModel
+      expect(records.every(r => r.rawModel === 'claude-3-5-sonnet-20241022')).toBe(true);
+
+      // One without timestampMs (manual), one with (synced)
+      const manualRecord = records.find(r => r.timestampMs === null);
+      const syncedRecord = records.find(r => r.timestampMs !== null);
+      expect(manualRecord).toBeDefined();
+      expect(syncedRecord).toBeDefined();
+      expect(Number(syncedRecord!.inputTokens)).toBe(2000);
     });
   });
 });

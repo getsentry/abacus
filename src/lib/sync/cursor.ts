@@ -277,7 +277,7 @@ async function processAndInsertEvents(
         cacheReadTokens: tokenUsage?.cacheReadTokens || 0,
         outputTokens: tokenUsage?.outputTokens || 0,
         cost: (tokenUsage?.totalCents || 0) / 100,
-        timestampMs,  // Per-event unique identifier
+        timestampMs,
       });
       imported++;
     } catch (err) {
