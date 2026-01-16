@@ -47,8 +47,9 @@ Usage:
 
 Commands:
   db:migrate            Run pending database migrations
-  sync [tool] [--days N] [--skip-mappings]
+  sync [tool] [--days N] [--from DATE] [--to DATE] [--skip-mappings]
                         Sync recent usage data (tool: anthropic|cursor, default: both)
+                        Use --from/--to for precise date range (YYYY-MM-DD)
   backfill <tool> --from YYYY-MM-DD
                         Backfill historical data backwards to the specified date
   backfill:complete <tool>
@@ -85,6 +86,7 @@ Commands:
 Examples:
   npm run cli sync --days 30
   npm run cli sync cursor --days 7
+  npm run cli sync cursor --from 2026-01-09 --to 2026-01-10
   npm run cli backfill cursor --from 2024-01-01
   npm run cli github:sync getsentry/sentry --days 30
   npm run cli github:sync --reset --from 2024-01-01   # Full reset and backfill
@@ -164,6 +166,10 @@ async function main() {
       case 'sync': {
         const daysIdx = args.indexOf('--days');
         const days = daysIdx >= 0 ? parseInt(args[daysIdx + 1]) : 7;
+        const fromIdx = args.indexOf('--from');
+        const toIdx = args.indexOf('--to');
+        const fromDate = fromIdx >= 0 ? args[fromIdx + 1] : undefined;
+        const toDate = toIdx >= 0 ? args[toIdx + 1] : undefined;
         const skipMappings = args.includes('--skip-mappings');
         // Parse tool filter: sync [anthropic|cursor] --days N
         const toolArg = args[1];
@@ -173,7 +179,7 @@ async function main() {
         } else if (toolArg === 'cursor') {
           tools = ['cursor'];
         }
-        await cmdSync(days, tools, skipMappings);
+        await cmdSync({ days, fromDate, toDate, tools, skipMappings });
         break;
       }
       case 'backfill': {

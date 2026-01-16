@@ -4,9 +4,20 @@ import { syncCursorUsage, backfillCursorUsage, resetCursorBackfillComplete } fro
 import { backfillGitHubUsage, resetGitHubBackfillComplete } from '../../src/lib/sync/github';
 import { syncApiKeyMappingsSmart } from '../../src/lib/sync/anthropic-mappings';
 
-export async function cmdSync(days: number = 7, tools: ('anthropic' | 'cursor')[] = ['anthropic', 'cursor'], skipMappings: boolean = false) {
-  const endDate = new Date().toISOString().split('T')[0];
-  const startDate = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+interface SyncOptions {
+  days?: number;
+  fromDate?: string;
+  toDate?: string;
+  tools?: ('anthropic' | 'cursor')[];
+  skipMappings?: boolean;
+}
+
+export async function cmdSync(options: SyncOptions = {}) {
+  const { days = 7, fromDate, toDate, tools = ['anthropic', 'cursor'], skipMappings = false } = options;
+
+  // Use explicit dates if provided, otherwise calculate from days
+  const endDate = toDate || new Date().toISOString().split('T')[0];
+  const startDate = fromDate || new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
 
   // Filter to only configured providers
   const configuredTools = tools.filter(tool => {
