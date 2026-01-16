@@ -111,7 +111,7 @@ export const TIPS: Tip[] = [
   // MCP
   {
     id: 'mcp-intro',
-    text: 'Connect MCP servers to access Sentry, GitHub, and databases from your AI',
+    text: 'Connect MCP servers to access Sentry, Linear, and databases from your AI',
     guide: 'mcp',
   },
   {
@@ -715,11 +715,18 @@ The AI searches Sentry, analyzes issues, and can trigger root cause analysis.
 
 | Server | Description | Setup Guide |
 |--------|-------------|-------------|
-| Sentry | Search errors, trigger root cause analysis | [Install Guide](https://docs.sentry.io/product/sentry-mcp/) |
+| Sentry | Search errors, trigger root cause analysis | [Install Guide](https://mcp.sentry.dev/) |
 | Linear | Create/search issues, manage projects | [Install Guide](https://linear.app/docs/mcp) |
-| GitHub | Manage issues, PRs, repos | [Install Guide](https://github.com/github/github-mcp-server#readme) |
 | Context7 | Up-to-date library docs for code generation | [Install Guide](https://github.com/upstash/context7#installation) |
 | Playwright | Browser automation and testing | [Install Guide](https://github.com/microsoft/playwright-mcp) |
+
+## Watch Your Token Usage
+
+MCP servers can consume significant context tokens, especially when returning large payloads. Be mindful of which servers you enable and consider disabling ones you're not actively using. Use \`/context\` in Claude Code to check token consumption and identify if an MCP server is using more context than expected.
+
+## A Note on GitHub
+
+Skip the GitHub MCP server. It has high default token usage that can quickly exhaust your context window, and AI tools like Claude Code and Cursor already have excellent \`gh\` CLI integration built-in. The CLI is faster, more reliable, and doesn't consume your context. Just ask your agent to use \`gh\` commands directly.
     `,
   },
 };
