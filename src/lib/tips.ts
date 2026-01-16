@@ -711,16 +711,15 @@ The AI searches Sentry, analyzes issues, and can trigger root cause analysis.
 | Claude Code | \`.mcp.json\` | \`~/.claude.json\` |
 | Cursor | \`.cursor/mcp.json\` | Settings → MCP |
 
-## Popular MCP Servers
+## Recommended MCP Servers
 
-| Server | What it does |
-|--------|--------------|
-| Sentry | Search errors, analyze issues, trigger fixes |
-| GitHub | Manage issues, PRs, repos |
-| Postgres | Query databases directly |
-| Slack | Search and send messages |
-
-Find more at [MCP Server Registry](https://github.com/modelcontextprotocol/servers).
+| Server | Description | Setup Guide |
+|--------|-------------|-------------|
+| Sentry | Search errors, trigger root cause analysis | [Install Guide](https://docs.sentry.io/product/sentry-mcp/) |
+| Linear | Create/search issues, manage projects | [Install Guide](https://linear.app/docs/mcp) |
+| GitHub | Manage issues, PRs, repos | [Install Guide](https://github.com/github/github-mcp-server#readme) |
+| Context7 | Up-to-date library docs for code generation | [Install Guide](https://github.com/upstash/context7#installation) |
+| Playwright | Browser automation and testing | [Install Guide](https://github.com/microsoft/playwright-mcp) |
     `,
   },
 };
