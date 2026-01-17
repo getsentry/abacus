@@ -239,7 +239,8 @@ function UsagePageContent() {
   const maxToolValue = Math.max(...toolTotalValues, 1);
 
   // Check if we have projected data in tools view
-  const showToolProjectedLegend = useMemo(() => hasProjectedData(toolDataFinal), [toolDataFinal]);
+  // Don't show projected legend for weekly data since projections don't aggregate meaningfully
+  const showToolProjectedLegend = useMemo(() => !isWeekly && hasProjectedData(toolDataFinal), [isWeekly, toolDataFinal]);
 
   // Aggregate model breakdown by model (combining tools)
   interface AggregatedModel {
@@ -511,10 +512,11 @@ function UsagePageContent() {
                     <div className="flex items-end gap-0.5 h-full">
                       {toolDataFinal.map((item, i) => {
                         // Calculate actual vs projected portions for each tool
+                        // Skip projections for weekly data since aggregation doesn't preserve them meaningfully
                         const claudeTotal = Number(item.claudeCode);
                         const cursorTotal = Number(item.cursor);
-                        const claudeActual = item.projectedClaudeCode !== undefined ? item.projectedClaudeCode : claudeTotal;
-                        const cursorActual = item.projectedCursor !== undefined ? item.projectedCursor : cursorTotal;
+                        const claudeActual = !isWeekly && item.projectedClaudeCode !== undefined ? item.projectedClaudeCode : claudeTotal;
+                        const cursorActual = !isWeekly && item.projectedCursor !== undefined ? item.projectedCursor : cursorTotal;
                         const claudeProjectedPortion = claudeTotal - claudeActual;
                         const cursorProjectedPortion = cursorTotal - cursorActual;
 
@@ -527,45 +529,45 @@ function UsagePageContent() {
                         return (
                           <div key={item.date} className="group relative flex-1 flex flex-col justify-end min-w-[3px]" style={{ height: '100%' }}>
                             <div className="flex w-full flex-col gap-0.5 justify-end" style={{ height: '100%' }}>
-                              {/* Projected data (grayscale + stripes) - stacked on top */}
-                              {cursorProjectedHeight > 0 && (
-                                <motion.div
-                                  initial={{ height: 0 }}
-                                  animate={{ height: `${cursorProjectedHeight}%` }}
-                                  transition={{ duration: 0.6, delay: Math.min(i * 0.02, 1) }}
-                                  className="w-full rounded-t relative overflow-hidden bg-white/15"
-                                  style={{ minHeight: '2px' }}
-                                >
-                                  <div className="absolute inset-0 bg-stripes" />
-                                </motion.div>
-                              )}
+                              {/* Claude Code - on top (projected portion above actual) */}
                               {claudeProjectedHeight > 0 && (
                                 <motion.div
                                   initial={{ height: 0 }}
                                   animate={{ height: `${claudeProjectedHeight}%` }}
-                                  transition={{ duration: 0.6, delay: Math.min(i * 0.02 + 0.01, 1) }}
-                                  className={`w-full relative overflow-hidden bg-white/20 ${cursorProjectedHeight === 0 ? 'rounded-t' : ''}`}
+                                  transition={{ duration: 0.6, delay: Math.min(i * 0.02, 1) }}
+                                  className="w-full rounded-t relative overflow-hidden bg-white/20"
                                   style={{ minHeight: '2px' }}
                                 >
                                   <div className="absolute inset-0 bg-stripes" />
                                 </motion.div>
-                              )}
-                              {/* Actual data (solid colors) - stacked at bottom */}
-                              {cursorActualHeight > 0 && (
-                                <motion.div
-                                  initial={{ height: 0 }}
-                                  animate={{ height: `${cursorActualHeight}%` }}
-                                  transition={{ duration: 0.6, delay: Math.min(i * 0.02 + 0.02, 1) }}
-                                  className={`w-full ${claudeProjectedHeight === 0 && cursorProjectedHeight === 0 ? 'rounded-t' : ''} ${TOOL_CONFIGS.cursor.bgChart}`}
-                                  style={{ minHeight: '2px' }}
-                                />
                               )}
                               {claudeActualHeight > 0 && (
                                 <motion.div
                                   initial={{ height: 0 }}
                                   animate={{ height: `${claudeActualHeight}%` }}
+                                  transition={{ duration: 0.6, delay: Math.min(i * 0.02 + 0.01, 1) }}
+                                  className={`w-full ${claudeProjectedHeight === 0 ? 'rounded-t' : ''} ${TOOL_CONFIGS.claude_code.bgChart}`}
+                                  style={{ minHeight: '2px' }}
+                                />
+                              )}
+                              {/* Cursor - on bottom (projected portion above actual) */}
+                              {cursorProjectedHeight > 0 && (
+                                <motion.div
+                                  initial={{ height: 0 }}
+                                  animate={{ height: `${cursorProjectedHeight}%` }}
+                                  transition={{ duration: 0.6, delay: Math.min(i * 0.02 + 0.02, 1) }}
+                                  className="w-full relative overflow-hidden bg-white/15"
+                                  style={{ minHeight: '2px' }}
+                                >
+                                  <div className="absolute inset-0 bg-stripes" />
+                                </motion.div>
+                              )}
+                              {cursorActualHeight > 0 && (
+                                <motion.div
+                                  initial={{ height: 0 }}
+                                  animate={{ height: `${cursorActualHeight}%` }}
                                   transition={{ duration: 0.6, delay: Math.min(i * 0.02 + 0.03, 1) }}
-                                  className={`w-full rounded-b ${TOOL_CONFIGS.claude_code.bgChart}`}
+                                  className={`w-full rounded-b ${TOOL_CONFIGS.cursor.bgChart}`}
                                   style={{ minHeight: '2px' }}
                                 />
                               )}
