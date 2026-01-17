@@ -168,34 +168,45 @@ export function UsageChart({ data, days }: UsageChartProps) {
 
               {/* Tooltip */}
               <TooltipContent>
-                <div className="text-white/60 mb-1">{formatDate(item.date)}</div>
-                <div className={TOOL_CONFIGS.claude_code.text}>
-                  {TOOL_CONFIGS.claude_code.name}: {formatTokens(item.claudeCode)}
-                  {item.projectedClaudeCode !== undefined && item.projectedClaudeCode > 0 && (
-                    <span className="text-white/40 ml-1">(actual: {formatTokens(item.projectedClaudeCode)})</span>
-                  )}
-                  {item.projectedClaudeCode === 0 && (
-                    <span className="text-white/40 ml-1">(est. from avg)</span>
-                  )}
-                </div>
-                <div className={TOOL_CONFIGS.cursor.text}>
-                  {TOOL_CONFIGS.cursor.name}: {formatTokens(item.cursor)}
-                  {item.projectedCursor !== undefined && item.projectedCursor > 0 && (
-                    <span className="text-white/40 ml-1">(actual: {formatTokens(item.projectedCursor)})</span>
-                  )}
-                  {item.projectedCursor === 0 && (
-                    <span className="text-white/40 ml-1">(est. from avg)</span>
-                  )}
-                </div>
-                {item.cost !== undefined && item.cost > 0 && (
-                  <div className="text-emerald-400 mt-1 pt-1 border-t border-white/10">Cost: {formatCurrency(item.cost)}</div>
-                )}
-                {isIncomplete && (
-                  <div className="text-white/40 text-xs mt-1 pt-1 border-t border-white/10">
-                    {item.projectedClaudeCode !== undefined || item.projectedCursor !== undefined
-                      ? 'Projected (data still syncing)'
-                      : 'Data incomplete'}
+                <div className="text-white/60 mb-2">{formatDate(item.date)}</div>
+
+                {/* Actual values section */}
+                <div className="mb-1">
+                  <div className="text-white/40 text-xs uppercase tracking-wider mb-1">Actual</div>
+                  <div className={TOOL_CONFIGS.claude_code.text}>
+                    {TOOL_CONFIGS.claude_code.name}: {formatTokens(claudeActual)}
                   </div>
+                  <div className={TOOL_CONFIGS.cursor.text}>
+                    {TOOL_CONFIGS.cursor.name}: {formatTokens(cursorActual)}
+                  </div>
+                </div>
+
+                {/* Projected values section - only show if there are projections */}
+                {(claudeProjectedPortion > 0 || cursorProjectedPortion > 0) && (
+                  <div className="mb-1 mt-2 pt-2 border-t border-white/10">
+                    <div className="text-white/40 text-xs uppercase tracking-wider mb-1">Projected</div>
+                    {claudeProjectedPortion > 0 && (
+                      <div className="text-white/50">
+                        {TOOL_CONFIGS.claude_code.name}: +{formatTokens(claudeProjectedPortion)}
+                      </div>
+                    )}
+                    {cursorProjectedPortion > 0 && (
+                      <div className="text-white/50">
+                        {TOOL_CONFIGS.cursor.name}: +{formatTokens(cursorProjectedPortion)}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Estimated from average indicator */}
+                {(item.projectedClaudeCode === 0 || item.projectedCursor === 0) && (
+                  <div className="text-white/40 text-xs mt-2 pt-2 border-t border-white/10">
+                    Estimated from historical average
+                  </div>
+                )}
+
+                {item.cost !== undefined && item.cost > 0 && (
+                  <div className="text-emerald-400 mt-2 pt-2 border-t border-white/10">Cost: {formatCurrency(item.cost)}</div>
                 )}
               </TooltipContent>
             </div>
