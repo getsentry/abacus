@@ -19,13 +19,17 @@ const TOOLS: { key: ToolKey; projectedKey: ProjectedKey; completenessKey: Comple
 ];
 
 /**
- * Calculate historical daily averages from complete data.
- * Excludes today since today's data is always partial.
+ * Calculate same-day-of-week averages from historical data.
+ * Uses average of same weekdays (e.g., previous Tuesdays for a Tuesday)
+ * to account for weekday vs weekend variance.
+ *
+ * Falls back to simple average if fewer than 2 same-day samples.
  */
 function calculateHistoricalAverages(
   data: DailyUsage[],
   completeness: DataCompleteness,
-  todayStr: string
+  todayStr: string,
+  targetDayOfWeek?: number
 ): Record<ToolKey, number> {
   const averages: Record<ToolKey, number> = { claudeCode: 0, cursor: 0 };
 
@@ -41,9 +45,25 @@ function calculateHistoricalAverages(
       Number(d[tool.key]) > 0
     );
 
-    if (completeDays.length > 0) {
-      averages[tool.key] = completeDays.reduce((sum, d) => sum + Number(d[tool.key]), 0) / completeDays.length;
+    if (completeDays.length === 0) continue;
+
+    // If we have a target day of week, try to use same-day average first
+    if (targetDayOfWeek !== undefined) {
+      const sameDayData = completeDays.filter(d => {
+        const [year, month, day] = d.date.split('-').map(Number);
+        const date = new Date(year, month - 1, day);
+        return date.getDay() === targetDayOfWeek;
+      });
+
+      // Use same-day average if we have at least 2 samples
+      if (sameDayData.length >= 2) {
+        averages[tool.key] = sameDayData.reduce((sum, d) => sum + Number(d[tool.key]), 0) / sameDayData.length;
+        continue;
+      }
     }
+
+    // Fall back to simple average
+    averages[tool.key] = completeDays.reduce((sum, d) => sum + Number(d[tool.key]), 0) / completeDays.length;
   }
 
   return averages;
@@ -67,10 +87,16 @@ export function applyProjections(
   completeness: DataCompleteness,
   todayStr: string
 ): DailyUsage[] {
-  const historicalAvg = calculateHistoricalAverages(data, completeness, todayStr);
+  // Get today's day of week for same-day averaging
+  const [year, month, day] = todayStr.split('-').map(Number);
+  const todayDate = new Date(year, month - 1, day);
+  const todayDayOfWeek = todayDate.getDay();
 
-  return data.map(day => {
-    const isToday = day.date === todayStr;
+  // Calculate averages using same-day-of-week logic
+  const historicalAvg = calculateHistoricalAverages(data, completeness, todayStr, todayDayOfWeek);
+
+  return data.map(dayData => {
+    const isToday = dayData.date === todayStr;
 
     // Check which tools have incomplete data for this day
     const toolIncomplete: Record<ToolKey, boolean> = { claudeCode: false, cursor: false };
@@ -78,16 +104,16 @@ export function applyProjections(
 
     for (const tool of TOOLS) {
       const lastDataDate = completeness[tool.completenessKey].lastDataDate;
-      const incomplete = !lastDataDate || day.date > lastDataDate;
+      const incomplete = !lastDataDate || dayData.date > lastDataDate;
       toolIncomplete[tool.key] = incomplete;
       if (incomplete) anyIncomplete = true;
     }
 
     if (!anyIncomplete) {
-      return day;
+      return dayData;
     }
 
-    const result: DailyUsage = { ...day, isIncomplete: true };
+    const result: DailyUsage = { ...dayData, isIncomplete: true };
 
     // Calculate time factor for today's projection
     let factor = 1;
@@ -103,7 +129,7 @@ export function applyProjections(
 
     // Project each tool
     for (const tool of TOOLS) {
-      const currentValue = Number(day[tool.key]);
+      const currentValue = Number(dayData[tool.key]);
       const avg = historicalAvg[tool.key];
       const isToolIncomplete = toolIncomplete[tool.key] || isToday;
 

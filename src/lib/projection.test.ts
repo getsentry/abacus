@@ -291,6 +291,82 @@ describe('hasExtrapolatedData', () => {
   });
 });
 
+describe('same-day-of-week averaging', () => {
+  beforeEach(() => {
+    // Mock Date to be Tuesday Jan 21, 2025 at noon
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2025-01-21T12:00:00'));
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('uses same-day-of-week average when enough samples exist', () => {
+    const completeness: DataCompleteness = {
+      claudeCode: { lastDataDate: '2025-01-20' },
+      cursor: { lastDataDate: '2025-01-20' },
+    };
+    // 3 weeks of data with weekday/weekend variance
+    // Tuesdays: Jan 7, Jan 14 have 2000 tokens
+    // Other weekdays and weekends have different values
+    const data: DailyUsage[] = [
+      // Week 1
+      { date: '2025-01-06', claudeCode: 500, cursor: 250, cost: 0.05 },   // Mon
+      { date: '2025-01-07', claudeCode: 2000, cursor: 1000, cost: 0.20 }, // Tue
+      { date: '2025-01-08', claudeCode: 600, cursor: 300, cost: 0.06 },   // Wed
+      { date: '2025-01-09', claudeCode: 700, cursor: 350, cost: 0.07 },   // Thu
+      { date: '2025-01-10', claudeCode: 800, cursor: 400, cost: 0.08 },   // Fri
+      { date: '2025-01-11', claudeCode: 100, cursor: 50, cost: 0.01 },    // Sat
+      { date: '2025-01-12', claudeCode: 150, cursor: 75, cost: 0.015 },   // Sun
+      // Week 2
+      { date: '2025-01-13', claudeCode: 550, cursor: 275, cost: 0.055 },  // Mon
+      { date: '2025-01-14', claudeCode: 1800, cursor: 900, cost: 0.18 },  // Tue
+      { date: '2025-01-15', claudeCode: 650, cursor: 325, cost: 0.065 },  // Wed
+      { date: '2025-01-16', claudeCode: 750, cursor: 375, cost: 0.075 },  // Thu
+      { date: '2025-01-17', claudeCode: 850, cursor: 425, cost: 0.085 },  // Fri
+      { date: '2025-01-18', claudeCode: 120, cursor: 60, cost: 0.012 },   // Sat
+      { date: '2025-01-19', claudeCode: 180, cursor: 90, cost: 0.018 },   // Sun
+      { date: '2025-01-20', claudeCode: 580, cursor: 290, cost: 0.058 },  // Mon
+      { date: '2025-01-21', claudeCode: 0, cursor: 0, cost: 0 },          // Tue - today, no data yet
+    ];
+
+    const result = applyProjections(data, completeness, '2025-01-21');
+
+    // Should use Tuesday average: (2000 + 1800) / 2 = 1900 for Claude Code
+    // Should use Tuesday average: (1000 + 900) / 2 = 950 for Cursor
+    expect(result[15].claudeCode).toBe(1900);
+    expect(result[15].cursor).toBe(950);
+    expect(result[15].projectedClaudeCode).toBe(0);
+    expect(result[15].projectedCursor).toBe(0);
+  });
+
+  it('falls back to simple average when fewer than 2 same-day samples', () => {
+    const completeness: DataCompleteness = {
+      claudeCode: { lastDataDate: '2025-01-20' },
+      cursor: { lastDataDate: '2025-01-20' },
+    };
+    // Only 1 week of data, so only 1 Tuesday sample
+    const data: DailyUsage[] = [
+      { date: '2025-01-14', claudeCode: 2000, cursor: 1000, cost: 0.20 }, // Tue
+      { date: '2025-01-15', claudeCode: 600, cursor: 300, cost: 0.06 },   // Wed
+      { date: '2025-01-16', claudeCode: 700, cursor: 350, cost: 0.07 },   // Thu
+      { date: '2025-01-17', claudeCode: 800, cursor: 400, cost: 0.08 },   // Fri
+      { date: '2025-01-18', claudeCode: 100, cursor: 50, cost: 0.01 },    // Sat
+      { date: '2025-01-19', claudeCode: 150, cursor: 75, cost: 0.015 },   // Sun
+      { date: '2025-01-20', claudeCode: 550, cursor: 275, cost: 0.055 },  // Mon
+      { date: '2025-01-21', claudeCode: 0, cursor: 0, cost: 0 },          // Tue - today
+    ];
+
+    const result = applyProjections(data, completeness, '2025-01-21');
+
+    // Should fall back to simple average: (2000+600+700+800+100+150+550) / 7 = 700 for Claude Code
+    // (1000+300+350+400+50+75+275) / 7 = 350 for Cursor
+    expect(result[7].claudeCode).toBe(700);
+    expect(result[7].cursor).toBe(350);
+  });
+});
+
 describe('projection math verification', () => {
   beforeEach(() => {
     // Mock Date to be at 6pm (18:00) = 75% through the day
