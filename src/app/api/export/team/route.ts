@@ -67,8 +67,6 @@ async function handler(request: Request) {
     { key: 'lastActive' as const, label: 'last_active' },
     { key: 'daysActive' as const, label: 'days_active' },
     { key: 'avgTokensPerDay' as const, label: 'avg_tokens_per_day' },
-    { key: 'adoptionStage' as const, label: 'adoption_stage' },
-    { key: 'adoptionScore' as const, label: 'adoption_score' },
     { key: 'toolCount' as const, label: 'tool_count' },
     { key: 'hasThinkingModels' as const, label: 'has_thinking_models' },
   ];

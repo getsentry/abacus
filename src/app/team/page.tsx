@@ -2,14 +2,11 @@
 
 import { useState, useEffect, useCallback, useMemo, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { motion } from 'framer-motion';
-import { Users, TrendingUp, Target } from 'lucide-react';
+import { Users } from 'lucide-react';
 import { StatCard } from '@/components/StatCard';
 import { InlineSearchInput } from '@/components/SearchInput';
 import { AppHeader } from '@/components/AppHeader';
 import { TimeRangeSelector } from '@/components/TimeRangeSelector';
-import { AdoptionDistribution } from '@/components/AdoptionDistribution';
-import { AdoptionBadge } from '@/components/AdoptionBadge';
 import { UserLink } from '@/components/UserLink';
 import { TipBar } from '@/components/TipBar';
 import { PageContainer } from '@/components/PageContainer';
@@ -20,22 +17,6 @@ import { ToolSplitBar, type ToolSplitData } from '@/components/ToolSplitBar';
 import { ExportButton } from '@/components/ExportButton';
 import { useTimeRange } from '@/contexts/TimeRangeContext';
 import { formatTokens, formatCurrency } from '@/lib/utils';
-import { type AdoptionStage, STAGE_CONFIG, STAGE_ORDER, STAGE_ICONS, isInactive } from '@/lib/adoption';
-import { calculateDelta } from '@/lib/comparison';
-
-interface AdoptionSummary {
-  stages: Record<AdoptionStage, { count: number; percentage: number; users: string[] }>;
-  avgScore: number;
-  inactive: { count: number; users: string[] };
-  totalUsers: number;
-  activeUsers: number;
-  previousPeriod?: {
-    avgScore: number;
-    activeUsers: number;
-    inFlowCount: number;
-    powerUserCount: number;
-  };
-}
 
 interface UserPivotData {
   email: string;
@@ -52,15 +33,11 @@ interface UserPivotData {
   avgTokensPerDay: number;
   toolCount: number;
   hasThinkingModels: boolean;
-  adoptionScore: number;
-  adoptionStage: AdoptionStage;
   daysSinceLastActive: number;
 }
 
 type SortKey = keyof UserPivotData;
 type ColumnKey = SortKey | 'split';
-
-type FilterType = AdoptionStage | 'all' | 'active' | 'inactive';
 
 // Build tool breakdown from user data
 function getToolBreakdownFromUser(user: UserPivotData): ToolSplitData[] {
@@ -74,10 +51,8 @@ function getToolBreakdownFromUser(user: UserPivotData): ToolSplitData[] {
   return tools.sort((a, b) => b.value - a.value);
 }
 
-const columns: { key: ColumnKey; label: string; align: 'left' | 'right'; format?: (v: number) => string; isAdoption?: boolean; sortable?: boolean }[] = [
+const columns: { key: ColumnKey; label: string; align: 'left' | 'right'; format?: (v: number) => string; sortable?: boolean }[] = [
   { key: 'email', label: 'User', align: 'left' },
-  { key: 'adoptionStage', label: 'Stage', align: 'left', isAdoption: true },
-  { key: 'adoptionScore', label: 'Score', align: 'right', format: (v) => v.toString() },
   { key: 'totalTokens', label: 'Total Tokens', align: 'right', format: formatTokens },
   { key: 'totalCost', label: 'Cost', align: 'right', format: formatCurrency },
   { key: 'split', label: 'Tools', align: 'left', sortable: false },
@@ -88,17 +63,7 @@ const columns: { key: ColumnKey; label: string; align: 'left' | 'right'; format?
   { key: 'lastActive', label: 'Last Active', align: 'right' },
 ];
 
-const DEFAULT_COLUMNS: ColumnKey[] = ['email', 'adoptionStage', 'totalTokens', 'totalCost', 'split', 'lastActive'];
-
-const filterTabs: { key: FilterType; label: string }[] = [
-  { key: 'active', label: 'All Active' },
-  { key: 'exploring', label: 'Exploring' },
-  { key: 'building_momentum', label: 'Building' },
-  { key: 'in_flow', label: 'In Flow' },
-  { key: 'power_user', label: 'Power User' },
-  { key: 'inactive', label: 'Inactive' },
-  { key: 'all', label: 'All Users' },
-];
+const DEFAULT_COLUMNS: ColumnKey[] = ['email', 'totalTokens', 'totalCost', 'split', 'lastActive'];
 
 function TeamPageContent() {
   const { range, setRange, days, isPending, getDateParams } = useTimeRange();
@@ -106,8 +71,8 @@ function TeamPageContent() {
   const searchParams = useSearchParams();
   const initialSearch = searchParams.get('search') || '';
 
-  const [summary, setSummary] = useState<AdoptionSummary | null>(null);
   const [users, setUsers] = useState<UserPivotData[]>([]);
+  const [totalUsers, setTotalUsers] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [sortBy, setSortBy] = useState<SortKey>('totalTokens');
@@ -124,26 +89,7 @@ function TeamPageContent() {
     return new Set(DEFAULT_COLUMNS);
   }, [searchParams]);
 
-  // Get filter from URL or default to 'active' (hides inactive)
-  const filterParam = searchParams.get('filter');
-  const selectedFilter: FilterType =
-    filterParam === 'inactive' ? 'inactive' :
-    filterParam === 'all' ? 'all' :
-    STAGE_ORDER.includes(filterParam as AdoptionStage) ? filterParam as AdoptionStage :
-    'active';
-
-  // Update URL when filter changes
-  const setSelectedFilter = useCallback((filter: FilterType) => {
-    const params = new URLSearchParams(searchParams.toString());
-    if (filter === 'active') {
-      params.delete('filter'); // Default, no need to store
-    } else {
-      params.set('filter', filter);
-    }
-    router.push(`/team?${params.toString()}`, { scroll: false });
-  }, [router, searchParams]);
-
-  const isRefreshing = isPending || (loading && summary !== null);
+  const isRefreshing = isPending || (loading && users.length > 0);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -157,26 +103,21 @@ function TeamPageContent() {
         endDate,
         ...(searchQuery && { search: searchQuery }),
       });
-      const [summaryRes, usersRes] = await Promise.all([
-        fetch(`/api/adoption?startDate=${startDate}&endDate=${endDate}&comparison=true`),
-        fetch(`/api/users/pivot?${params}`),
-      ]);
+      const usersRes = await fetch(`/api/users/pivot?${params}`);
 
-      if (!summaryRes.ok || !usersRes.ok) {
+      if (!usersRes.ok) {
         throw new Error('Failed to fetch team data');
       }
 
-      const [summaryData, usersData] = await Promise.all([
-        summaryRes.json(),
-        usersRes.json(),
-      ]);
+      const usersData = await usersRes.json();
 
-      setSummary(summaryData);
       // Handle both old (array) and new ({ users, totalCount }) response formats
       if (Array.isArray(usersData)) {
         setUsers(usersData);
+        setTotalUsers(usersData.length);
       } else {
         setUsers(usersData.users || []);
+        setTotalUsers(usersData.totalCount || usersData.users?.length || 0);
       }
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to fetch data';
@@ -189,20 +130,6 @@ function TeamPageContent() {
   useEffect(() => {
     fetchData();
   }, [fetchData]);
-
-  // Filter users based on selected filter (memoized)
-  const filteredUsers = useMemo(() => {
-    if (selectedFilter === 'all') return users;
-    if (selectedFilter === 'active') {
-      // Default: hide inactive users (30+ days)
-      return users.filter(u => !isInactive(u.daysSinceLastActive));
-    }
-    if (selectedFilter === 'inactive') {
-      return users.filter(u => isInactive(u.daysSinceLastActive));
-    }
-    // Filter by specific stage AND only show active users
-    return users.filter(u => u.adoptionStage === selectedFilter && !isInactive(u.daysSinceLastActive));
-  }, [users, selectedFilter]);
 
   const handleSort = (key: SortKey) => {
     if (sortBy === key) {
@@ -237,7 +164,7 @@ function TeamPageContent() {
   const activeColumns = columns.filter(c => visibleColumns.has(c.key));
 
   // Calculate totals
-  const totals = filteredUsers.reduce(
+  const totals = users.reduce(
     (acc, u) => ({
       totalTokens: acc.totalTokens + Number(u.totalTokens),
       totalCost: acc.totalCost + Number(u.totalCost),
@@ -283,128 +210,29 @@ function TeamPageContent() {
         isRefreshing ? 'opacity-60' : 'opacity-100'
       }`}>
         <PageContainer>
-        {loading && !summary ? (
+        {loading && users.length === 0 ? (
           <LoadingState />
         ) : error ? (
           <ErrorState message={error} />
-        ) : summary && (
+        ) : (
           <div className="space-y-6">
             {/* Stats Cards */}
-            <div className="grid gap-4 md:grid-cols-3">
-              {/* Average Score Card */}
-              <StatCard
-                label="Avg Adoption Score"
-                days={days}
-                value={summary.avgScore.toString()}
-                suffix="/100"
-                icon={TrendingUp}
-                accentColor="#10b981"
-                trend={summary.previousPeriod ? calculateDelta(summary.avgScore, summary.previousPeriod.avgScore) : undefined}
-                delay={0}
-              >
-                <div className="h-1.5 rounded-full bg-white/5 overflow-hidden">
-                  <motion.div
-                    initial={{ width: 0 }}
-                    animate={{ width: `${summary.avgScore}%` }}
-                    transition={{ duration: 0.8, ease: 'easeOut' }}
-                    className="h-full rounded-full bg-gradient-to-r from-slate-500 via-amber-500 via-cyan-500 to-emerald-500"
-                  />
-                </div>
-              </StatCard>
-
+            <div className="grid gap-4 md:grid-cols-1 max-w-xs">
               {/* Active Users Card */}
               <StatCard
                 label="Active Users"
                 days={days}
-                value={summary.activeUsers.toString()}
+                value={totalUsers.toString()}
                 suffix="users"
                 icon={Users}
                 accentColor="#06b6d4"
-                trend={summary.previousPeriod ? calculateDelta(summary.activeUsers, summary.previousPeriod.activeUsers) : undefined}
-                delay={0.1}
-              >
-                <div className="flex gap-3">
-                  {STAGE_ORDER.map(stage => {
-                    const Icon = STAGE_ICONS[stage];
-                    const count = summary.stages[stage]?.count || 0;
-                    const config = STAGE_CONFIG[stage];
-                    return (
-                      <div key={stage} className="flex items-center gap-1">
-                        <Icon className={`w-3 h-3 ${config.textColor}`} />
-                        <span className={`font-mono text-xs ${config.textColor}`}>{count}</span>
-                      </div>
-                    );
-                  })}
-                </div>
-              </StatCard>
-
-              {/* Productive Users Card */}
-              {(() => {
-                const inFlowCount = summary.stages.in_flow?.count || 0;
-                const powerUserCount = summary.stages.power_user?.count || 0;
-                const productiveCount = inFlowCount + powerUserCount;
-                const productivePercent = summary.activeUsers > 0
-                  ? Math.round((productiveCount / summary.activeUsers) * 100)
-                  : 0;
-                // Calculate previous period productive percentage for proper comparison
-                const prev = summary.previousPeriod;
-                const prevProductiveCount = prev ? (prev.inFlowCount + prev.powerUserCount) : 0;
-                const prevProductivePercent = prev && prev.activeUsers > 0
-                  ? Math.round((prevProductiveCount / prev.activeUsers) * 100)
-                  : 0;
-                return (
-                  <StatCard
-                    label="Productive"
-                    days={days}
-                    value={`${productivePercent}%`}
-                    suffix="of active users"
-                    icon={Target}
-                    accentColor="#06b6d4"
-                    trend={prev ? calculateDelta(productivePercent, prevProductivePercent) : undefined}
-                    delay={0.2}
-                  >
-                    <p className="font-mono text-xs text-white/50">
-                      {productiveCount} in flow or power user
-                    </p>
-                  </StatCard>
-                );
-              })()}
+                delay={0}
+              />
             </div>
 
-            {/* Adoption Distribution */}
-            <AdoptionDistribution
-              stages={summary.stages}
-              totalUsers={summary.activeUsers}
-              days={days}
-              hideViewAll
-            />
-
-            {/* Filter, Column Selector and Export */}
+            {/* Column Selector and Export */}
             <div className="flex items-center justify-between gap-4">
               <div className="flex items-center gap-6">
-                {/* Filter Dropdown */}
-                <select
-                  value={selectedFilter}
-                  onChange={(e) => setSelectedFilter(e.target.value as FilterType)}
-                  className="px-3 py-1.5 rounded font-mono text-xs bg-white/5 text-muted border border-white/10 hover:bg-white/10 cursor-pointer focus:outline-none focus:border-amber-500/50 appearance-none pr-8"
-                  style={{
-                    backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='rgba(255,255,255,0.4)' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E")`,
-                    backgroundRepeat: 'no-repeat',
-                    backgroundPosition: 'right 8px center',
-                  }}
-                >
-                  {filterTabs.map(tab => (
-                    <option key={tab.key} value={tab.key}>
-                      {tab.label}
-                      {tab.key !== 'all' && tab.key !== 'active' && tab.key !== 'inactive' && summary
-                        ? ` (${summary.stages[tab.key as AdoptionStage]?.count || 0})`
-                        : tab.key === 'inactive' && summary
-                        ? ` (${summary.inactive.count})`
-                        : ''}
-                    </option>
-                  ))}
-                </select>
-
                 {/* Column Selector - hidden on mobile */}
                 <div className="hidden md:flex items-center gap-1.5 flex-wrap">
                   {columns.map(col => (
@@ -456,16 +284,16 @@ function TeamPageContent() {
                     </tr>
                   </thead>
                   <tbody>
-                    {filteredUsers.length === 0 ? (
+                    {users.length === 0 ? (
                       <tr>
                         <td colSpan={activeColumns.length} className="px-4 py-8 text-center">
                           <span className="font-mono text-sm text-muted">
-                            No users in this category
+                            No users found
                           </span>
                         </td>
                       </tr>
                     ) : (
-                      filteredUsers.map((user) => (
+                      users.map((user) => (
                         <tr
                           key={user.email}
                           className="border-b border-white/5 hover:bg-white/[0.02] transition-colors"
@@ -479,12 +307,6 @@ function TeamPageContent() {
                             >
                               {col.key === 'email' ? (
                                 <UserLink email={user.email} className="text-white" />
-                              ) : col.isAdoption ? (
-                                <AdoptionBadge
-                                  stage={user.adoptionStage}
-                                  size="sm"
-                                  isInactive={isInactive(user.daysSinceLastActive)}
-                                />
                               ) : col.key === 'split' ? (
                                 <ToolSplitBar
                                   data={getToolBreakdownFromUser(user)}
@@ -507,7 +329,7 @@ function TeamPageContent() {
                       ))
                     )}
                   </tbody>
-                  {filteredUsers.length > 0 && (
+                  {users.length > 0 && (
                     <tfoot>
                       <tr className="border-t border-white/10 bg-white/[0.03]">
                         {activeColumns.map(col => (
@@ -518,7 +340,7 @@ function TeamPageContent() {
                             }`}
                           >
                             {col.key === 'email' ? (
-                              <span className="text-white/60">Total ({filteredUsers.length})</span>
+                              <span className="text-white/60">Total ({users.length})</span>
                             ) : col.key in totals ? (
                               <span className="text-white">
                                 {col.format!(totals[col.key as keyof typeof totals])}

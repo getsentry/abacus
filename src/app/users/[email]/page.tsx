@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, Suspense, useMemo } from 'react';
 import { useParams, useSearchParams, useRouter } from 'next/navigation';
 import { useTimeRange } from '@/contexts/TimeRangeContext';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { RawUsageTable } from '@/components/RawUsageTable';
 import { StatCard } from '@/components/StatCard';
 import { UsageChart } from '@/components/UsageChart';
@@ -11,18 +11,10 @@ import { TimeRangeSelector } from '@/components/TimeRangeSelector';
 import { TooltipContent } from '@/components/Tooltip';
 import { AppHeader } from '@/components/AppHeader';
 import { UserProfileHeader } from '@/components/UserProfileHeader';
-import { AdoptionBadge } from '@/components/AdoptionBadge';
 import { TipBar } from '@/components/TipBar';
 import { PageContainer } from '@/components/PageContainer';
 import { formatTokens, formatCurrency, formatDate, formatModelName } from '@/lib/utils';
 import { DOMAIN } from '@/lib/constants';
-import {
-  calculateAdoptionScore,
-  getAdoptionStage,
-  getStageGuidance,
-  formatIntensity,
-  isInactive,
-} from '@/lib/adoption';
 import { calculateDelta } from '@/lib/comparison';
 
 // Tool color palette - extensible for future tools
@@ -155,8 +147,6 @@ function UserDetailContent() {
   const [data, setData] = useState<UserDetails | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [percentile, setPercentile] = useState<number | null>(null);
-  const [adoptionExpanded, setAdoptionExpanded] = useState(false);
 
   // Show refreshing state when pending or loading with existing data
   const isRefreshing = isPending || (loading && data !== null);
@@ -187,58 +177,6 @@ function UserDetailContent() {
   useEffect(() => {
     fetchData();
   }, [fetchData]);
-
-  // Fetch percentile separately
-  useEffect(() => {
-    if (username) {
-      setPercentile(null);
-      const { startDate, endDate } = getDateParams();
-      fetch(`/api/users/${encodeURIComponent(username)}/percentile?startDate=${startDate}&endDate=${endDate}`)
-        .then(res => res.json())
-        .then(data => {
-          if (data.percentile !== undefined) {
-            setPercentile(data.percentile);
-          }
-        })
-        .catch(() => { /* Percentile is optional */ });
-    }
-  }, [username, getDateParams]);
-
-  // Calculate adoption metrics
-  const adoptionData = useMemo(() => {
-    if (!data?.summary) return null;
-
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
-    const lastActiveDate = new Date(data.summary.lastActive);
-    lastActiveDate.setHours(0, 0, 0, 0);
-    const daysSinceLastActive = Math.floor((today.getTime() - lastActiveDate.getTime()) / (1000 * 60 * 60 * 24));
-
-    const daysActive = data.summary.daysActive || 1;
-
-    const adoptionMetrics = {
-      totalTokens: Number(data.summary.totalTokens),
-      daysActive,
-      daysSinceLastActive,
-    };
-
-    const score = calculateAdoptionScore(adoptionMetrics);
-    const stage = getAdoptionStage(adoptionMetrics);
-    const inactive = isInactive(daysSinceLastActive);
-    const guidance = getStageGuidance(stage);
-    const avgTokensPerDay = daysActive > 0 ? Number(data.summary.totalTokens) / daysActive : 0;
-
-    return {
-      score,
-      stage,
-      inactive,
-      daysSinceLastActive,
-      guidance,
-      avgTokensPerDay,
-      daysActive,
-    };
-  }, [data?.summary]);
 
   const totalTokens = Number(data?.summary?.totalTokens || 0);
 
@@ -384,140 +322,6 @@ function UserDetailContent() {
                 />
               )}
             </div>
-
-            {/* Adoption Journey */}
-            {adoptionData && (
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.15 }}
-                className={`rounded-lg border bg-gradient-to-b from-white/[0.03] to-transparent overflow-hidden ${
-                  adoptionData.stage === 'exploring' ? 'border-slate-500/20' :
-                  adoptionData.stage === 'building_momentum' ? 'border-amber-500/20' :
-                  adoptionData.stage === 'in_flow' ? 'border-cyan-500/20' :
-                  'border-emerald-500/20'
-                }`}
-              >
-                <button
-                  type="button"
-                  onClick={() => !adoptionData.inactive && setAdoptionExpanded(!adoptionExpanded)}
-                  className={`w-full p-4 sm:p-6 text-left ${!adoptionData.inactive ? 'cursor-pointer hover:bg-white/[0.02] transition-colors' : ''}`}
-                >
-                  {/* Header with badge and headline */}
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                    <div className="flex items-center gap-3">
-                      <AdoptionBadge
-                        stage={adoptionData.stage}
-                        size="lg"
-                        showLabel={false}
-                        isInactive={adoptionData.inactive}
-                      />
-                      <p className={`font-mono text-base ${
-                        adoptionData.inactive ? 'text-zinc-400' :
-                        adoptionData.stage === 'exploring' ? 'text-slate-300' :
-                        adoptionData.stage === 'building_momentum' ? 'text-amber-300' :
-                        adoptionData.stage === 'in_flow' ? 'text-cyan-300' :
-                        'text-emerald-300'
-                      }`}>
-                        {adoptionData.inactive
-                          ? `Inactive (${adoptionData.daysSinceLastActive} days)`
-                          : adoptionData.guidance.headline}
-                      </p>
-                    </div>
-
-                    <div className="flex items-center gap-4">
-                      {/* Intensity Stats */}
-                      {!adoptionData.inactive && (
-                        <div className="flex items-baseline gap-3 sm:text-right">
-                          <div>
-                            <p className="font-display text-2xl text-white">
-                              {formatIntensity(adoptionData.avgTokensPerDay)}
-                              <span className="text-white/40 text-sm ml-1">tokens/day</span>
-                            </p>
-                            <div className="flex items-center gap-2 mt-0.5">
-                              <p className="font-mono text-[10px] text-faint">
-                                {adoptionData.daysActive} active days
-                              </p>
-                              {percentile !== null && percentile > 50 && (
-                                <span className={`font-mono text-[10px] px-1.5 py-0.5 rounded ${
-                                  percentile >= 75 ? 'bg-emerald-500/20 text-emerald-400' :
-                                  'bg-cyan-500/20 text-cyan-400'
-                                }`}>
-                                  Top {100 - percentile}%
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Expand/collapse chevron */}
-                      {!adoptionData.inactive && (
-                        <motion.svg
-                          animate={{ rotate: adoptionExpanded ? 180 : 0 }}
-                          transition={{ duration: 0.2 }}
-                          className="w-5 h-5 text-white/40 shrink-0"
-                          fill="none"
-                          viewBox="0 0 24 24"
-                          stroke="currentColor"
-                        >
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                        </motion.svg>
-                      )}
-                    </div>
-                  </div>
-                </button>
-
-                {/* Stage traits and suggestion - collapsible */}
-                <AnimatePresence initial={false}>
-                  {!adoptionData.inactive && adoptionExpanded && (
-                    <motion.div
-                      initial={{ height: 0, opacity: 0 }}
-                      animate={{ height: 'auto', opacity: 1 }}
-                      exit={{ height: 0, opacity: 0 }}
-                      transition={{ duration: 0.2 }}
-                      className="overflow-hidden"
-                    >
-                      <div className="border-t border-white/5 px-4 sm:px-6 pb-4 sm:pb-6 pt-4">
-                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                          {/* What defines this level */}
-                          <div>
-                            <p className="font-mono text-[11px] uppercase tracking-wider text-white/60 mb-2">
-                              {adoptionData.stage === 'power_user' ? 'What Power Users Do' : 'At This Level'}
-                            </p>
-                            <div className="space-y-1.5">
-                              {adoptionData.guidance.traits.map((trait, i) => (
-                                <div key={i} className="flex gap-2">
-                                  <span className={`text-[10px] mt-0.5 ${
-                                    adoptionData.stage === 'exploring' ? 'text-slate-500' :
-                                    adoptionData.stage === 'building_momentum' ? 'text-amber-500' :
-                                    adoptionData.stage === 'in_flow' ? 'text-cyan-500' :
-                                    'text-emerald-500'
-                                  }`}>•</span>
-                                  <p className="font-mono text-[11px] text-white/50 leading-relaxed">
-                                    {trait}
-                                  </p>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-
-                          {/* Suggestion */}
-                          <div>
-                            <p className="font-mono text-[11px] uppercase tracking-wider text-white/60 mb-2">
-                              {adoptionData.stage === 'power_user' ? 'Keep It Going' : 'Try This'}
-                            </p>
-                            <p className="font-mono text-[11px] text-white/50 leading-relaxed">
-                              {adoptionData.guidance.suggestion}
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </motion.div>
-            )}
 
             {/* Tool Usage Breakdown */}
             {toolBreakdown.length > 0 && (
