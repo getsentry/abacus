@@ -12,7 +12,7 @@ import { TrendLine } from '@/components/TrendLine';
 import { AppLink } from '@/components/AppLink';
 import { InlineLegend } from '@/components/Legend';
 import { TOOL_CONFIGS } from '@/lib/tools';
-import { hasExtrapolatedData, hasEstimatedData } from '@/lib/projection';
+import { hasProjectedData } from '@/lib/projection';
 import type { DailyUsage } from '@/lib/queries';
 
 interface UsageChartProps {
@@ -42,8 +42,7 @@ export function UsageChart({ data, days }: UsageChartProps) {
   const maxValue = Math.max(...totalValues, 1);
   const claudeCodeTotal = chartData.reduce((sum, d) => sum + Number(d.claudeCode), 0);
   const cursorTotal = chartData.reduce((sum, d) => sum + Number(d.cursor), 0);
-  const showExtrapolatedLegend = hasExtrapolatedData(chartData);
-  const showEstimatedLegend = hasEstimatedData(chartData);
+  const showProjectedLegend = hasProjectedData(chartData);
 
   // Determine label frequency to show max ~10 labels
   const maxLabels = 10;
@@ -81,16 +80,10 @@ export function UsageChart({ data, days }: UsageChartProps) {
                 { key: 'cursor', label: TOOL_CONFIGS.cursor.name, value: formatTokens(cursorTotal), textColor: TOOL_CONFIGS.cursor.text },
               ]}
             />
-            {showExtrapolatedLegend && (
-              <div className="flex items-center gap-1.5 text-xs text-white/40">
-                <div className={`w-3 h-3 ${TOOL_CONFIGS.claude_code.bgChart} bg-stripes rounded-sm`} />
-                <span>Projected</span>
-              </div>
-            )}
-            {showEstimatedLegend && (
+            {showProjectedLegend && (
               <div className="flex items-center gap-1.5 text-xs text-white/40">
                 <div className="w-3 h-3 bg-white/20 bg-stripes rounded-sm" />
-                <span>Estimated</span>
+                <span>Projected</span>
               </div>
             )}
           </div>
@@ -119,56 +112,50 @@ export function UsageChart({ data, days }: UsageChartProps) {
           const cursorActualHeight = (cursorActual / maxValue) * 100;
           const cursorProjectedHeight = (cursorProjectedPortion / maxValue) * 100;
 
-          // Check if estimated (no actual data, using historical avg)
-          const claudeCodeEstimated = item.projectedClaudeCode === 0;
-          const cursorEstimated = item.projectedCursor === 0;
-
           return (
             <div key={item.date} className="group relative flex-1 flex flex-col justify-end min-w-[3px]" style={{ height: '100%' }}>
               <div className="flex w-full flex-col gap-0.5 justify-end" style={{ height: '100%' }}>
-                {/* Claude Code: actual portion (solid) */}
-                {claudeActualHeight > 0 && (
+                {/* Projected data (grayscale + stripes) - stacked on top */}
+                {cursorProjectedHeight > 0 && (
                   <motion.div
                     initial={{ height: 0 }}
-                    animate={{ height: `${claudeActualHeight}%` }}
+                    animate={{ height: `${cursorProjectedHeight}%` }}
                     transition={{ duration: 0.6, delay: Math.min(i * 0.02, 1) }}
-                    className={`w-full ${claudeProjectedHeight === 0 ? 'rounded-t' : ''} ${TOOL_CONFIGS.claude_code.bgChart}`}
+                    className="w-full rounded-t relative overflow-hidden bg-white/15"
                     style={{ minHeight: '2px' }}
-                  />
+                  >
+                    <div className="absolute inset-0 bg-stripes" />
+                  </motion.div>
                 )}
-                {/* Claude Code: projected portion (striped) */}
                 {claudeProjectedHeight > 0 && (
                   <motion.div
                     initial={{ height: 0 }}
                     animate={{ height: `${claudeProjectedHeight}%` }}
                     transition={{ duration: 0.6, delay: Math.min(i * 0.02 + 0.01, 1) }}
-                    className={`w-full rounded-t relative overflow-hidden ${claudeCodeEstimated ? 'bg-white/20' : TOOL_CONFIGS.claude_code.bgChart}`}
+                    className={`w-full relative overflow-hidden bg-white/20 ${cursorProjectedHeight === 0 ? 'rounded-t' : ''}`}
                     style={{ minHeight: '2px' }}
                   >
                     <div className="absolute inset-0 bg-stripes" />
                   </motion.div>
                 )}
-                {/* Cursor: actual portion (solid) */}
+                {/* Actual data (solid colors) - stacked at bottom */}
                 {cursorActualHeight > 0 && (
                   <motion.div
                     initial={{ height: 0 }}
                     animate={{ height: `${cursorActualHeight}%` }}
                     transition={{ duration: 0.6, delay: Math.min(i * 0.02 + 0.02, 1) }}
-                    className={`w-full ${cursorProjectedHeight === 0 ? 'rounded-b' : ''} ${TOOL_CONFIGS.cursor.bgChart}`}
+                    className={`w-full ${claudeProjectedHeight === 0 && cursorProjectedHeight === 0 ? 'rounded-t' : ''} ${TOOL_CONFIGS.cursor.bgChart}`}
                     style={{ minHeight: '2px' }}
                   />
                 )}
-                {/* Cursor: projected portion (striped) */}
-                {cursorProjectedHeight > 0 && (
+                {claudeActualHeight > 0 && (
                   <motion.div
                     initial={{ height: 0 }}
-                    animate={{ height: `${cursorProjectedHeight}%` }}
+                    animate={{ height: `${claudeActualHeight}%` }}
                     transition={{ duration: 0.6, delay: Math.min(i * 0.02 + 0.03, 1) }}
-                    className={`w-full rounded-b relative overflow-hidden ${cursorEstimated ? 'bg-white/20' : TOOL_CONFIGS.cursor.bgChart}`}
+                    className={`w-full rounded-b ${TOOL_CONFIGS.claude_code.bgChart}`}
                     style={{ minHeight: '2px' }}
-                  >
-                    <div className="absolute inset-0 bg-stripes" />
-                  </motion.div>
+                  />
                 )}
               </div>
 
