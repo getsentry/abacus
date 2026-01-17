@@ -17,7 +17,7 @@ interface MainNavProps {
 
 const navItems: NavItem[] = [
   { label: 'Overview', href: '/', matchPaths: ['/'] },
-  { label: 'Team', href: '/team', matchPaths: ['/team', '/users', '/adoption'] },
+  { label: 'Team', href: '/team', matchPaths: ['/team', '/users'] },
   { label: 'Usage', href: '/usage', matchPaths: ['/usage'] },
   { label: 'Commits', href: '/commits', matchPaths: ['/commits'] },
   { label: 'Tips', href: '/tips', matchPaths: ['/tips'] },

@@ -1,13 +1,7 @@
 import { sql as vercelSql } from '@vercel/postgres';
 import { db, usageRecords, identityMappings, repositories, commits, commitAttributions } from './db';
 import { eq, and, count, sql } from 'drizzle-orm';
-import { DEFAULT_DAYS } from './constants';
 import { escapeLikePattern } from './utils';
-import {
-  type AdoptionStage,
-  calculateAdoptionScore,
-  getAdoptionStage,
-} from './adoption';
 import { getPreviousPeriodDates } from './comparison';
 
 
@@ -605,11 +599,8 @@ export interface UserPivotData {
   lastActive: string;
   daysActive: number;
   avgTokensPerDay: number;
-  // Adoption metrics
   toolCount: number;
   hasThinkingModels: boolean;
-  adoptionScore: number;
-  adoptionStage: AdoptionStage;
   daysSinceLastActive: number;
 }
 
@@ -634,7 +625,7 @@ export async function getAllUsersPivot(
   const validSortColumns = [
     'email', 'totalTokens', 'totalCost', 'claudeCodeTokens', 'cursorTokens',
     'inputTokens', 'outputTokens', 'firstActive', 'lastActive',
-    'daysActive', 'avgTokensPerDay', 'adoptionScore', 'adoptionStage'
+    'daysActive', 'avgTokensPerDay'
   ];
   const safeSortBy = validSortColumns.includes(sortBy) ? sortBy : 'totalTokens';
   const searchPattern = search ? `%${escapeLikePattern(search)}%` : null;
@@ -706,30 +697,17 @@ export async function getAllUsersPivot(
     lastActiveDate.setHours(0, 0, 0, 0);
     const daysSinceLastActive = Math.floor((today.getTime() - lastActiveDate.getTime()) / (1000 * 60 * 60 * 24));
 
-    // Build adoption metrics
-    const adoptionMetrics = {
-      totalTokens: Number(u.totalTokens),
-      daysActive: u.daysActive,
-      daysSinceLastActive,
-    };
-
-    // Calculate adoption score and stage
-    const adoptionScore = calculateAdoptionScore(adoptionMetrics);
-    const adoptionStage = getAdoptionStage(adoptionMetrics);
-
     return {
       ...u,
       avgTokensPerDay: u.daysActive > 0 ? Math.round(Number(u.totalTokens) / u.daysActive) : 0,
       daysSinceLastActive,
-      adoptionScore,
-      adoptionStage,
     };
   }) as UserPivotData[];
 
   // Apply sorting in JS since we can't do dynamic ORDER BY
   // Note: bigint columns come back as strings from postgres, so we need to handle
   // numeric string comparison properly
-  const stringColumns = new Set(['email', 'firstActive', 'lastActive', 'adoptionStage']);
+  const stringColumns = new Set(['email', 'firstActive', 'lastActive']);
   if (safeSortBy !== 'totalTokens' || sortDir !== 'desc') {
     users = users.sort((a, b) => {
       const aVal = a[safeSortBy as keyof UserPivotData];
@@ -880,65 +858,6 @@ export async function getUserLifetimeStats(email: string): Promise<UserLifetimeS
       tokens: Number(recordDayResult.rows[0].tokens)
     } : null
   } as UserLifetimeStats;
-}
-
-export interface AdoptionSummary {
-  stages: Record<AdoptionStage, { count: number; percentage: number; users: string[] }>;
-  avgScore: number;
-  inactive: { count: number; users: string[] };
-  totalUsers: number;
-  activeUsers: number;
-}
-
-export async function getAdoptionSummary(
-  startDate?: string,
-  endDate?: string
-): Promise<AdoptionSummary> {
-  // Get all users with adoption data
-  const { users } = await getAllUsersPivot('totalTokens', 'desc', undefined, startDate, endDate, 10000, 0);
-
-  // Initialize stage counts
-  const stages: Record<AdoptionStage, { count: number; percentage: number; users: string[] }> = {
-    exploring: { count: 0, percentage: 0, users: [] },
-    building_momentum: { count: 0, percentage: 0, users: [] },
-    in_flow: { count: 0, percentage: 0, users: [] },
-    power_user: { count: 0, percentage: 0, users: [] },
-  };
-
-  const inactive: { count: number; users: string[] } = { count: 0, users: [] };
-  let totalScore = 0;
-
-  // Count users by stage
-  for (const user of users) {
-    stages[user.adoptionStage].count++;
-    stages[user.adoptionStage].users.push(user.email);
-    totalScore += user.adoptionScore;
-
-    // Check if user is inactive (30+ days)
-    if (user.daysSinceLastActive >= 30) {
-      inactive.count++;
-      inactive.users.push(user.email);
-    }
-  }
-
-  // Calculate percentages
-  // Note: totalUsers = all users with activity in the date range (they ARE active for that period)
-  // The "inactive" concept (30+ days since last global activity) is for filtering the user list,
-  // not for reducing the aggregate active count
-  const totalUsers = users.length;
-  for (const stage of Object.keys(stages) as AdoptionStage[]) {
-    stages[stage].percentage = totalUsers > 0
-      ? Math.round((stages[stage].count / totalUsers) * 100)
-      : 0;
-  }
-
-  return {
-    stages,
-    avgScore: totalUsers > 0 ? Math.round(totalScore / totalUsers) : 0,
-    inactive,
-    totalUsers,
-    activeUsers: totalUsers, // All users with activity in the date range are "active" for that period
-  };
 }
 
 // ============================================================================

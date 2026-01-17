@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, Suspense } from 'react';
+import { useState, useEffect, useCallback, Suspense, useMemo } from 'react';
 import { StatCard } from '@/components/StatCard';
 import { UsageChart } from '@/components/UsageChart';
 import { ModelBreakdown } from '@/components/ModelBreakdown';
@@ -10,7 +10,6 @@ import { TipBar } from '@/components/TipBar';
 import { TimeRangeSelector } from '@/components/TimeRangeSelector';
 import { AppHeader } from '@/components/AppHeader';
 import { LifetimeStats } from '@/components/LifetimeStats';
-import { AdoptionDistribution } from '@/components/AdoptionDistribution';
 import { ToolDistribution } from '@/components/ToolDistribution';
 import { CommitStats } from '@/components/CommitStats';
 import { PageContainer } from '@/components/PageContainer';
@@ -18,9 +17,8 @@ import { LoadingBar } from '@/components/LoadingBar';
 import { LoadingState, EmptyState } from '@/components/PageState';
 import { formatTokens, formatCurrency } from '@/lib/utils';
 import { useTimeRange } from '@/contexts/TimeRangeContext';
-import { type AdoptionStage, STAGE_CONFIG, STAGE_ORDER, STAGE_ICONS } from '@/lib/adoption';
 import { calculateDelta } from '@/lib/comparison';
-import { Users, Target, BarChart3, Zap, DollarSign } from 'lucide-react';
+import { Users, BarChart3, Zap, DollarSign, TrendingUp } from 'lucide-react';
 
 interface Stats {
   totalTokens: number;
@@ -78,20 +76,6 @@ interface ModelData {
   tool: string;
 }
 
-interface AdoptionData {
-  stages: Record<AdoptionStage, { count: number; percentage: number; users: string[] }>;
-  avgScore: number;
-  inactive: { count: number; users: string[] };
-  totalUsers: number;
-  activeUsers: number;
-  previousPeriod?: {
-    avgScore: number;
-    activeUsers: number;
-    inFlowCount: number;
-    powerUserCount: number;
-  };
-}
-
 interface CommitStatsData {
   totalCommits: number;
   aiAssistedCommits: number;
@@ -113,12 +97,18 @@ function DashboardContent() {
   const { range, setRange, days, isPending, getDateParams, getDisplayLabel } = useTimeRange();
   const rangeLabel = getDisplayLabel();
 
+  const daysInPeriod = useMemo(() => {
+    const { startDate, endDate } = getDateParams();
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    return Math.max(1, Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1);
+  }, [getDateParams]);
+
   const [stats, setStats] = useState<Stats | null>(null);
   const [lifetimeStats, setLifetimeStats] = useState<LifetimeStatsData | null>(null);
   const [users, setUsers] = useState<UserSummary[]>([]);
   const [trends, setTrends] = useState<DailyUsage[]>([]);
   const [models, setModels] = useState<ModelData[]>([]);
-  const [adoptionData, setAdoptionData] = useState<AdoptionData | null>(null);
   const [commitStats, setCommitStats] = useState<CommitStatsData | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -139,21 +129,19 @@ function DashboardContent() {
       const { startDate, endDate } = getDateParams();
       const params = new URLSearchParams({ startDate, endDate });
 
-      const [statsRes, usersRes, trendsRes, modelsRes, adoptionRes, commitsRes] = await Promise.all([
+      const [statsRes, usersRes, trendsRes, modelsRes, commitsRes] = await Promise.all([
         fetch(`/api/stats?${params}&comparison=true`),
         fetch(`/api/users?limit=10&${params}`),
         fetch(`/api/trends?${params}`),
         fetch(`/api/models?${params}`),
-        fetch(`/api/adoption?${params}&comparison=true`),
         fetch(`/api/stats/commits?${params}&comparison=true`),
       ]);
 
-      const [statsData, usersData, trendsData, modelsData, adoptionDataRes, commitsData] = await Promise.all([
+      const [statsData, usersData, trendsData, modelsData, commitsData] = await Promise.all([
         statsRes.json(),
         usersRes.json(),
         trendsRes.json(),
         modelsRes.json(),
-        adoptionRes.json(),
         commitsRes.json(),
       ]);
 
@@ -161,7 +149,6 @@ function DashboardContent() {
       setUsers(usersData);
       setTrends(trendsData);
       setModels(modelsData);
-      setAdoptionData(adoptionDataRes);
       setCommitStats(commitsData.totalCommits > 0 ? commitsData : null);
     } catch {
       // Errors are tracked by Sentry, no need for console logging
@@ -251,63 +238,21 @@ function DashboardContent() {
                 trend={stats.previousPeriod ? calculateDelta(stats.activeUsers, stats.previousPeriod.activeUsers) : undefined}
                 accentColor="#10b981"
                 delay={0.2}
-              >
-                {adoptionData && (
-                  <div className="flex gap-3">
-                    {STAGE_ORDER.map(stage => {
-                      const Icon = STAGE_ICONS[stage];
-                      const count = adoptionData.stages[stage]?.count || 0;
-                      const config = STAGE_CONFIG[stage];
-                      return (
-                        <div key={stage} className="flex items-center gap-1">
-                          <Icon className={`w-3 h-3 ${config.textColor}`} />
-                          <span className={`font-mono text-xs ${config.textColor}`}>{count}</span>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </StatCard>
-              {(() => {
-                const inFlowCount = adoptionData?.stages.in_flow?.count || 0;
-                const powerUserCount = adoptionData?.stages.power_user?.count || 0;
-                const productiveCount = inFlowCount + powerUserCount;
-                const productivePercent = stats.activeUsers > 0
-                  ? Math.round((productiveCount / stats.activeUsers) * 100)
-                  : 0;
-                // Calculate previous period productive percentage for trend
-                const prev = adoptionData?.previousPeriod;
-                const prevProductiveCount = prev ? (prev.inFlowCount + prev.powerUserCount) : 0;
-                const prevProductivePercent = prev && prev.activeUsers > 0
-                  ? Math.round((prevProductiveCount / prev.activeUsers) * 100)
-                  : 0;
-                return (
-                  <StatCard
-                    label="Productive"
-                    days={days}
-                    value={`${productivePercent}%`}
-                    suffix="of active users"
-                    icon={Target}
-                    accentColor="#8b5cf6"
-                    trend={prev ? calculateDelta(productivePercent, prevProductivePercent) : undefined}
-                    delay={0.3}
-                  >
-                    <p className="font-mono text-xs text-white/50">
-                      {productiveCount} in flow or power user
-                    </p>
-                  </StatCard>
-                );
-              })()}
-            </div>
-
-            {/* Adoption Distribution - Full Width */}
-            {adoptionData && (
-              <AdoptionDistribution
-                stages={adoptionData.stages}
-                totalUsers={adoptionData.totalUsers}
-                days={days}
               />
-            )}
+              <StatCard
+                label="Avg per Day"
+                days={days}
+                value={formatTokens(Math.round(stats.totalTokens / daysInPeriod))}
+                suffix="tokens"
+                icon={TrendingUp}
+                trend={stats.previousPeriod ? calculateDelta(
+                  Math.round(stats.totalTokens / daysInPeriod),
+                  Math.round(stats.previousPeriod.totalTokens / daysInPeriod)
+                ) : undefined}
+                accentColor="#8b5cf6"
+                delay={0.3}
+              />
+            </div>
 
             {/* Tool Distribution & Commit Stats */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
