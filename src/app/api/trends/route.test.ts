@@ -59,7 +59,11 @@ describe('GET /api/trends', () => {
     );
 
     expect(response.status).toBe(200);
-    const data = await response.json();
-    expect(Array.isArray(data)).toBe(true);
+    const result = await response.json();
+    expect(result).toHaveProperty('data');
+    expect(result).toHaveProperty('completeness');
+    expect(Array.isArray(result.data)).toBe(true);
+    expect(result.completeness).toHaveProperty('claudeCode');
+    expect(result.completeness).toHaveProperty('cursor');
   });
 });

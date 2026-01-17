@@ -67,6 +67,10 @@ interface DailyUsage {
   claudeCode: number;
   cursor: number;
   cost: number;
+  // Projection fields
+  isIncomplete?: boolean;
+  projectedClaudeCode?: number;
+  projectedCursor?: number;
 }
 
 interface ModelData {
@@ -147,7 +151,7 @@ function DashboardContent() {
 
       setStats(statsData);
       setUsers(usersData);
-      setTrends(trendsData);
+      setTrends(trendsData.data);
       setModels(modelsData);
       setCommitStats(commitsData.totalCommits > 0 ? commitsData : null);
     } catch {

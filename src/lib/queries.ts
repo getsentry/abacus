@@ -40,6 +40,15 @@ export interface DailyUsage {
   claudeCode: number;
   cursor: number;
   cost: number;
+  // Projection support fields (optional, added by applyProjections)
+  isIncomplete?: boolean;
+  projectedClaudeCode?: number;  // Original actual value before projection
+  projectedCursor?: number;
+}
+
+export interface DataCompleteness {
+  claudeCode: { lastDataDate: string | null };
+  cursor: { lastDataDate: string | null };
 }
 
 export async function getOverallStats(startDate?: string, endDate?: string): Promise<UsageStats> {
@@ -475,6 +484,24 @@ export async function getDailyUsage(startDate: string, endDate: string): Promise
   `;
 
   return result.rows as DailyUsage[];
+}
+
+/**
+ * Get the last date with actual data for each tool.
+ * Any date after the lastDataDate is considered incomplete (data may still be syncing).
+ */
+export async function getDataCompleteness(): Promise<DataCompleteness> {
+  const result = await vercelSql`
+    SELECT
+      MAX(CASE WHEN tool = 'claude_code' THEN date END)::text as "claudeCodeLastDate",
+      MAX(CASE WHEN tool = 'cursor' THEN date END)::text as "cursorLastDate"
+    FROM usage_records
+  `;
+
+  return {
+    claudeCode: { lastDataDate: result.rows[0]?.claudeCodeLastDate || null },
+    cursor: { lastDataDate: result.rows[0]?.cursorLastDate || null },
+  };
 }
 
 export async function getUnmappedToolRecords(tool: string = 'claude_code'): Promise<{ tool_record_id: string; usage_count: number }[]> {

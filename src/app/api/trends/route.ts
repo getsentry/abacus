@@ -1,8 +1,10 @@
 import { NextResponse } from 'next/server';
 import { wrapRouteHandlerWithSentry } from '@sentry/nextjs';
-import { getDailyUsage } from '@/lib/queries';
+import { getDailyUsage, getDataCompleteness } from '@/lib/queries';
 import { getSession } from '@/lib/auth';
 import { isValidDateString } from '@/lib/utils';
+import { applyProjections } from '@/lib/projection';
+import { today } from '@/lib/dateUtils';
 
 async function handler(request: Request) {
   const session = await getSession();
@@ -26,8 +28,17 @@ async function handler(request: Request) {
     return NextResponse.json({ error: 'Invalid endDate format. Use YYYY-MM-DD.' }, { status: 400 });
   }
 
-  const trends = await getDailyUsage(startDate, endDate);
-  return NextResponse.json(trends);
+  const [trends, completeness] = await Promise.all([
+    getDailyUsage(startDate, endDate),
+    getDataCompleteness(),
+  ]);
+
+  const projectedTrends = applyProjections(trends, completeness, today());
+
+  return NextResponse.json({
+    data: projectedTrends,
+    completeness,
+  });
 }
 
 export const GET = wrapRouteHandlerWithSentry(handler, {
