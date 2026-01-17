@@ -101,39 +101,73 @@ export function UsageChart({ data, days }: UsageChartProps) {
 {showTrend && <TrendLine values={totalValues} maxValue={maxValue} />}
         <div className="flex items-end gap-0.5 h-full">
         {chartData.map((item, i) => {
-          const claudeHeight = (Number(item.claudeCode) / maxValue) * 100;
-          const cursorHeight = (Number(item.cursor) / maxValue) * 100;
           const isIncomplete = item.isIncomplete;
-          const claudeCodeProjected = item.projectedClaudeCode !== undefined;
-          const cursorProjected = item.projectedCursor !== undefined;
-          // Only use grayscale for truly estimated data (no actual data, using historical avg)
-          // Extrapolated data (has partial actual data) keeps its normal color
+
+          // Calculate actual vs projected portions for each tool
+          // For extrapolated: projectedX is the actual value, X is the projected total
+          // For estimated: projectedX is 0, X is the historical average (all estimated)
+          const claudeTotal = Number(item.claudeCode);
+          const cursorTotal = Number(item.cursor);
+          const claudeActual = item.projectedClaudeCode !== undefined ? item.projectedClaudeCode : claudeTotal;
+          const cursorActual = item.projectedCursor !== undefined ? item.projectedCursor : cursorTotal;
+          const claudeProjectedPortion = claudeTotal - claudeActual;
+          const cursorProjectedPortion = cursorTotal - cursorActual;
+
+          // Heights as percentages of max
+          const claudeActualHeight = (claudeActual / maxValue) * 100;
+          const claudeProjectedHeight = (claudeProjectedPortion / maxValue) * 100;
+          const cursorActualHeight = (cursorActual / maxValue) * 100;
+          const cursorProjectedHeight = (cursorProjectedPortion / maxValue) * 100;
+
+          // Check if estimated (no actual data, using historical avg)
           const claudeCodeEstimated = item.projectedClaudeCode === 0;
           const cursorEstimated = item.projectedCursor === 0;
 
           return (
             <div key={item.date} className="group relative flex-1 flex flex-col justify-end min-w-[3px]" style={{ height: '100%' }}>
               <div className="flex w-full flex-col gap-0.5 justify-end" style={{ height: '100%' }}>
-                {claudeHeight > 0 && (
+                {/* Claude Code: actual portion (solid) */}
+                {claudeActualHeight > 0 && (
                   <motion.div
                     initial={{ height: 0 }}
-                    animate={{ height: `${claudeHeight}%` }}
+                    animate={{ height: `${claudeActualHeight}%` }}
                     transition={{ duration: 0.6, delay: Math.min(i * 0.02, 1) }}
+                    className={`w-full ${claudeProjectedHeight === 0 ? 'rounded-t' : ''} ${TOOL_CONFIGS.claude_code.bgChart}`}
+                    style={{ minHeight: '2px' }}
+                  />
+                )}
+                {/* Claude Code: projected portion (striped) */}
+                {claudeProjectedHeight > 0 && (
+                  <motion.div
+                    initial={{ height: 0 }}
+                    animate={{ height: `${claudeProjectedHeight}%` }}
+                    transition={{ duration: 0.6, delay: Math.min(i * 0.02 + 0.01, 1) }}
                     className={`w-full rounded-t relative overflow-hidden ${claudeCodeEstimated ? 'bg-white/20' : TOOL_CONFIGS.claude_code.bgChart}`}
                     style={{ minHeight: '2px' }}
                   >
-                    {claudeCodeProjected && <div className="absolute inset-0 bg-stripes" />}
+                    <div className="absolute inset-0 bg-stripes" />
                   </motion.div>
                 )}
-                {cursorHeight > 0 && (
+                {/* Cursor: actual portion (solid) */}
+                {cursorActualHeight > 0 && (
                   <motion.div
                     initial={{ height: 0 }}
-                    animate={{ height: `${cursorHeight}%` }}
+                    animate={{ height: `${cursorActualHeight}%` }}
                     transition={{ duration: 0.6, delay: Math.min(i * 0.02 + 0.02, 1) }}
+                    className={`w-full ${cursorProjectedHeight === 0 ? 'rounded-b' : ''} ${TOOL_CONFIGS.cursor.bgChart}`}
+                    style={{ minHeight: '2px' }}
+                  />
+                )}
+                {/* Cursor: projected portion (striped) */}
+                {cursorProjectedHeight > 0 && (
+                  <motion.div
+                    initial={{ height: 0 }}
+                    animate={{ height: `${cursorProjectedHeight}%` }}
+                    transition={{ duration: 0.6, delay: Math.min(i * 0.02 + 0.03, 1) }}
                     className={`w-full rounded-b relative overflow-hidden ${cursorEstimated ? 'bg-white/20' : TOOL_CONFIGS.cursor.bgChart}`}
                     style={{ minHeight: '2px' }}
                   >
-                    {cursorProjected && <div className="absolute inset-0 bg-stripes" />}
+                    <div className="absolute inset-0 bg-stripes" />
                   </motion.div>
                 )}
               </div>
