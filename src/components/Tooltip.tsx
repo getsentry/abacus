@@ -1,6 +1,6 @@
 'use client';
 
-import { type ReactNode } from 'react';
+import { type ReactNode, useRef, useEffect, useState } from 'react';
 
 type TooltipPosition = 'top' | 'bottom';
 
@@ -10,13 +10,6 @@ interface TooltipProps {
   /** Position relative to trigger. Default: top */
   position?: TooltipPosition;
   /** Additional CSS classes for the tooltip container */
-  className?: string;
-}
-
-interface TooltipTriggerProps {
-  /** The element that triggers the tooltip on hover */
-  children: ReactNode;
-  /** Additional CSS classes for the trigger wrapper */
   className?: string;
 }
 
@@ -38,6 +31,9 @@ const positionClasses: Record<TooltipPosition, string> = {
   bottom: 'top-full mt-2',
 };
 
+/** Buffer from viewport edge in pixels */
+const VIEWPORT_BUFFER = 12;
+
 /**
  * TooltipBox - Just the styled tooltip container
  * Use this when you need custom positioning/trigger logic
@@ -56,8 +52,10 @@ export function TooltipBox({ children, className = '' }: { children: ReactNode; 
 }
 
 /**
- * TooltipContent - The styled tooltip box
+ * TooltipContent - The styled tooltip box with automatic viewport adjustment
  * Use inside a group hover context
+ *
+ * Automatically shifts horizontally to stay within viewport bounds.
  *
  * @example
  * <div className="group relative">
@@ -72,12 +70,39 @@ export function TooltipContent({
   zIndex = 20,
   groupName,
 }: TooltipContentProps) {
-  const hoverClass = groupName ? `group-hover/${groupName}:block` : 'group-hover:block';
+  const tooltipRef = useRef<HTMLDivElement>(null);
+  const [offsetX, setOffsetX] = useState(0);
+
+  useEffect(() => {
+    // Delay measurement to allow layout/animations to settle
+    const timer = setTimeout(() => {
+      if (!tooltipRef.current) return;
+
+      const rect = tooltipRef.current.getBoundingClientRect();
+      const viewportWidth = window.innerWidth;
+
+      if (rect.right > viewportWidth - VIEWPORT_BUFFER) {
+        // Overflowing right - shift left
+        setOffsetX(viewportWidth - VIEWPORT_BUFFER - rect.right);
+      } else if (rect.left < VIEWPORT_BUFFER) {
+        // Overflowing left - shift right
+        setOffsetX(VIEWPORT_BUFFER - rect.left);
+      } else {
+        setOffsetX(0);
+      }
+    }, 100);
+
+    return () => clearTimeout(timer);
+  }, []);
+
+  const hoverClass = groupName ? `group-hover/${groupName}:visible` : 'group-hover:visible';
   const zClass = `z-${zIndex}`;
 
   return (
     <div
-      className={`absolute left-1/2 -translate-x-1/2 ${positionClasses[position]} hidden ${hoverClass} ${zClass} pointer-events-none ${className}`}
+      ref={tooltipRef}
+      className={`absolute left-1/2 ${positionClasses[position]} invisible ${hoverClass} ${zClass} pointer-events-none ${className}`}
+      style={{ transform: `translateX(calc(-50% + ${offsetX}px))` }}
     >
       <TooltipBox>{children}</TooltipBox>
     </div>
