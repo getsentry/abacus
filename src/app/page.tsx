@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, Suspense } from 'react';
+import { useState, useEffect, useCallback, Suspense, useMemo } from 'react';
 import { StatCard } from '@/components/StatCard';
 import { UsageChart } from '@/components/UsageChart';
 import { ModelBreakdown } from '@/components/ModelBreakdown';
@@ -18,7 +18,7 @@ import { LoadingState, EmptyState } from '@/components/PageState';
 import { formatTokens, formatCurrency } from '@/lib/utils';
 import { useTimeRange } from '@/contexts/TimeRangeContext';
 import { calculateDelta } from '@/lib/comparison';
-import { Users, BarChart3, Zap, DollarSign } from 'lucide-react';
+import { Users, BarChart3, Zap, DollarSign, TrendingUp } from 'lucide-react';
 
 interface Stats {
   totalTokens: number;
@@ -96,6 +96,13 @@ interface CommitStatsData {
 function DashboardContent() {
   const { range, setRange, days, isPending, getDateParams, getDisplayLabel } = useTimeRange();
   const rangeLabel = getDisplayLabel();
+
+  const daysInPeriod = useMemo(() => {
+    const { startDate, endDate } = getDateParams();
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    return Math.max(1, Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1);
+  }, [getDateParams]);
 
   const [stats, setStats] = useState<Stats | null>(null);
   const [lifetimeStats, setLifetimeStats] = useState<LifetimeStatsData | null>(null);
@@ -231,6 +238,19 @@ function DashboardContent() {
                 trend={stats.previousPeriod ? calculateDelta(stats.activeUsers, stats.previousPeriod.activeUsers) : undefined}
                 accentColor="#10b981"
                 delay={0.2}
+              />
+              <StatCard
+                label="Avg per Day"
+                days={days}
+                value={formatTokens(Math.round(stats.totalTokens / daysInPeriod))}
+                suffix="tokens"
+                icon={TrendingUp}
+                trend={stats.previousPeriod ? calculateDelta(
+                  Math.round(stats.totalTokens / daysInPeriod),
+                  Math.round(stats.previousPeriod.totalTokens / daysInPeriod)
+                ) : undefined}
+                accentColor="#8b5cf6"
+                delay={0.3}
               />
             </div>
 
