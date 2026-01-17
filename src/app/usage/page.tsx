@@ -22,6 +22,9 @@ import { formatTokens, formatDate, formatCurrency } from '@/lib/utils';
 import { getToolConfig, TOOL_CONFIGS } from '@/lib/tools';
 import { aggregateToWeekly } from '@/lib/dateUtils';
 import { calculateDelta } from '@/lib/comparison';
+import { hasProjectedData } from '@/lib/projection';
+import { InlineLegend } from '@/components/Legend';
+import type { DailyUsage } from '@/lib/queries';
 
 interface ModelTrendData {
   date: string;
@@ -122,6 +125,7 @@ function UsagePageContent() {
 
   const [modelTrends, setModelTrends] = useState<ModelTrendData[]>([]);
   const [toolTrends, setToolTrends] = useState<ToolTrendData[]>([]);
+  const [dailyUsage, setDailyUsage] = useState<DailyUsage[]>([]);
   const [modelBreakdown, setModelBreakdown] = useState<ModelBreakdown[]>([]);
   const [stats, setStats] = useState<Stats | null>(null);
   const [loading, setLoading] = useState(true);
@@ -135,26 +139,29 @@ function UsagePageContent() {
     setError(null);
     try {
       const { startDate, endDate } = getDateParams();
-      const [modelTrendsRes, toolTrendsRes, modelsRes, statsRes] = await Promise.all([
+      const [modelTrendsRes, toolTrendsRes, trendsRes, modelsRes, statsRes] = await Promise.all([
         fetch(`/api/models/trends?startDate=${startDate}&endDate=${endDate}&view=models`),
         fetch(`/api/models/trends?startDate=${startDate}&endDate=${endDate}&view=tools`),
+        fetch(`/api/trends?startDate=${startDate}&endDate=${endDate}`),
         fetch(`/api/models?startDate=${startDate}&endDate=${endDate}`),
         fetch(`/api/stats?startDate=${startDate}&endDate=${endDate}&comparison=true`),
       ]);
 
-      if (!modelTrendsRes.ok || !toolTrendsRes.ok || !modelsRes.ok || !statsRes.ok) {
+      if (!modelTrendsRes.ok || !toolTrendsRes.ok || !trendsRes.ok || !modelsRes.ok || !statsRes.ok) {
         throw new Error('Failed to fetch usage data');
       }
 
-      const [modelTrendsData, toolTrendsData, modelsData, statsData] = await Promise.all([
+      const [modelTrendsData, toolTrendsData, trendsData, modelsData, statsData] = await Promise.all([
         modelTrendsRes.json(),
         toolTrendsRes.json(),
+        trendsRes.json(),
         modelsRes.json(),
         statsRes.json(),
       ]);
 
       setModelTrends(modelTrendsData.trends || []);
       setToolTrends(toolTrendsData.trends || []);
+      setDailyUsage(trendsData.data || []);
       setModelBreakdown(modelsData.models || modelsData || []);
       setStats(statsData);
     } catch (err) {
@@ -210,30 +217,10 @@ function UsagePageContent() {
     return { data, models: topModels };
   }, [modelTrends]);
 
-  // Process tool trends into chart data
+  // Use dailyUsage for tool chart data (with projections already applied)
   const toolChartData = useMemo(() => {
-    if (!toolTrends.length) return [];
-
-    // Group by date
-    const dateMap = new Map<string, { claudeCode: number; cursor: number; cost: number }>();
-
-    for (const item of toolTrends) {
-      if (!dateMap.has(item.date)) {
-        dateMap.set(item.date, { claudeCode: 0, cursor: 0, cost: 0 });
-      }
-      const dayData = dateMap.get(item.date)!;
-      if (item.tool === 'claude_code') {
-        dayData.claudeCode += Number(item.tokens);
-      } else if (item.tool === 'cursor') {
-        dayData.cursor += Number(item.tokens);
-      }
-      dayData.cost += Number(item.cost);
-    }
-
-    return Array.from(dateMap.entries())
-      .map(([date, data]) => ({ date, ...data }))
-      .sort((a, b) => a.date.localeCompare(b.date));
-  }, [toolTrends]);
+    return dailyUsage;
+  }, [dailyUsage]);
 
   // Apply weekly aggregation if needed
   const { chartData: toolDataFinal, isWeekly } = useMemo(() => {
@@ -245,11 +232,14 @@ function UsagePageContent() {
 
   // Calculate totals for trend line
   const toolTotalValues = useMemo(
-    () => toolDataFinal.map(d => d.claudeCode + d.cursor),
+    () => toolDataFinal.map(d => Number(d.claudeCode) + Number(d.cursor)),
     [toolDataFinal]
   );
 
   const maxToolValue = Math.max(...toolTotalValues, 1);
+
+  // Check if we have projected data in tools view
+  const showToolProjectedLegend = useMemo(() => hasProjectedData(toolDataFinal), [toolDataFinal]);
 
   // Aggregate model breakdown by model (combining tools)
   interface AggregatedModel {
@@ -465,14 +455,20 @@ function UsagePageContent() {
                     <span>Trend</span>
                   </button>
                   {viewMode === 'tools' ? (
-                    <>
-                      <span className={`font-mono text-xs ${TOOL_CONFIGS.claude_code.text}`}>
-                        Claude Code: {formatTokens(toolDataFinal.reduce((s, d) => s + d.claudeCode, 0))}
-                      </span>
-                      <span className={`font-mono text-xs ${TOOL_CONFIGS.cursor.text}`}>
-                        Cursor: {formatTokens(toolDataFinal.reduce((s, d) => s + d.cursor, 0))}
-                      </span>
-                    </>
+                    <div className="flex items-center gap-4">
+                      <InlineLegend
+                        items={[
+                          { key: 'claude_code', label: TOOL_CONFIGS.claude_code.name, value: formatTokens(toolDataFinal.reduce((s, d) => s + Number(d.claudeCode), 0)), textColor: TOOL_CONFIGS.claude_code.text },
+                          { key: 'cursor', label: TOOL_CONFIGS.cursor.name, value: formatTokens(toolDataFinal.reduce((s, d) => s + Number(d.cursor), 0)), textColor: TOOL_CONFIGS.cursor.text },
+                        ]}
+                      />
+                      {showToolProjectedLegend && (
+                        <div className="flex items-center gap-1.5 text-xs text-white/40">
+                          <div className="w-3 h-3 bg-white/20 bg-stripes rounded-sm" />
+                          <span>Projected</span>
+                        </div>
+                      )}
+                    </div>
                   ) : (
                     <div className="flex items-center gap-3">
                       {modelChartData.models.slice(0, 4).map(model => (
@@ -509,32 +505,67 @@ function UsagePageContent() {
 
               <div className="relative" style={{ height: '200px' }}>
                 {viewMode === 'tools' ? (
-                  // Tool view - stacked bar chart
+                  // Tool view - stacked bar chart with projections
                   <>
                     {showTrend && <TrendLine values={toolTotalValues} maxValue={maxToolValue} />}
                     <div className="flex items-end gap-0.5 h-full">
                       {toolDataFinal.map((item, i) => {
-                        const claudeHeight = (item.claudeCode / maxToolValue) * 100;
-                        const cursorHeight = (item.cursor / maxToolValue) * 100;
+                        // Calculate actual vs projected portions for each tool
+                        const claudeTotal = Number(item.claudeCode);
+                        const cursorTotal = Number(item.cursor);
+                        const claudeActual = item.projectedClaudeCode !== undefined ? item.projectedClaudeCode : claudeTotal;
+                        const cursorActual = item.projectedCursor !== undefined ? item.projectedCursor : cursorTotal;
+                        const claudeProjectedPortion = claudeTotal - claudeActual;
+                        const cursorProjectedPortion = cursorTotal - cursorActual;
+
+                        // Heights as percentages of max
+                        const claudeActualHeight = (claudeActual / maxToolValue) * 100;
+                        const claudeProjectedHeight = (claudeProjectedPortion / maxToolValue) * 100;
+                        const cursorActualHeight = (cursorActual / maxToolValue) * 100;
+                        const cursorProjectedHeight = (cursorProjectedPortion / maxToolValue) * 100;
 
                         return (
                           <div key={item.date} className="group relative flex-1 flex flex-col justify-end min-w-[3px]" style={{ height: '100%' }}>
                             <div className="flex w-full flex-col gap-0.5 justify-end" style={{ height: '100%' }}>
-                              {claudeHeight > 0 && (
+                              {/* Projected data (grayscale + stripes) - stacked on top */}
+                              {cursorProjectedHeight > 0 && (
                                 <motion.div
                                   initial={{ height: 0 }}
-                                  animate={{ height: `${claudeHeight}%` }}
+                                  animate={{ height: `${cursorProjectedHeight}%` }}
                                   transition={{ duration: 0.6, delay: Math.min(i * 0.02, 1) }}
-                                  className={`w-full rounded-t ${TOOL_CONFIGS.claude_code.bgChart}`}
+                                  className="w-full rounded-t relative overflow-hidden bg-white/15"
+                                  style={{ minHeight: '2px' }}
+                                >
+                                  <div className="absolute inset-0 bg-stripes" />
+                                </motion.div>
+                              )}
+                              {claudeProjectedHeight > 0 && (
+                                <motion.div
+                                  initial={{ height: 0 }}
+                                  animate={{ height: `${claudeProjectedHeight}%` }}
+                                  transition={{ duration: 0.6, delay: Math.min(i * 0.02 + 0.01, 1) }}
+                                  className={`w-full relative overflow-hidden bg-white/20 ${cursorProjectedHeight === 0 ? 'rounded-t' : ''}`}
+                                  style={{ minHeight: '2px' }}
+                                >
+                                  <div className="absolute inset-0 bg-stripes" />
+                                </motion.div>
+                              )}
+                              {/* Actual data (solid colors) - stacked at bottom */}
+                              {cursorActualHeight > 0 && (
+                                <motion.div
+                                  initial={{ height: 0 }}
+                                  animate={{ height: `${cursorActualHeight}%` }}
+                                  transition={{ duration: 0.6, delay: Math.min(i * 0.02 + 0.02, 1) }}
+                                  className={`w-full ${claudeProjectedHeight === 0 && cursorProjectedHeight === 0 ? 'rounded-t' : ''} ${TOOL_CONFIGS.cursor.bgChart}`}
                                   style={{ minHeight: '2px' }}
                                 />
                               )}
-                              {cursorHeight > 0 && (
+                              {claudeActualHeight > 0 && (
                                 <motion.div
                                   initial={{ height: 0 }}
-                                  animate={{ height: `${cursorHeight}%` }}
-                                  transition={{ duration: 0.6, delay: Math.min(i * 0.02 + 0.02, 1) }}
-                                  className={`w-full rounded-b ${TOOL_CONFIGS.cursor.bgChart}`}
+                                  animate={{ height: `${claudeActualHeight}%` }}
+                                  transition={{ duration: 0.6, delay: Math.min(i * 0.02 + 0.03, 1) }}
+                                  className={`w-full rounded-b ${TOOL_CONFIGS.claude_code.bgChart}`}
                                   style={{ minHeight: '2px' }}
                                 />
                               )}
@@ -547,10 +578,46 @@ function UsagePageContent() {
                             )}
 
                             <TooltipContent>
-                              <div className="text-white/60 mb-1">{formatDate(item.date)}</div>
-                              <div className={TOOL_CONFIGS.claude_code.text}>Claude Code: {formatTokens(item.claudeCode)}</div>
-                              <div className={TOOL_CONFIGS.cursor.text}>Cursor: {formatTokens(item.cursor)}</div>
-                              <div className="text-emerald-400 mt-1 pt-1 border-t border-white/10">Cost: {formatCurrency(item.cost)}</div>
+                              <div className="text-white/60 mb-2">{formatDate(item.date)}</div>
+
+                              {/* Actual values section */}
+                              <div className="mb-1">
+                                <div className="text-white/40 text-xs uppercase tracking-wider mb-1">Actual</div>
+                                <div className={TOOL_CONFIGS.claude_code.text}>
+                                  {TOOL_CONFIGS.claude_code.name}: {formatTokens(claudeActual)}
+                                </div>
+                                <div className={TOOL_CONFIGS.cursor.text}>
+                                  {TOOL_CONFIGS.cursor.name}: {formatTokens(cursorActual)}
+                                </div>
+                              </div>
+
+                              {/* Projected values section - only show if there are projections */}
+                              {(claudeProjectedPortion > 0 || cursorProjectedPortion > 0) && (
+                                <div className="mb-1 mt-2 pt-2 border-t border-white/10">
+                                  <div className="text-white/40 text-xs uppercase tracking-wider mb-1">Projected</div>
+                                  {claudeProjectedPortion > 0 && (
+                                    <div className="text-white/50">
+                                      {TOOL_CONFIGS.claude_code.name}: +{formatTokens(claudeProjectedPortion)}
+                                    </div>
+                                  )}
+                                  {cursorProjectedPortion > 0 && (
+                                    <div className="text-white/50">
+                                      {TOOL_CONFIGS.cursor.name}: +{formatTokens(cursorProjectedPortion)}
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+
+                              {/* Estimated from average indicator */}
+                              {(item.projectedClaudeCode === 0 || item.projectedCursor === 0) && (
+                                <div className="text-white/40 text-xs mt-2 pt-2 border-t border-white/10">
+                                  Estimated from historical average
+                                </div>
+                              )}
+
+                              {item.cost !== undefined && Number(item.cost) > 0 && (
+                                <div className="text-emerald-400 mt-2 pt-2 border-t border-white/10">Cost: {formatCurrency(Number(item.cost))}</div>
+                              )}
                             </TooltipContent>
                           </div>
                         );
