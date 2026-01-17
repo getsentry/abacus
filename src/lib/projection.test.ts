@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { applyProjections, hasIncompleteData, hasProjectedData } from './projection';
+import { applyProjections, hasIncompleteData, hasProjectedData, hasEstimatedData, hasExtrapolatedData } from './projection';
 import type { DailyUsage, DataCompleteness } from './queries';
 
 describe('applyProjections', () => {
@@ -234,6 +234,60 @@ describe('hasProjectedData', () => {
       { date: '2025-01-15', claudeCode: 500, cursor: 1000, cost: 0.10, isIncomplete: true, projectedCursor: 500 },
     ];
     expect(hasProjectedData(data)).toBe(true);
+  });
+});
+
+describe('hasEstimatedData', () => {
+  it('returns false for empty array', () => {
+    expect(hasEstimatedData([])).toBe(false);
+  });
+
+  it('returns false when projected values are > 0 (extrapolated, not estimated)', () => {
+    const data: DailyUsage[] = [
+      { date: '2025-01-15', claudeCode: 1000, cursor: 500, cost: 0.10, isIncomplete: true, projectedClaudeCode: 500 },
+    ];
+    expect(hasEstimatedData(data)).toBe(false);
+  });
+
+  it('returns true when projectedClaudeCode is 0 (using historical avg)', () => {
+    const data: DailyUsage[] = [
+      { date: '2025-01-15', claudeCode: 1500, cursor: 500, cost: 0.15, isIncomplete: true, projectedClaudeCode: 0 },
+    ];
+    expect(hasEstimatedData(data)).toBe(true);
+  });
+
+  it('returns true when projectedCursor is 0 (using historical avg)', () => {
+    const data: DailyUsage[] = [
+      { date: '2025-01-15', claudeCode: 500, cursor: 750, cost: 0.10, isIncomplete: true, projectedCursor: 0 },
+    ];
+    expect(hasEstimatedData(data)).toBe(true);
+  });
+});
+
+describe('hasExtrapolatedData', () => {
+  it('returns false for empty array', () => {
+    expect(hasExtrapolatedData([])).toBe(false);
+  });
+
+  it('returns false when projected values are 0 (estimated, not extrapolated)', () => {
+    const data: DailyUsage[] = [
+      { date: '2025-01-15', claudeCode: 1500, cursor: 750, cost: 0.15, isIncomplete: true, projectedClaudeCode: 0, projectedCursor: 0 },
+    ];
+    expect(hasExtrapolatedData(data)).toBe(false);
+  });
+
+  it('returns true when projectedClaudeCode > 0 (has actual partial data)', () => {
+    const data: DailyUsage[] = [
+      { date: '2025-01-15', claudeCode: 1000, cursor: 500, cost: 0.10, isIncomplete: true, projectedClaudeCode: 500 },
+    ];
+    expect(hasExtrapolatedData(data)).toBe(true);
+  });
+
+  it('returns true when projectedCursor > 0 (has actual partial data)', () => {
+    const data: DailyUsage[] = [
+      { date: '2025-01-15', claudeCode: 500, cursor: 1000, cost: 0.10, isIncomplete: true, projectedCursor: 500 },
+    ];
+    expect(hasExtrapolatedData(data)).toBe(true);
   });
 });
 

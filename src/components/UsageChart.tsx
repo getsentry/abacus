@@ -12,7 +12,7 @@ import { TrendLine } from '@/components/TrendLine';
 import { AppLink } from '@/components/AppLink';
 import { InlineLegend } from '@/components/Legend';
 import { TOOL_CONFIGS } from '@/lib/tools';
-import { hasProjectedData } from '@/lib/projection';
+import { hasExtrapolatedData, hasEstimatedData } from '@/lib/projection';
 import type { DailyUsage } from '@/lib/queries';
 
 interface UsageChartProps {
@@ -42,7 +42,8 @@ export function UsageChart({ data, days }: UsageChartProps) {
   const maxValue = Math.max(...totalValues, 1);
   const claudeCodeTotal = chartData.reduce((sum, d) => sum + Number(d.claudeCode), 0);
   const cursorTotal = chartData.reduce((sum, d) => sum + Number(d.cursor), 0);
-  const showProjectedLegend = hasProjectedData(chartData);
+  const showExtrapolatedLegend = hasExtrapolatedData(chartData);
+  const showEstimatedLegend = hasEstimatedData(chartData);
 
   // Determine label frequency to show max ~10 labels
   const maxLabels = 10;
@@ -80,10 +81,16 @@ export function UsageChart({ data, days }: UsageChartProps) {
                 { key: 'cursor', label: TOOL_CONFIGS.cursor.name, value: formatTokens(cursorTotal), textColor: TOOL_CONFIGS.cursor.text },
               ]}
             />
-            {showProjectedLegend && (
+            {showExtrapolatedLegend && (
               <div className="flex items-center gap-1.5 text-xs text-white/40">
-                <div className="w-3 h-3 bg-white/10 bg-stripes rounded-sm" />
+                <div className={`w-3 h-3 ${TOOL_CONFIGS.claude_code.bgChart} bg-stripes rounded-sm`} />
                 <span>Projected</span>
+              </div>
+            )}
+            {showEstimatedLegend && (
+              <div className="flex items-center gap-1.5 text-xs text-white/40">
+                <div className="w-3 h-3 bg-white/20 bg-stripes rounded-sm" />
+                <span>Estimated</span>
               </div>
             )}
           </div>
@@ -99,6 +106,10 @@ export function UsageChart({ data, days }: UsageChartProps) {
           const isIncomplete = item.isIncomplete;
           const claudeCodeProjected = item.projectedClaudeCode !== undefined;
           const cursorProjected = item.projectedCursor !== undefined;
+          // Only use grayscale for truly estimated data (no actual data, using historical avg)
+          // Extrapolated data (has partial actual data) keeps its normal color
+          const claudeCodeEstimated = item.projectedClaudeCode === 0;
+          const cursorEstimated = item.projectedCursor === 0;
 
           return (
             <div key={item.date} className="group relative flex-1 flex flex-col justify-end min-w-[3px]" style={{ height: '100%' }}>
@@ -108,7 +119,7 @@ export function UsageChart({ data, days }: UsageChartProps) {
                     initial={{ height: 0 }}
                     animate={{ height: `${claudeHeight}%` }}
                     transition={{ duration: 0.6, delay: Math.min(i * 0.02, 1) }}
-                    className={`w-full rounded-t relative overflow-hidden ${claudeCodeProjected ? 'bg-white/20' : TOOL_CONFIGS.claude_code.bgChart}`}
+                    className={`w-full rounded-t relative overflow-hidden ${claudeCodeEstimated ? 'bg-white/20' : TOOL_CONFIGS.claude_code.bgChart}`}
                     style={{ minHeight: '2px' }}
                   >
                     {claudeCodeProjected && <div className="absolute inset-0 bg-stripes" />}
@@ -119,7 +130,7 @@ export function UsageChart({ data, days }: UsageChartProps) {
                     initial={{ height: 0 }}
                     animate={{ height: `${cursorHeight}%` }}
                     transition={{ duration: 0.6, delay: Math.min(i * 0.02 + 0.02, 1) }}
-                    className={`w-full rounded-b relative overflow-hidden ${cursorProjected ? 'bg-white/20' : TOOL_CONFIGS.cursor.bgChart}`}
+                    className={`w-full rounded-b relative overflow-hidden ${cursorEstimated ? 'bg-white/20' : TOOL_CONFIGS.cursor.bgChart}`}
                     style={{ minHeight: '2px' }}
                   >
                     {cursorProjected && <div className="absolute inset-0 bg-stripes" />}

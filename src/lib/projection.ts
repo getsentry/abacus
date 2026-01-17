@@ -146,3 +146,22 @@ export function hasIncompleteData(data: DailyUsage[]): boolean {
 export function hasProjectedData(data: DailyUsage[]): boolean {
   return data.some(d => d.projectedClaudeCode !== undefined || d.projectedCursor !== undefined);
 }
+
+/**
+ * Check if any data in the array has estimated values (historical average, no actual data).
+ * This is when projectedValue === 0, meaning we had no data and used the historical average.
+ */
+export function hasEstimatedData(data: DailyUsage[]): boolean {
+  return data.some(d => d.projectedClaudeCode === 0 || d.projectedCursor === 0);
+}
+
+/**
+ * Check if any data in the array has extrapolated values (partial actual data scaled up).
+ * This is when projectedValue > 0, meaning we had partial data and extrapolated.
+ */
+export function hasExtrapolatedData(data: DailyUsage[]): boolean {
+  return data.some(d =>
+    (d.projectedClaudeCode !== undefined && d.projectedClaudeCode > 0) ||
+    (d.projectedCursor !== undefined && d.projectedCursor > 0)
+  );
+}
