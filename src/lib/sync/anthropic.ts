@@ -242,10 +242,8 @@ async function syncClaudeCodeForDate(
       }
 
       for (const record of data.data) {
-        // Extract email from actor
-        const email = record.actor.type === 'user_actor'
-          ? record.actor.email_address || null
-          : null;
+        // Extract email from actor (only user_actor has email_address)
+        const email = record.actor.email_address ?? null;
 
         // Skip records without email attribution
         if (!email) {
@@ -294,14 +292,21 @@ async function syncClaudeCodeForDate(
     // Delete old records from legacy sync (which used API key IDs as toolRecordId)
     // New records have toolRecordId=NULL, so this safely removes only stale data
     if (result.recordsImported > 0) {
-      await db.delete(usageRecords)
-        .where(
-          and(
-            eq(usageRecords.date, date),
-            eq(usageRecords.tool, 'claude_code'),
-            sql`${usageRecords.toolRecordId} IS NOT NULL`
-          )
-        );
+      try {
+        await db.delete(usageRecords)
+          .where(
+            and(
+              eq(usageRecords.date, date),
+              eq(usageRecords.tool, 'claude_code'),
+              sql`${usageRecords.toolRecordId} IS NOT NULL`
+            )
+          );
+      } catch (deleteErr) {
+        const error = new Error(`Failed to clean up legacy records for ${date}: ${deleteErr instanceof Error ? deleteErr.message : 'Unknown'}`);
+        Sentry.captureException(error);
+        result.errors.push(error.message);
+        // Don't mark success=false - new data was imported, just cleanup failed
+      }
     }
 
   } catch (err) {
@@ -318,8 +323,7 @@ async function syncClaudeCodeForDate(
  */
 export async function syncAnthropicUsage(
   startDate: string,
-  endDate: string,
-  options: { bucketWidth?: '1d' | '1h' | '1m' } = {}
+  endDate: string
 ): Promise<SyncResult> {
   const adminKey = process.env.ANTHROPIC_ADMIN_KEY;
   if (!adminKey) {
