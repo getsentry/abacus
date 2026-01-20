@@ -8,66 +8,77 @@ import {
   getAnthropicBackfillState,
 } from './anthropic';
 import { insertUsageRecord } from '../queries';
-import { db, usageRecords, syncState, identityMappings } from '../db';
-import { eq, and } from 'drizzle-orm';
+import { db, usageRecords, syncState } from '../db';
+import { eq } from 'drizzle-orm';
 
-// Helper to create Anthropic API response data
-function createAnthropicUsageResult(overrides: {
-  api_key_id?: string | null;
-  model?: string | null;
-  uncached_input_tokens?: number;
-  cache_creation_ephemeral_5m?: number;
-  cache_creation_ephemeral_1h?: number;
-  cache_read_input_tokens?: number;
-  output_tokens?: number;
+/**
+ * Helper to create Claude Code Analytics API response data
+ * Matches the structure from /v1/organizations/usage_report/claude_code
+ */
+function createClaudeCodeRecord(overrides: {
+  email?: string;
+  date?: string;
+  model?: string;
+  input?: number;
+  output?: number;
+  cache_read?: number;
+  cache_creation?: number;
+  estimated_cost_cents?: number;
 } = {}) {
   return {
-    api_key_id: overrides.api_key_id ?? 'test-key-123',
-    workspace_id: 'ws-test',
-    model: overrides.model ?? 'claude-sonnet-4-20250514',
-    service_tier: null,
-    context_window: null,
-    uncached_input_tokens: overrides.uncached_input_tokens ?? 1000,
-    cache_creation: {
-      ephemeral_1h_input_tokens: overrides.cache_creation_ephemeral_1h ?? 0,
-      ephemeral_5m_input_tokens: overrides.cache_creation_ephemeral_5m ?? 100,
+    date: `${overrides.date ?? '2025-01-15'}T00:00:00Z`,
+    actor: {
+      type: 'user_actor' as const,
+      email_address: overrides.email ?? 'user1@example.com',
     },
-    cache_read_input_tokens: overrides.cache_read_input_tokens ?? 500,
-    output_tokens: overrides.output_tokens ?? 200,
-    server_tool_use: { web_search_requests: 0 },
+    organization_id: 'org-test-123',
+    customer_type: 'api' as const,
+    terminal_type: 'vscode',
+    core_metrics: {
+      num_sessions: 5,
+      lines_of_code: { added: 100, removed: 50 },
+      commits_by_claude_code: 2,
+      pull_requests_by_claude_code: 1,
+    },
+    tool_actions: {
+      edit_tool: { accepted: 10, rejected: 2 },
+      write_tool: { accepted: 5, rejected: 1 },
+      notebook_edit_tool: { accepted: 0, rejected: 0 },
+    },
+    model_breakdown: [
+      {
+        model: overrides.model ?? 'claude-sonnet-4-20250514',
+        tokens: {
+          input: overrides.input ?? 1000,
+          output: overrides.output ?? 200,
+          cache_read: overrides.cache_read ?? 500,
+          cache_creation: overrides.cache_creation ?? 100,
+        },
+        estimated_cost: {
+          currency: 'USD',
+          amount: overrides.estimated_cost_cents ?? 450, // in cents
+        },
+      },
+    ],
   };
 }
 
-// Helper to set up Anthropic API mock with specific results
-function mockAnthropicAPI(
-  results: ReturnType<typeof createAnthropicUsageResult>[],
-  date: string = '2025-01-15',
+/**
+ * Helper to set up Claude Code Analytics API mock
+ */
+function mockClaudeCodeAPI(
+  records: ReturnType<typeof createClaudeCodeRecord>[],
   hasMore: boolean = false
 ) {
   server.use(
-    http.get('https://api.anthropic.com/v1/organizations/usage_report/messages', () => {
+    http.get('https://api.anthropic.com/v1/organizations/usage_report/claude_code', () => {
       return HttpResponse.json({
-        data: [
-          {
-            starting_at: `${date}T00:00:00Z`,
-            ending_at: `${date}T23:59:59Z`,
-            results,
-          },
-        ],
+        data: records,
         has_more: hasMore,
-        next_page: hasMore ? 'page2' : undefined,
+        next_page: hasMore ? 'page2' : null,
       });
     })
   );
-}
-
-// Helper to seed identity mapping
-async function seedIdentityMapping(apiKeyId: string, email: string) {
-  await db.insert(identityMappings).values({
-    source: 'claude_code',
-    externalId: apiKeyId,
-    email,
-  });
 }
 
 describe('Anthropic Sync', () => {
@@ -85,9 +96,8 @@ describe('Anthropic Sync', () => {
       expect(result.errors).toContain('ANTHROPIC_ADMIN_KEY not configured');
     });
 
-    it('imports usage records from Anthropic API', async () => {
-      await seedIdentityMapping('test-key-123', 'user1@example.com');
-      mockAnthropicAPI([createAnthropicUsageResult()]);
+    it('imports usage records from Claude Code Analytics API', async () => {
+      mockClaudeCodeAPI([createClaudeCodeRecord()]);
 
       const result = await syncAnthropicUsage('2025-01-15', '2025-01-15');
 
@@ -105,31 +115,28 @@ describe('Anthropic Sync', () => {
       expect(records[0].tool).toBe('claude_code');
       expect(Number(records[0].inputTokens)).toBe(1000);
       expect(Number(records[0].outputTokens)).toBe(200);
-      expect(Number(records[0].cacheWriteTokens)).toBe(100); // 5m ephemeral
+      expect(Number(records[0].cacheWriteTokens)).toBe(100);
       expect(Number(records[0].cacheReadTokens)).toBe(500);
     });
 
-    it('stores toolRecordId for per-API-key tracking', async () => {
-      await seedIdentityMapping('test-key-123', 'user1@example.com');
-      mockAnthropicAPI([createAnthropicUsageResult({ api_key_id: 'test-key-123' })]);
+    it('uses email directly from API (no mapping needed)', async () => {
+      mockClaudeCodeAPI([
+        createClaudeCodeRecord({ email: 'direct@example.com' }),
+      ]);
 
       await syncAnthropicUsage('2025-01-15', '2025-01-15');
 
       const records = await db
         .select()
         .from(usageRecords)
-        .where(eq(usageRecords.email, 'user1@example.com'));
+        .where(eq(usageRecords.email, 'direct@example.com'));
       expect(records).toHaveLength(1);
-      expect(records[0].toolRecordId).toBe('test-key-123');
     });
 
-    it('keeps records from different API keys separate', async () => {
-      await seedIdentityMapping('key-1', 'user1@example.com');
-      await seedIdentityMapping('key-2', 'user1@example.com');
-
-      mockAnthropicAPI([
-        createAnthropicUsageResult({ api_key_id: 'key-1', uncached_input_tokens: 1000 }),
-        createAnthropicUsageResult({ api_key_id: 'key-2', uncached_input_tokens: 2000 }),
+    it('keeps records from different users separate', async () => {
+      mockClaudeCodeAPI([
+        createClaudeCodeRecord({ email: 'user1@example.com', input: 1000 }),
+        createClaudeCodeRecord({ email: 'user2@example.com', input: 2000 }),
       ]);
 
       const result = await syncAnthropicUsage('2025-01-15', '2025-01-15');
@@ -137,19 +144,17 @@ describe('Anthropic Sync', () => {
       expect(result.success).toBe(true);
       expect(result.recordsImported).toBe(2);
 
-      // Both records should exist with same email but different toolRecordId
       const records = await db
         .select()
-        .from(usageRecords)
-        .where(eq(usageRecords.email, 'user1@example.com'));
+        .from(usageRecords);
       expect(records).toHaveLength(2);
-      const toolRecordIds = records.map(r => r.toolRecordId).sort();
-      expect(toolRecordIds).toEqual(['key-1', 'key-2']);
+      const emails = records.map(r => r.email).sort();
+      expect(emails).toEqual(['user1@example.com', 'user2@example.com']);
     });
 
     it('handles rate limit response', async () => {
       server.use(
-        http.get('https://api.anthropic.com/v1/organizations/usage_report/messages', () => {
+        http.get('https://api.anthropic.com/v1/organizations/usage_report/claude_code', () => {
           return HttpResponse.json(
             { error: { message: 'Rate limit exceeded' } },
             { status: 429 }
@@ -165,7 +170,7 @@ describe('Anthropic Sync', () => {
 
     it('handles API error response', async () => {
       server.use(
-        http.get('https://api.anthropic.com/v1/organizations/usage_report/messages', () => {
+        http.get('https://api.anthropic.com/v1/organizations/usage_report/claude_code', () => {
           return HttpResponse.json(
             { error: { message: 'Internal server error' } },
             { status: 500 }
@@ -179,19 +184,17 @@ describe('Anthropic Sync', () => {
       expect(result.errors.some(e => e.includes('500'))).toBe(true);
     });
 
-    it('upserts on conflict (same date/email/tool/rawModel/toolRecordId)', async () => {
-      await seedIdentityMapping('test-key-123', 'user1@example.com');
-
+    it('upserts on conflict (same date/email/tool/rawModel)', async () => {
       // First sync
-      mockAnthropicAPI([
-        createAnthropicUsageResult({ uncached_input_tokens: 1000, output_tokens: 500 }),
+      mockClaudeCodeAPI([
+        createClaudeCodeRecord({ input: 1000, output: 500 }),
       ]);
 
       await syncAnthropicUsage('2025-01-15', '2025-01-15');
 
-      // Second sync with same key but different values
-      mockAnthropicAPI([
-        createAnthropicUsageResult({ uncached_input_tokens: 2000, output_tokens: 1000 }),
+      // Second sync with same user but different values
+      mockClaudeCodeAPI([
+        createClaudeCodeRecord({ input: 2000, output: 1000 }),
       ]);
 
       const result = await syncAnthropicUsage('2025-01-15', '2025-01-15');
@@ -207,12 +210,12 @@ describe('Anthropic Sync', () => {
       expect(Number(records[0].inputTokens)).toBe(2000); // Updated value
     });
 
-    it('calculates and stores cost', async () => {
-      await seedIdentityMapping('test-key-123', 'user1@example.com');
-      mockAnthropicAPI([
-        createAnthropicUsageResult({
-          uncached_input_tokens: 1000000,
-          output_tokens: 100000,
+    it('uses estimated_cost from Anthropic API', async () => {
+      mockClaudeCodeAPI([
+        createClaudeCodeRecord({
+          input: 1000000,
+          output: 100000,
+          estimated_cost_cents: 450, // $4.50 in cents
         }),
       ]);
 
@@ -223,15 +226,14 @@ describe('Anthropic Sync', () => {
         .from(usageRecords)
         .where(eq(usageRecords.email, 'user1@example.com'));
       expect(records).toHaveLength(1);
-      expect(Number(records[0].cost)).toBeGreaterThan(0); // Cost should be calculated
+      expect(Number(records[0].cost)).toBeCloseTo(4.50); // Converted from cents to dollars
     });
 
-    it('combines ephemeral 1h and 5m cache tokens', async () => {
-      await seedIdentityMapping('test-key-123', 'user1@example.com');
-      mockAnthropicAPI([
-        createAnthropicUsageResult({
-          cache_creation_ephemeral_1h: 500,
-          cache_creation_ephemeral_5m: 300,
+    it('stores cache tokens from API', async () => {
+      mockClaudeCodeAPI([
+        createClaudeCodeRecord({
+          cache_creation: 800,
+          cache_read: 1200,
         }),
       ]);
 
@@ -242,7 +244,108 @@ describe('Anthropic Sync', () => {
         .from(usageRecords)
         .where(eq(usageRecords.email, 'user1@example.com'));
       expect(records).toHaveLength(1);
-      expect(Number(records[0].cacheWriteTokens)).toBe(800); // 500 + 300
+      expect(Number(records[0].cacheWriteTokens)).toBe(800);
+      expect(Number(records[0].cacheReadTokens)).toBe(1200);
+    });
+
+    it('skips records without email (api_actor type)', async () => {
+      server.use(
+        http.get('https://api.anthropic.com/v1/organizations/usage_report/claude_code', () => {
+          return HttpResponse.json({
+            data: [
+              {
+                date: '2025-01-15T00:00:00Z',
+                actor: {
+                  type: 'api_actor',
+                  api_key_name: 'some-key',
+                },
+                organization_id: 'org-test',
+                customer_type: 'api',
+                terminal_type: 'vscode',
+                core_metrics: { num_sessions: 1, lines_of_code: { added: 0, removed: 0 }, commits_by_claude_code: 0, pull_requests_by_claude_code: 0 },
+                tool_actions: { edit_tool: { accepted: 0, rejected: 0 }, write_tool: { accepted: 0, rejected: 0 }, notebook_edit_tool: { accepted: 0, rejected: 0 } },
+                model_breakdown: [{
+                  model: 'claude-sonnet-4-20250514',
+                  tokens: { input: 1000, output: 200, cache_read: 0, cache_creation: 0 },
+                  estimated_cost: { currency: 'USD', amount: 100 },
+                }],
+              },
+            ],
+            has_more: false,
+            next_page: null,
+          });
+        })
+      );
+
+      const result = await syncAnthropicUsage('2025-01-15', '2025-01-15');
+
+      expect(result.success).toBe(true);
+      expect(result.recordsImported).toBe(0);
+      expect(result.recordsSkipped).toBe(1);
+    });
+
+    it('deletes old records with toolRecordId after successful sync', async () => {
+      // Insert an old record with toolRecordId (from legacy sync)
+      await db.insert(usageRecords).values({
+        date: '2025-01-15',
+        email: 'user1@example.com',
+        tool: 'claude_code',
+        model: 'sonnet-4',
+        rawModel: 'claude-sonnet-4-20250514',
+        inputTokens: 500,
+        outputTokens: 100,
+        cost: 1.00,
+        toolRecordId: 'old-api-key-id', // Legacy record
+      });
+
+      // Verify old record exists
+      let records = await db.select().from(usageRecords);
+      expect(records).toHaveLength(1);
+      expect(records[0].toolRecordId).toBe('old-api-key-id');
+
+      // Sync new data
+      mockClaudeCodeAPI([
+        createClaudeCodeRecord({ email: 'user1@example.com', input: 1000 }),
+      ]);
+
+      const result = await syncAnthropicUsage('2025-01-15', '2025-01-15');
+
+      expect(result.success).toBe(true);
+      expect(result.recordsImported).toBe(1);
+
+      // Should have only the new record (old one deleted)
+      records = await db.select().from(usageRecords);
+      expect(records).toHaveLength(1);
+      expect(records[0].toolRecordId).toBeNull(); // New record has no toolRecordId
+      expect(Number(records[0].inputTokens)).toBe(1000);
+    });
+
+    it('keeps old records if no new records imported', async () => {
+      // Insert an old record with toolRecordId
+      await db.insert(usageRecords).values({
+        date: '2025-01-15',
+        email: 'user1@example.com',
+        tool: 'claude_code',
+        model: 'sonnet-4',
+        rawModel: 'claude-sonnet-4-20250514',
+        inputTokens: 500,
+        outputTokens: 100,
+        cost: 1.00,
+        toolRecordId: 'old-api-key-id',
+      });
+
+      // Mock API returning no data
+      mockClaudeCodeAPI([]);
+
+      const result = await syncAnthropicUsage('2025-01-15', '2025-01-15');
+
+      expect(result.success).toBe(true);
+      expect(result.recordsImported).toBe(0);
+
+      // Old record should still exist (not deleted when no new data)
+      const records = await db.select().from(usageRecords);
+      expect(records).toHaveLength(1);
+      expect(records[0].toolRecordId).toBe('old-api-key-id');
     });
   });
 
@@ -267,7 +370,7 @@ describe('Anthropic Sync', () => {
         });
 
       server.use(
-        http.get('https://api.anthropic.com/v1/organizations/usage_report/messages', () => {
+        http.get('https://api.anthropic.com/v1/organizations/usage_report/claude_code', () => {
           return HttpResponse.json(
             { error: { message: 'Rate limit exceeded' } },
             { status: 429 }
@@ -339,9 +442,8 @@ describe('Anthropic Sync', () => {
 
   describe('model normalization', () => {
     it('normalizes model names correctly', async () => {
-      await seedIdentityMapping('test-key-123', 'user1@example.com');
-      mockAnthropicAPI([
-        createAnthropicUsageResult({ model: 'claude-sonnet-4-20250514' }),
+      mockClaudeCodeAPI([
+        createClaudeCodeRecord({ model: 'claude-sonnet-4-20250514' }),
       ]);
 
       await syncAnthropicUsage('2025-01-15', '2025-01-15');
@@ -356,9 +458,8 @@ describe('Anthropic Sync', () => {
     });
 
     it('normalizes older model name format', async () => {
-      await seedIdentityMapping('test-key-123', 'user1@example.com');
-      mockAnthropicAPI([
-        createAnthropicUsageResult({ model: 'claude-3-5-sonnet-20241022' }),
+      mockClaudeCodeAPI([
+        createClaudeCodeRecord({ model: 'claude-3-5-sonnet-20241022' }),
       ]);
 
       await syncAnthropicUsage('2025-01-15', '2025-01-15');

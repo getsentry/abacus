@@ -10,11 +10,18 @@ describe('calculateCost', () => {
       expect(cost).toBeCloseTo(4.5);
     });
 
-    it('calculates cost for claude-opus-4-5 (higher pricing)', () => {
-      // Opus: $15/1M input, $75/1M output
+    it('calculates cost for claude-opus-4-5 (4.5 generation pricing)', () => {
+      // Opus 4.5: $5/1M input, $25/1M output
       const cost = calculateCost('claude-opus-4-5-20251101', 1_000_000, 100_000, 0, 0);
-      // 1M input * $15/1M + 100K output * $75/1M = $15 + $7.5 = $22.5
-      expect(cost).toBeCloseTo(22.5);
+      // 1M input * $5/1M + 100K output * $25/1M = $5 + $2.5 = $7.5
+      expect(cost).toBeCloseTo(7.5);
+    });
+
+    it('calculates cost for claude-haiku-4-5 (4.5 generation pricing)', () => {
+      // Haiku 4.5: $1/1M input, $5/1M output
+      const cost = calculateCost('claude-haiku-4-5-20251001', 1_000_000, 100_000, 0, 0);
+      // 1M input * $1/1M + 100K output * $5/1M = $1 + $0.5 = $1.5
+      expect(cost).toBeCloseTo(1.5);
     });
 
     it('calculates cost for claude-3-5-haiku (lower pricing)', () => {

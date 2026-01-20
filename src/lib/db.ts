@@ -16,20 +16,33 @@ export { sql };
 // This allows gradual migration from raw SQL to Drizzle
 export { sql as vercelSql } from '@vercel/postgres';
 
-// Cost calculation for Claude models (per million tokens)
-// Cache write tokens cost 1.25x input price, cache read tokens cost 0.1x input price
+/**
+ * Cost calculation utility for Claude models (per million tokens)
+ *
+ * NOTE: This is a UTILITY function for reference/testing only.
+ * Production sync uses API-provided costs:
+ * - Claude Code: Uses `estimated_cost` from Anthropic's Claude Code Analytics API
+ * - Cursor: Uses `totalCents` from Cursor's API
+ *
+ * Cache pricing: write = 1.25x input (5m) or 2x (1h), read = 0.1x input
+ * Prices from: https://www.anthropic.com/pricing
+ */
 const MODEL_PRICING: Record<string, { input: number; output: number }> = {
-  'claude-opus-4-5-20251101': { input: 15, output: 75 },
-  'claude-opus-4-1-20250805': { input: 15, output: 75 },
+  // Claude 4.5 series (current generation - reduced pricing)
+  'claude-opus-4-5-20251101': { input: 5, output: 25 },
   'claude-sonnet-4-5-20250929': { input: 3, output: 15 },
+  'claude-haiku-4-5-20251001': { input: 1, output: 5 },
+  // Claude 4 series (legacy pricing)
+  'claude-opus-4-1-20250805': { input: 15, output: 75 },
   'claude-sonnet-4-20250514': { input: 3, output: 15 },
-  'claude-haiku-4-5-20251001': { input: 0.8, output: 4 },
+  // Claude 3.5 series (legacy)
   'claude-3-5-haiku-20241022': { input: 0.8, output: 4 },
 };
 
 const CACHE_WRITE_MULTIPLIER = 1.25;
 const CACHE_READ_MULTIPLIER = 0.1;
 
+/** @deprecated Use API-provided costs instead. Kept for reference/testing. */
 export function calculateCost(
   model: string,
   inputTokens: number,
