@@ -220,6 +220,7 @@ async function syncClaudeCodeForDate(
   };
 
   let page: string | undefined;
+  let insertErrors = 0;
 
   try {
     do {
@@ -281,6 +282,7 @@ async function syncClaudeCodeForDate(
           } catch (err) {
             result.errors.push(`Insert error: ${err instanceof Error ? err.message : 'Unknown'}`);
             result.recordsSkipped++;
+            insertErrors++;
           }
         }
       }
@@ -293,9 +295,9 @@ async function syncClaudeCodeForDate(
     result.errors.push(err instanceof Error ? err.message : 'Unknown error');
   }
 
-  // Clean up legacy records only on successful complete sync
-  // Don't delete on partial sync (rate limit/error) to avoid data loss
-  if (result.success && result.recordsImported > 0) {
+  // Clean up legacy records only on fully successful sync
+  // Don't delete if any inserts failed to avoid data loss
+  if (result.success && result.recordsImported > 0 && insertErrors === 0) {
     try {
       await db.delete(usageRecords)
         .where(
