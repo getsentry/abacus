@@ -1,37 +1,67 @@
 import * as Sentry from '@sentry/nextjs';
-import { insertUsageRecord, getIdentityMappings } from '../queries';
-import { db, calculateCost, syncState, usageRecords } from '../db';
+import { insertUsageRecord } from '../queries';
+import { db, syncState, usageRecords } from '../db';
 import { normalizeModelName } from '../utils';
-import { eq, min } from 'drizzle-orm';
+import { eq, min, and, sql } from 'drizzle-orm';
 
-interface AnthropicUsageResult {
-  api_key_id: string | null;
-  workspace_id: string | null;
-  model: string | null;
-  service_tier: string | null;
-  context_window: string | null;
-  uncached_input_tokens: number;
-  cache_creation: {
-    ephemeral_1h_input_tokens: number;
-    ephemeral_5m_input_tokens: number;
-  };
-  cache_read_input_tokens: number;
-  output_tokens: number;
-  server_tool_use: {
-    web_search_requests: number;
-  };
+/**
+ * Claude Code Analytics API response types
+ * Endpoint: /v1/organizations/usage_report/claude_code
+ * Docs: https://platform.claude.com/docs/en/build-with-claude/claude-code-analytics-api
+ */
+
+interface ClaudeCodeActor {
+  type: 'user_actor' | 'api_actor';
+  email_address?: string;  // Present when type is 'user_actor'
+  api_key_name?: string;   // Present when type is 'api_actor'
 }
 
-interface AnthropicTimeBucket {
-  starting_at: string;
-  ending_at: string;
-  results: AnthropicUsageResult[];
+interface ClaudeCodeTokens {
+  input: number;
+  output: number;
+  cache_read: number;
+  cache_creation: number;
 }
 
-interface AnthropicUsageResponse {
-  data: AnthropicTimeBucket[];
+interface ClaudeCodeEstimatedCost {
+  currency: string;  // Always 'USD'
+  amount: number;    // Cost in cents
+}
+
+interface ClaudeCodeModelBreakdown {
+  model: string;
+  tokens: ClaudeCodeTokens;
+  estimated_cost: ClaudeCodeEstimatedCost;
+}
+
+interface ClaudeCodeRecord {
+  date: string;  // RFC 3339 format
+  actor: ClaudeCodeActor;
+  organization_id: string;
+  customer_type: 'api' | 'subscription';
+  terminal_type: string;
+  core_metrics: {
+    num_sessions: number;
+    lines_of_code: {
+      added: number;
+      removed: number;
+    };
+    commits_by_claude_code: number;
+    pull_requests_by_claude_code: number;
+  };
+  tool_actions: {
+    edit_tool: { accepted: number; rejected: number };
+    multi_edit_tool?: { accepted: number; rejected: number };
+    write_tool: { accepted: number; rejected: number };
+    notebook_edit_tool: { accepted: number; rejected: number };
+  };
+  model_breakdown: ClaudeCodeModelBreakdown[];
+}
+
+interface ClaudeCodeAnalyticsResponse {
+  data: ClaudeCodeRecord[];
   has_more: boolean;
-  next_page?: string;
+  next_page: string | null;
 }
 
 export interface SyncResult {
@@ -131,14 +161,171 @@ export async function resetAnthropicBackfillComplete(): Promise<void> {
 }
 
 /**
- * Sync Anthropic usage for a specific date range.
- * This is the low-level function that does the actual API fetching.
- * Does NOT update sync state - use syncAnthropicCron for production syncing.
+ * Fetch Claude Code analytics for a single date from Anthropic's API.
+ * Uses the Claude Code Analytics API which provides:
+ * - Per-user email attribution (no API key mapping needed)
+ * - Accurate estimated_cost calculated by Anthropic
+ * - Token breakdowns per model
+ */
+async function fetchClaudeCodeAnalytics(
+  adminKey: string,
+  date: string,
+  page?: string
+): Promise<{ response: Response; data?: ClaudeCodeAnalyticsResponse }> {
+  const params = new URLSearchParams({
+    starting_at: date,
+    limit: '1000',
+  });
+
+  if (page) {
+    params.set('page', page);
+  }
+
+  const response = await fetch(
+    `https://api.anthropic.com/v1/organizations/usage_report/claude_code?${params}`,
+    {
+      headers: {
+        'X-Api-Key': adminKey,
+        'anthropic-version': '2023-06-01'
+      }
+    }
+  );
+
+  if (!response.ok) {
+    return { response };
+  }
+
+  const data: ClaudeCodeAnalyticsResponse = await response.json();
+  return { response, data };
+}
+
+/**
+ * Sync Claude Code usage for a specific date.
+ * Uses the Claude Code Analytics API for accurate costs and direct email attribution.
+ *
+ * After inserting fresh data, cleans up stale records from the old sync
+ * (which used API key IDs as toolRecordId). New records have toolRecordId=NULL,
+ * so we delete any records with non-null toolRecordId after successful insert.
+ */
+async function syncClaudeCodeForDate(
+  adminKey: string,
+  date: string
+): Promise<SyncResult> {
+  const result: SyncResult = {
+    success: true,
+    recordsImported: 0,
+    recordsSkipped: 0,
+    errors: [],
+    syncedRange: { startDate: date, endDate: date }
+  };
+
+  let page: string | undefined;
+  let insertErrors = 0;
+
+  try {
+    do {
+      const { response, data } = await fetchClaudeCodeAnalytics(adminKey, date, page);
+
+      // On rate limit, stop pagination but continue to cleanup
+      if (response.status === 429) {
+        console.warn('[Anthropic Sync] Rate limited - will retry on next run');
+        const errorText = await response.text();
+        result.success = false;
+        result.errors.push(`Anthropic API rate limited: ${errorText}`);
+        break;
+      }
+
+      if (!response.ok || !data) {
+        const errorText = await response.text();
+        const error = new Error(`Anthropic API error: ${response.status} - ${errorText}`);
+        Sentry.captureException(error);
+        throw error;
+      }
+
+      for (const record of data.data) {
+        // Extract email from actor (only user_actor has email_address)
+        const email = record.actor.email_address ?? null;
+
+        // Skip records without email attribution
+        if (!email) {
+          result.recordsSkipped++;
+          continue;
+        }
+
+        // Extract date (just the date portion from RFC 3339)
+        const recordDate = record.date.split('T')[0];
+
+        // Process each model in the breakdown
+        for (const modelData of record.model_breakdown) {
+          const inputTokens = modelData.tokens.input || 0;
+          const outputTokens = modelData.tokens.output || 0;
+          const cacheWriteTokens = modelData.tokens.cache_creation || 0;
+          const cacheReadTokens = modelData.tokens.cache_read || 0;
+
+          // Use Anthropic's calculated cost (in cents, convert to dollars)
+          const cost = (modelData.estimated_cost.amount || 0) / 100;
+
+          try {
+            await insertUsageRecord({
+              date: recordDate,
+              email,
+              tool: 'claude_code',
+              model: normalizeModelName(modelData.model || 'unknown'),
+              rawModel: modelData.model || undefined,
+              inputTokens,
+              cacheWriteTokens,
+              cacheReadTokens,
+              outputTokens,
+              cost,
+            });
+            result.recordsImported++;
+          } catch (err) {
+            result.errors.push(`Insert error: ${err instanceof Error ? err.message : 'Unknown'}`);
+            result.recordsSkipped++;
+            result.success = false;
+            insertErrors++;
+          }
+        }
+      }
+
+      page = data.has_more && data.next_page ? data.next_page : undefined;
+    } while (page);
+
+  } catch (err) {
+    result.success = false;
+    result.errors.push(err instanceof Error ? err.message : 'Unknown error');
+  }
+
+  // Clean up legacy records only on fully successful sync
+  // Don't delete if any inserts failed to avoid data loss
+  if (result.success && result.recordsImported > 0 && insertErrors === 0) {
+    try {
+      await db.delete(usageRecords)
+        .where(
+          and(
+            eq(usageRecords.date, date),
+            eq(usageRecords.tool, 'claude_code'),
+            sql`${usageRecords.toolRecordId} IS NOT NULL`
+          )
+        );
+    } catch (deleteErr) {
+      const error = new Error(`Failed to clean up legacy records for ${date}: ${deleteErr instanceof Error ? deleteErr.message : 'Unknown'}`);
+      Sentry.captureException(error);
+      result.errors.push(error.message);
+      result.success = false;
+    }
+  }
+
+  return result;
+}
+
+/**
+ * Sync Anthropic usage for a date range.
+ * Iterates through each date and fetches data from Claude Code Analytics API.
  */
 export async function syncAnthropicUsage(
   startDate: string,
-  endDate: string,
-  options: { bucketWidth?: '1d' | '1h' | '1m' } = {}
+  endDate: string
 ): Promise<SyncResult> {
   const adminKey = process.env.ANTHROPIC_ADMIN_KEY;
   if (!adminKey) {
@@ -158,103 +345,31 @@ export async function syncAnthropicUsage(
     syncedRange: { startDate, endDate }
   };
 
-  // Get existing mappings for claude_code
-  const mappingsArray = await getIdentityMappings('claude_code');
-  const mappings = new Map<string, string>(
-    mappingsArray.map(m => [m.external_id, m.email])
-  );
+  // Generate list of dates to sync
+  const dates: string[] = [];
+  const current = new Date(startDate);
+  const end = new Date(endDate);
 
-  const bucketWidth = options.bucketWidth || '1d';
-  let page: string | undefined;
+  while (current <= end) {
+    dates.push(current.toISOString().split('T')[0]);
+    current.setDate(current.getDate() + 1);
+  }
 
-  try {
-    do {
-      const params = new URLSearchParams({
-        starting_at: startDate,
-        ending_at: endDate,
-        bucket_width: bucketWidth,
-        'group_by[]': 'api_key_id',
-      });
-      params.append('group_by[]', 'model');
+  // Sync each date
+  for (const date of dates) {
+    const dateResult = await syncClaudeCodeForDate(adminKey, date);
 
-      if (page) {
-        params.set('page', page);
+    result.recordsImported += dateResult.recordsImported;
+    result.recordsSkipped += dateResult.recordsSkipped;
+    result.errors.push(...dateResult.errors);
+
+    if (!dateResult.success) {
+      result.success = false;
+      // Stop on rate limit or error
+      if (dateResult.errors.some(e => e.includes('rate limited'))) {
+        break;
       }
-
-      const response = await fetch(
-        `https://api.anthropic.com/v1/organizations/usage_report/messages?${params}`,
-        {
-          headers: {
-            'X-Api-Key': adminKey,
-            'anthropic-version': '2023-06-01'
-          }
-        }
-      );
-
-      // On rate limit, immediately abort - don't retry
-      if (response.status === 429) {
-        console.warn('[Anthropic Sync] Rate limited - will retry on next run');
-        const errorText = await response.text();
-        result.success = false;
-        result.errors.push(`Anthropic API rate limited: ${errorText}`);
-        return result;
-      }
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        const error = new Error(`Anthropic API error: ${response.status} - ${errorText}`);
-        Sentry.captureException(error);
-        throw error;
-      }
-
-      const data: AnthropicUsageResponse = await response.json();
-
-      for (const bucket of data.data) {
-        const date = bucket.starting_at.split('T')[0];
-
-        for (const item of bucket.results) {
-          if (!item.model) continue;
-
-          // Resolve email from API key mapping (null = unattributed usage)
-          const apiKeyId = item.api_key_id;
-          const email = apiKeyId ? mappings.get(apiKeyId) ?? null : null;
-
-          const inputTokens = item.uncached_input_tokens || 0;
-          const cacheWriteTokens = (item.cache_creation?.ephemeral_5m_input_tokens || 0) +
-                                   (item.cache_creation?.ephemeral_1h_input_tokens || 0);
-          const cacheReadTokens = item.cache_read_input_tokens || 0;
-          const outputTokens = item.output_tokens || 0;
-
-          const cost = calculateCost(item.model, inputTokens, outputTokens, cacheWriteTokens, cacheReadTokens);
-
-          try {
-            await insertUsageRecord({
-              date,
-              email,
-              tool: 'claude_code',
-              model: normalizeModelName(item.model || 'unknown'),
-              rawModel: item.model || undefined,
-              inputTokens,
-              cacheWriteTokens,
-              cacheReadTokens,
-              outputTokens,
-              cost,
-              toolRecordId: apiKeyId || undefined
-            });
-            result.recordsImported++;
-          } catch (err) {
-            result.errors.push(`Insert error: ${err instanceof Error ? err.message : 'Unknown'}`);
-            result.recordsSkipped++;
-          }
-        }
-      }
-
-      page = data.has_more ? data.next_page : undefined;
-    } while (page);
-
-  } catch (err) {
-    result.success = false;
-    result.errors.push(err instanceof Error ? err.message : 'Unknown error');
+    }
   }
 
   return result;
@@ -263,7 +378,7 @@ export async function syncAnthropicUsage(
 /**
  * Sync Anthropic usage for the cron job.
  * Runs every 6 hours. Syncs from yesterday to today.
- * Note: Anthropic API has ~24h lag, so today's data is usually empty.
+ * Note: Claude Code Analytics API has ~1h lag.
  *
  * Safe to call frequently - returns early if already synced today.
  */

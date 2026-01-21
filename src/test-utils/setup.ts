@@ -186,8 +186,6 @@ vi.mock('@/lib/db', async (importOriginal) => {
     get vercelSql() {
       return dbRef.current;
     },
-    // Re-export calculateCost from actual module
-    calculateCost: original.calculateCost,
   };
 });
 

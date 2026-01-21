@@ -67,14 +67,14 @@ export async function getOverallStats(startDate?: string, endDate?: string): Pro
     cursorTokens: number;
   }>(sql`
     SELECT
-      COALESCE(SUM(input_tokens + cache_write_tokens + output_tokens), 0)::bigint as "totalTokens",
+      COALESCE(SUM(input_tokens + cache_write_tokens + cache_read_tokens + output_tokens), 0)::bigint as "totalTokens",
       COALESCE(SUM(cost), 0)::float as "totalCost",
       COALESCE(SUM(input_tokens), 0)::bigint as "totalInputTokens",
       COALESCE(SUM(output_tokens), 0)::bigint as "totalOutputTokens",
       COALESCE(SUM(cache_read_tokens), 0)::bigint as "totalCacheReadTokens",
       COUNT(DISTINCT email)::int as "activeUsers",
-      COALESCE(SUM(CASE WHEN tool = 'claude_code' THEN input_tokens + cache_write_tokens + output_tokens ELSE 0 END), 0)::bigint as "claudeCodeTokens",
-      COALESCE(SUM(CASE WHEN tool = 'cursor' THEN input_tokens + cache_write_tokens + output_tokens ELSE 0 END), 0)::bigint as "cursorTokens"
+      COALESCE(SUM(CASE WHEN tool = 'claude_code' THEN input_tokens + cache_write_tokens + cache_read_tokens + output_tokens ELSE 0 END), 0)::bigint as "claudeCodeTokens",
+      COALESCE(SUM(CASE WHEN tool = 'cursor' THEN input_tokens + cache_write_tokens + cache_read_tokens + output_tokens ELSE 0 END), 0)::bigint as "cursorTokens"
     FROM ${usageRecords}
     WHERE date >= ${effectiveStartDate} AND date <= ${effectiveEndDate}
   `);
@@ -115,7 +115,7 @@ export async function getOverallStatsWithComparison(
     SELECT
       -- Current period
       COALESCE(SUM(CASE WHEN date >= ${startDate} AND date <= ${endDate}
-        THEN input_tokens + cache_write_tokens + output_tokens ELSE 0 END), 0)::bigint as "totalTokens",
+        THEN input_tokens + cache_write_tokens + cache_read_tokens + output_tokens ELSE 0 END), 0)::bigint as "totalTokens",
       COALESCE(SUM(CASE WHEN date >= ${startDate} AND date <= ${endDate}
         THEN cost ELSE 0 END), 0)::float as "totalCost",
       COALESCE(SUM(CASE WHEN date >= ${startDate} AND date <= ${endDate}
@@ -125,18 +125,18 @@ export async function getOverallStatsWithComparison(
       COALESCE(SUM(CASE WHEN date >= ${startDate} AND date <= ${endDate}
         THEN cache_read_tokens ELSE 0 END), 0)::bigint as "totalCacheReadTokens",
       COALESCE(SUM(CASE WHEN date >= ${startDate} AND date <= ${endDate} AND tool = 'claude_code'
-        THEN input_tokens + cache_write_tokens + output_tokens ELSE 0 END), 0)::bigint as "claudeCodeTokens",
+        THEN input_tokens + cache_write_tokens + cache_read_tokens + output_tokens ELSE 0 END), 0)::bigint as "claudeCodeTokens",
       COALESCE(SUM(CASE WHEN date >= ${startDate} AND date <= ${endDate} AND tool = 'cursor'
-        THEN input_tokens + cache_write_tokens + output_tokens ELSE 0 END), 0)::bigint as "cursorTokens",
+        THEN input_tokens + cache_write_tokens + cache_read_tokens + output_tokens ELSE 0 END), 0)::bigint as "cursorTokens",
       -- Previous period
       COALESCE(SUM(CASE WHEN date >= ${prevStartDate} AND date <= ${prevEndDate}
-        THEN input_tokens + cache_write_tokens + output_tokens ELSE 0 END), 0)::bigint as "prevTotalTokens",
+        THEN input_tokens + cache_write_tokens + cache_read_tokens + output_tokens ELSE 0 END), 0)::bigint as "prevTotalTokens",
       COALESCE(SUM(CASE WHEN date >= ${prevStartDate} AND date <= ${prevEndDate}
         THEN cost ELSE 0 END), 0)::float as "prevTotalCost",
       COALESCE(SUM(CASE WHEN date >= ${prevStartDate} AND date <= ${prevEndDate} AND tool = 'claude_code'
-        THEN input_tokens + cache_write_tokens + output_tokens ELSE 0 END), 0)::bigint as "prevClaudeCodeTokens",
+        THEN input_tokens + cache_write_tokens + cache_read_tokens + output_tokens ELSE 0 END), 0)::bigint as "prevClaudeCodeTokens",
       COALESCE(SUM(CASE WHEN date >= ${prevStartDate} AND date <= ${prevEndDate} AND tool = 'cursor'
-        THEN input_tokens + cache_write_tokens + output_tokens ELSE 0 END), 0)::bigint as "prevCursorTokens"
+        THEN input_tokens + cache_write_tokens + cache_read_tokens + output_tokens ELSE 0 END), 0)::bigint as "prevCursorTokens"
     FROM usage_records
     WHERE date >= ${prevStartDate} AND date <= ${endDate}
   `;
@@ -184,10 +184,16 @@ export interface UnattributedStats {
   totalCost: number;
 }
 
+/**
+ * Get stats for records without email attribution.
+ * Note: Since email is now required (NOT NULL) and both Claude Code and Cursor
+ * provide email directly from their APIs, this will always return zeros.
+ * Kept for API compatibility.
+ */
 export async function getUnattributedStats(): Promise<UnattributedStats> {
   const result = await db.execute<{ totalTokens: number; totalCost: number }>(sql`
     SELECT
-      COALESCE(SUM(input_tokens + cache_write_tokens + output_tokens), 0)::bigint as "totalTokens",
+      COALESCE(SUM(input_tokens + cache_write_tokens + cache_read_tokens + output_tokens), 0)::bigint as "totalTokens",
       COALESCE(SUM(cost), 0)::float as "totalCost"
     FROM ${usageRecords}
     WHERE email IS NULL
@@ -213,10 +219,10 @@ export async function getUserSummaries(
         WITH user_stats AS (
           SELECT
             email,
-            SUM(input_tokens + cache_write_tokens + output_tokens)::bigint as "totalTokens",
+            SUM(input_tokens + cache_write_tokens + cache_read_tokens + output_tokens)::bigint as "totalTokens",
             SUM(cost)::float as "totalCost",
-            SUM(CASE WHEN tool = 'claude_code' THEN input_tokens + cache_write_tokens + output_tokens ELSE 0 END)::bigint as "claudeCodeTokens",
-            SUM(CASE WHEN tool = 'cursor' THEN input_tokens + cache_write_tokens + output_tokens ELSE 0 END)::bigint as "cursorTokens",
+            SUM(CASE WHEN tool = 'claude_code' THEN input_tokens + cache_write_tokens + cache_read_tokens + output_tokens ELSE 0 END)::bigint as "claudeCodeTokens",
+            SUM(CASE WHEN tool = 'cursor' THEN input_tokens + cache_write_tokens + cache_read_tokens + output_tokens ELSE 0 END)::bigint as "cursorTokens",
             MAX(date)::text as "lastActive"
           FROM usage_records
           WHERE email LIKE ${searchPattern} AND email IS NOT NULL
@@ -231,7 +237,7 @@ export async function getUserSummaries(
             SELECT
               email,
               model,
-              SUM(input_tokens + cache_write_tokens + output_tokens) as model_tokens
+              SUM(input_tokens + cache_write_tokens + cache_read_tokens + output_tokens) as model_tokens
             FROM usage_records
             WHERE email LIKE ${searchPattern} AND email IS NOT NULL
               AND date >= ${effectiveStartDate} AND date <= ${effectiveEndDate}
@@ -251,10 +257,10 @@ export async function getUserSummaries(
         WITH user_stats AS (
           SELECT
             email,
-            SUM(input_tokens + cache_write_tokens + output_tokens)::bigint as "totalTokens",
+            SUM(input_tokens + cache_write_tokens + cache_read_tokens + output_tokens)::bigint as "totalTokens",
             SUM(cost)::float as "totalCost",
-            SUM(CASE WHEN tool = 'claude_code' THEN input_tokens + cache_write_tokens + output_tokens ELSE 0 END)::bigint as "claudeCodeTokens",
-            SUM(CASE WHEN tool = 'cursor' THEN input_tokens + cache_write_tokens + output_tokens ELSE 0 END)::bigint as "cursorTokens",
+            SUM(CASE WHEN tool = 'claude_code' THEN input_tokens + cache_write_tokens + cache_read_tokens + output_tokens ELSE 0 END)::bigint as "claudeCodeTokens",
+            SUM(CASE WHEN tool = 'cursor' THEN input_tokens + cache_write_tokens + cache_read_tokens + output_tokens ELSE 0 END)::bigint as "cursorTokens",
             MAX(date)::text as "lastActive"
           FROM usage_records
           WHERE email IS NOT NULL
@@ -269,7 +275,7 @@ export async function getUserSummaries(
             SELECT
               email,
               model,
-              SUM(input_tokens + cache_write_tokens + output_tokens) as model_tokens
+              SUM(input_tokens + cache_write_tokens + cache_read_tokens + output_tokens) as model_tokens
             FROM usage_records
             WHERE email IS NOT NULL
               AND date >= ${effectiveStartDate} AND date <= ${effectiveEndDate}
@@ -294,10 +300,10 @@ export async function getUserDetails(email: string) {
   const summaryResult = await vercelSql`
     SELECT
       email,
-      SUM(input_tokens + cache_write_tokens + output_tokens)::bigint as "totalTokens",
+      SUM(input_tokens + cache_write_tokens + cache_read_tokens + output_tokens)::bigint as "totalTokens",
       SUM(cost)::float as "totalCost",
-      SUM(CASE WHEN tool = 'claude_code' THEN input_tokens + cache_write_tokens + output_tokens ELSE 0 END)::bigint as "claudeCodeTokens",
-      SUM(CASE WHEN tool = 'cursor' THEN input_tokens + cache_write_tokens + output_tokens ELSE 0 END)::bigint as "cursorTokens",
+      SUM(CASE WHEN tool = 'claude_code' THEN input_tokens + cache_write_tokens + cache_read_tokens + output_tokens ELSE 0 END)::bigint as "claudeCodeTokens",
+      SUM(CASE WHEN tool = 'cursor' THEN input_tokens + cache_write_tokens + cache_read_tokens + output_tokens ELSE 0 END)::bigint as "cursorTokens",
       MAX(date)::text as "lastActive",
       MIN(date)::text as "firstActive"
     FROM usage_records
@@ -308,7 +314,7 @@ export async function getUserDetails(email: string) {
   const modelResult = await vercelSql`
     SELECT
       model,
-      SUM(input_tokens + cache_write_tokens + output_tokens)::bigint as tokens,
+      SUM(input_tokens + cache_write_tokens + cache_read_tokens + output_tokens)::bigint as tokens,
       tool
     FROM usage_records
     WHERE email = ${email}
@@ -319,8 +325,8 @@ export async function getUserDetails(email: string) {
   const dailyResult = await vercelSql`
     SELECT
       date::text,
-      SUM(CASE WHEN tool = 'claude_code' THEN input_tokens + cache_write_tokens + output_tokens ELSE 0 END)::bigint as "claudeCode",
-      SUM(CASE WHEN tool = 'cursor' THEN input_tokens + cache_write_tokens + output_tokens ELSE 0 END)::bigint as cursor
+      SUM(CASE WHEN tool = 'claude_code' THEN input_tokens + cache_write_tokens + cache_read_tokens + output_tokens ELSE 0 END)::bigint as "claudeCode",
+      SUM(CASE WHEN tool = 'cursor' THEN input_tokens + cache_write_tokens + cache_read_tokens + output_tokens ELSE 0 END)::bigint as cursor
     FROM usage_records
     WHERE email = ${email}
     GROUP BY date
@@ -375,10 +381,10 @@ export async function getUserDetailsExtended(
   const summaryResult = await vercelSql`
     SELECT
       email,
-      SUM(input_tokens + cache_write_tokens + output_tokens)::bigint as "totalTokens",
+      SUM(input_tokens + cache_write_tokens + cache_read_tokens + output_tokens)::bigint as "totalTokens",
       SUM(cost)::float as "totalCost",
-      SUM(CASE WHEN tool = 'claude_code' THEN input_tokens + cache_write_tokens + output_tokens ELSE 0 END)::bigint as "claudeCodeTokens",
-      SUM(CASE WHEN tool = 'cursor' THEN input_tokens + cache_write_tokens + output_tokens ELSE 0 END)::bigint as "cursorTokens",
+      SUM(CASE WHEN tool = 'claude_code' THEN input_tokens + cache_write_tokens + cache_read_tokens + output_tokens ELSE 0 END)::bigint as "claudeCodeTokens",
+      SUM(CASE WHEN tool = 'cursor' THEN input_tokens + cache_write_tokens + cache_read_tokens + output_tokens ELSE 0 END)::bigint as "cursorTokens",
       SUM(input_tokens)::bigint as "inputTokens",
       SUM(output_tokens)::bigint as "outputTokens",
       SUM(cache_read_tokens)::bigint as "cacheReadTokens",
@@ -394,7 +400,7 @@ export async function getUserDetailsExtended(
   const modelResult = await vercelSql`
     SELECT
       model,
-      SUM(input_tokens + cache_write_tokens + output_tokens)::bigint as tokens,
+      SUM(input_tokens + cache_write_tokens + cache_read_tokens + output_tokens)::bigint as tokens,
       SUM(input_tokens)::bigint as "inputTokens",
       SUM(output_tokens)::bigint as "outputTokens",
       SUM(cost)::float as cost,
@@ -416,8 +422,8 @@ export async function getUserDetailsExtended(
     )
     SELECT
       ds.date::text,
-      COALESCE(SUM(CASE WHEN r.tool = 'claude_code' THEN r.input_tokens + r.cache_write_tokens + r.output_tokens ELSE 0 END), 0)::bigint as "claudeCode",
-      COALESCE(SUM(CASE WHEN r.tool = 'cursor' THEN r.input_tokens + r.cache_write_tokens + r.output_tokens ELSE 0 END), 0)::bigint as cursor,
+      COALESCE(SUM(CASE WHEN r.tool = 'claude_code' THEN r.input_tokens + r.cache_write_tokens + r.cache_read_tokens + r.output_tokens ELSE 0 END), 0)::bigint as "claudeCode",
+      COALESCE(SUM(CASE WHEN r.tool = 'cursor' THEN r.input_tokens + r.cache_write_tokens + r.cache_read_tokens + r.output_tokens ELSE 0 END), 0)::bigint as cursor,
       COALESCE(SUM(r.input_tokens), 0)::bigint as "inputTokens",
       COALESCE(SUM(r.output_tokens), 0)::bigint as "outputTokens",
       COALESCE(SUM(r.cost), 0)::float as cost
@@ -443,7 +449,7 @@ export async function getModelBreakdown(startDate?: string, endDate?: string): P
   const result = await vercelSql`
     SELECT
       model,
-      SUM(input_tokens + cache_write_tokens + output_tokens)::bigint as tokens,
+      SUM(input_tokens + cache_write_tokens + cache_read_tokens + output_tokens)::bigint as tokens,
       tool
     FROM usage_records
     WHERE date >= ${effectiveStartDate} AND date <= ${effectiveEndDate}
@@ -474,8 +480,8 @@ export async function getDailyUsage(startDate: string, endDate: string): Promise
     )
     SELECT
       ds.date::text,
-      COALESCE(SUM(CASE WHEN r.tool = 'claude_code' THEN r.input_tokens + r.cache_write_tokens + r.output_tokens ELSE 0 END), 0)::bigint as "claudeCode",
-      COALESCE(SUM(CASE WHEN r.tool = 'cursor' THEN r.input_tokens + r.cache_write_tokens + r.output_tokens ELSE 0 END), 0)::bigint as cursor,
+      COALESCE(SUM(CASE WHEN r.tool = 'claude_code' THEN r.input_tokens + r.cache_write_tokens + r.cache_read_tokens + r.output_tokens ELSE 0 END), 0)::bigint as "claudeCode",
+      COALESCE(SUM(CASE WHEN r.tool = 'cursor' THEN r.input_tokens + r.cache_write_tokens + r.cache_read_tokens + r.output_tokens ELSE 0 END), 0)::bigint as cursor,
       COALESCE(SUM(r.cost), 0)::float as cost
     FROM date_series ds
     LEFT JOIN usage_records r ON r.date = ds.date
@@ -504,6 +510,12 @@ export async function getDataCompleteness(): Promise<DataCompleteness> {
   };
 }
 
+/**
+ * Get tool records that have no email attribution.
+ * Note: Since email is now required (NOT NULL) and both Claude Code and Cursor
+ * provide email directly from their APIs, this will always return empty.
+ * Kept for API compatibility.
+ */
 export async function getUnmappedToolRecords(tool: string = 'claude_code'): Promise<{ tool_record_id: string; usage_count: number }[]> {
   const result = await db.execute<{ tool_record_id: string; usage_count: number }>(sql`
     SELECT
@@ -662,10 +674,10 @@ export async function getAllUsersPivot(
     ? await vercelSql`
         SELECT
           r.email,
-          SUM(r.input_tokens + r.cache_write_tokens + r.output_tokens)::bigint as "totalTokens",
+          SUM(r.input_tokens + r.cache_write_tokens + r.cache_read_tokens + r.output_tokens)::bigint as "totalTokens",
           SUM(r.cost)::float as "totalCost",
-          SUM(CASE WHEN r.tool = 'claude_code' THEN r.input_tokens + r.cache_write_tokens + r.output_tokens ELSE 0 END)::bigint as "claudeCodeTokens",
-          SUM(CASE WHEN r.tool = 'cursor' THEN r.input_tokens + r.cache_write_tokens + r.output_tokens ELSE 0 END)::bigint as "cursorTokens",
+          SUM(CASE WHEN r.tool = 'claude_code' THEN r.input_tokens + r.cache_write_tokens + r.cache_read_tokens + r.output_tokens ELSE 0 END)::bigint as "claudeCodeTokens",
+          SUM(CASE WHEN r.tool = 'cursor' THEN r.input_tokens + r.cache_write_tokens + r.cache_read_tokens + r.output_tokens ELSE 0 END)::bigint as "cursorTokens",
           SUM(r.input_tokens)::bigint as "inputTokens",
           SUM(r.output_tokens)::bigint as "outputTokens",
           SUM(r.cache_read_tokens)::bigint as "cacheReadTokens",
@@ -690,10 +702,10 @@ export async function getAllUsersPivot(
     : await vercelSql`
         SELECT
           r.email,
-          SUM(r.input_tokens + r.cache_write_tokens + r.output_tokens)::bigint as "totalTokens",
+          SUM(r.input_tokens + r.cache_write_tokens + r.cache_read_tokens + r.output_tokens)::bigint as "totalTokens",
           SUM(r.cost)::float as "totalCost",
-          SUM(CASE WHEN r.tool = 'claude_code' THEN r.input_tokens + r.cache_write_tokens + r.output_tokens ELSE 0 END)::bigint as "claudeCodeTokens",
-          SUM(CASE WHEN r.tool = 'cursor' THEN r.input_tokens + r.cache_write_tokens + r.output_tokens ELSE 0 END)::bigint as "cursorTokens",
+          SUM(CASE WHEN r.tool = 'claude_code' THEN r.input_tokens + r.cache_write_tokens + r.cache_read_tokens + r.output_tokens ELSE 0 END)::bigint as "claudeCodeTokens",
+          SUM(CASE WHEN r.tool = 'cursor' THEN r.input_tokens + r.cache_write_tokens + r.cache_read_tokens + r.output_tokens ELSE 0 END)::bigint as "cursorTokens",
           SUM(r.input_tokens)::bigint as "inputTokens",
           SUM(r.output_tokens)::bigint as "outputTokens",
           SUM(r.cache_read_tokens)::bigint as "cacheReadTokens",
@@ -764,7 +776,7 @@ export async function getAllUsersPivot(
 // Note: DO UPDATE SET is correct for both - Cursor conflicts are rare, Anthropic needs updates
 export async function insertUsageRecord(record: {
   date: string;
-  email: string | null;
+  email: string;
   tool: string;
   model: string;
   rawModel?: string;
@@ -816,7 +828,7 @@ export async function getLifetimeStats(): Promise<LifetimeStats> {
   const [usageResult, commitsResult, reposResult] = await Promise.all([
     vercelSql`
       SELECT
-        COALESCE(SUM(input_tokens + cache_write_tokens + output_tokens), 0)::bigint as "totalTokens",
+        COALESCE(SUM(input_tokens + cache_write_tokens + cache_read_tokens + output_tokens), 0)::bigint as "totalTokens",
         COALESCE(SUM(cost), 0)::float as "totalCost",
         COUNT(DISTINCT email)::int as "totalUsers",
         MIN(date)::text as "firstRecordDate"
@@ -853,14 +865,14 @@ export async function getUserLifetimeStats(email: string): Promise<UserLifetimeS
   const [statsResult, toolResult, recordDayResult] = await Promise.all([
     vercelSql`
       SELECT
-        COALESCE(SUM(input_tokens + cache_write_tokens + output_tokens), 0)::bigint as "totalTokens",
+        COALESCE(SUM(input_tokens + cache_write_tokens + cache_read_tokens + output_tokens), 0)::bigint as "totalTokens",
         COALESCE(SUM(cost), 0)::float as "totalCost",
         MIN(date)::text as "firstRecordDate"
       FROM usage_records
       WHERE email = ${email}
     `,
     vercelSql`
-      SELECT tool, SUM(input_tokens + cache_write_tokens + output_tokens)::bigint as tokens
+      SELECT tool, SUM(input_tokens + cache_write_tokens + cache_read_tokens + output_tokens)::bigint as tokens
       FROM usage_records
       WHERE email = ${email}
       GROUP BY tool
@@ -868,7 +880,7 @@ export async function getUserLifetimeStats(email: string): Promise<UserLifetimeS
       LIMIT 1
     `,
     vercelSql`
-      SELECT date::text, SUM(input_tokens + cache_write_tokens + output_tokens)::bigint as tokens
+      SELECT date::text, SUM(input_tokens + cache_write_tokens + cache_read_tokens + output_tokens)::bigint as tokens
       FROM usage_records
       WHERE email = ${email}
       GROUP BY date
@@ -1196,7 +1208,7 @@ export async function getUserPercentile(
       email,
       CASE
         WHEN COUNT(DISTINCT date) > 0
-        THEN SUM(input_tokens + cache_write_tokens + output_tokens)::float / COUNT(DISTINCT date)
+        THEN SUM(input_tokens + cache_write_tokens + cache_read_tokens + output_tokens)::float / COUNT(DISTINCT date)
         ELSE 0
       END as avg_tokens_per_day
     FROM usage_records
@@ -1625,7 +1637,7 @@ export async function getModelTrends(
         date,
         model,
         tool,
-        SUM(input_tokens + cache_write_tokens + output_tokens)::bigint as tokens,
+        SUM(input_tokens + cache_write_tokens + cache_read_tokens + output_tokens)::bigint as tokens,
         SUM(input_tokens)::bigint as "inputTokens",
         SUM(output_tokens)::bigint as "outputTokens",
         SUM(cost)::float as cost
@@ -1674,7 +1686,7 @@ export async function getToolTrends(
       SELECT
         date,
         tool,
-        SUM(input_tokens + cache_write_tokens + output_tokens)::bigint as tokens,
+        SUM(input_tokens + cache_write_tokens + cache_read_tokens + output_tokens)::bigint as tokens,
         SUM(cost)::float as cost,
         COUNT(DISTINCT email)::int as users
       FROM usage_records
@@ -1809,7 +1821,7 @@ export async function getUserRawUsage(
         date::text,
         tool,
         model,
-        (input_tokens + cache_write_tokens + output_tokens)::bigint as "totalTokens",
+        (input_tokens + cache_write_tokens + cache_read_tokens + output_tokens)::bigint as "totalTokens",
         cost::float
       FROM usage_records
       WHERE email = $1
