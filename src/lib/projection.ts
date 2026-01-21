@@ -176,6 +176,11 @@ export function applyProjections(
       if (isToday) {
         // Today: extrapolate from partial data or use historical average
         if (currentValue > 0) {
+          // When factor=1 (after work window), day is complete - no projection needed
+          if (factor === 1) {
+            // No projection - actual value is the final value
+            continue;
+          }
           result[tool.projectedKey] = currentValue;
           // Blend extrapolation with historical average based on time of day
           // Early day: weight toward historical avg (more conservative)
@@ -191,10 +196,12 @@ export function applyProjections(
             projection = extrapolated;
           }
           result[tool.key] = Math.round(projection);
-        } else if (avg > 0) {
+        } else if (avg > 0 && factor < 1) {
+          // No data yet today, but work day isn't over - use historical average
           result[tool.projectedKey] = 0;
           result[tool.key] = Math.round(avg);
         }
+        // If factor=1 and currentValue=0, day is done with no usage - show actual 0
       } else {
         // Historical incomplete day: use historical average if no data
         if (toolIncomplete[tool.key] && currentValue === 0 && avg > 0) {

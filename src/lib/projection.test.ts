@@ -202,7 +202,7 @@ describe('applyProjections', () => {
   });
 
   describe('after working hours', () => {
-    it('does not scale projection after work window ends (factor = 1)', () => {
+    it('does not project after work window ends (factor = 1)', () => {
       const completeness: DataCompleteness = {
         claudeCode: { lastDataDate: '2025-01-15' },
         cursor: { lastDataDate: '2025-01-15' },
@@ -214,12 +214,34 @@ describe('applyProjections', () => {
       // Pass localHour = 20 (8pm, after 7pm work window)
       const result = applyProjections(data, completeness, '2025-01-16', 20);
 
-      // After 7pm, factor = 1, so projected = actual (no scaling)
+      // After 7pm, day is complete - no projection, just show actual values
       expect(result[0].isIncomplete).toBe(true);
-      expect(result[0].projectedClaudeCode).toBe(800);
-      expect(result[0].claudeCode).toBe(800);  // 800 / 1 = 800
-      expect(result[0].projectedCursor).toBe(400);
-      expect(result[0].cursor).toBe(400);  // 400 / 1 = 400
+      expect(result[0].projectedClaudeCode).toBeUndefined();  // No projection
+      expect(result[0].claudeCode).toBe(800);  // Actual value unchanged
+      expect(result[0].projectedCursor).toBeUndefined();  // No projection
+      expect(result[0].cursor).toBe(400);  // Actual value unchanged
+    });
+
+    it('does not use historical average after work window with zero data', () => {
+      const completeness: DataCompleteness = {
+        claudeCode: { lastDataDate: '2025-01-15' },
+        cursor: { lastDataDate: '2025-01-15' },
+      };
+      const data: DailyUsage[] = [
+        { date: '2025-01-14', claudeCode: 1000, cursor: 500, cost: 0.10 },
+        { date: '2025-01-15', claudeCode: 2000, cursor: 1000, cost: 0.20 },
+        { date: '2025-01-16', claudeCode: 0, cursor: 0, cost: 0 },  // Today, no usage
+      ];
+
+      // Pass localHour = 20 (8pm, after work window)
+      const result = applyProjections(data, completeness, '2025-01-16', 20);
+
+      // After 7pm with 0 usage, day is done - show actual 0, not historical average
+      expect(result[2].isIncomplete).toBe(true);
+      expect(result[2].projectedClaudeCode).toBeUndefined();  // No projection
+      expect(result[2].claudeCode).toBe(0);  // Actual 0, not historical avg
+      expect(result[2].projectedCursor).toBeUndefined();
+      expect(result[2].cursor).toBe(0);
     });
   });
 
