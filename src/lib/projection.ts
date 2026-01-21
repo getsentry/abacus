@@ -8,6 +8,43 @@
 
 import type { DailyUsage, DataCompleteness } from './queries';
 
+// Working hours configuration for projection
+// Uses a 12-hour window (7am-7pm) to accommodate varied schedules
+const WORK_WINDOW_START = 7;   // Earliest typical start (7am)
+const WORK_WINDOW_END = 19;    // Latest typical end (7pm)
+
+/**
+ * Calculate the working hours factor for today's projection.
+ *
+ * Instead of assuming uniform usage across 24 hours, this uses a compressed
+ * working day model. Most productive work happens in a 12-hour window (7am-7pm),
+ * but people only work ~9 hours within that.
+ *
+ * - Before 7am: Returns 0 (too early to project meaningfully)
+ * - Between 7am-7pm: Returns linear progress through the work window
+ * - After 7pm: Returns 1 (day is considered complete)
+ *
+ * @param now - The current time (defaults to new Date())
+ * @returns Factor between 0 and 1 representing day completion
+ */
+export function getWorkingHoursFactor(now: Date = new Date()): number {
+  const hour = now.getHours() + now.getMinutes() / 60;
+
+  if (hour < WORK_WINDOW_START) {
+    return 0; // Too early to project
+  }
+  if (hour >= WORK_WINDOW_END) {
+    return 1; // Day is done
+  }
+
+  // Hours into the work window
+  const hoursIntoWindow = hour - WORK_WINDOW_START;
+  const windowSize = WORK_WINDOW_END - WORK_WINDOW_START; // 12 hours
+
+  // Linear progression through the work window
+  return hoursIntoWindow / windowSize;
+}
+
 // Tool configuration for projection
 type ToolKey = 'claudeCode' | 'cursor';
 type ProjectedKey = 'projectedClaudeCode' | 'projectedCursor';
@@ -80,12 +117,14 @@ function calculateHistoricalAverages(
  * @param data - The daily usage data from the database
  * @param completeness - Data completeness info (last date with data per tool)
  * @param todayStr - Today's date as YYYY-MM-DD string
+ * @param now - The current time in the user's timezone (for working hours calculation)
  * @returns Data with projection fields added where applicable
  */
 export function applyProjections(
   data: DailyUsage[],
   completeness: DataCompleteness,
-  todayStr: string
+  todayStr: string,
+  now?: Date
 ): DailyUsage[] {
   // Get today's day of week for same-day averaging
   const [year, month, day] = todayStr.split('-').map(Number);
@@ -115,16 +154,14 @@ export function applyProjections(
 
     const result: DailyUsage = { ...dayData, isIncomplete: true };
 
-    // Calculate time factor for today's projection
+    // Calculate time factor for today's projection using working hours model
     let factor = 1;
     if (isToday) {
-      const now = new Date();
-      const hoursElapsed = now.getHours() + now.getMinutes() / 60;
-      if (hoursElapsed < 1) {
-        // Too early to project, just mark as incomplete
+      factor = getWorkingHoursFactor(now);
+      if (factor === 0) {
+        // Too early to project (before work window), just mark as incomplete
         return result;
       }
-      factor = hoursElapsed / 24;
     }
 
     // Project each tool
@@ -139,7 +176,20 @@ export function applyProjections(
         // Today: extrapolate from partial data or use historical average
         if (currentValue > 0) {
           result[tool.projectedKey] = currentValue;
-          result[tool.key] = Math.round(currentValue / factor);
+          // Blend extrapolation with historical average based on time of day
+          // Early day: weight toward historical avg (more conservative)
+          // Late day: weight toward extrapolation (more data-driven)
+          const extrapolated = currentValue / factor;
+          let projection: number;
+          if (avg > 0) {
+            // Blend: factor weight to extrapolation, (1-factor) weight to historical
+            const blended = factor * extrapolated + (1 - factor) * avg;
+            // Cap at 1.5x historical average
+            projection = Math.min(blended, avg * 1.5);
+          } else {
+            projection = extrapolated;
+          }
+          result[tool.key] = Math.round(projection);
         } else if (avg > 0) {
           result[tool.projectedKey] = 0;
           result[tool.key] = Math.round(avg);

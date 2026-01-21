@@ -1,6 +1,65 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { applyProjections, hasIncompleteData, hasProjectedData, hasEstimatedData, hasExtrapolatedData } from './projection';
+import { applyProjections, hasIncompleteData, hasProjectedData, hasEstimatedData, hasExtrapolatedData, getWorkingHoursFactor } from './projection';
 import type { DailyUsage, DataCompleteness } from './queries';
+
+describe('getWorkingHoursFactor', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('returns 0 before work window (before 7am)', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2025-01-16T06:00:00'));
+    expect(getWorkingHoursFactor()).toBe(0);
+
+    vi.setSystemTime(new Date('2025-01-16T06:59:00'));
+    expect(getWorkingHoursFactor()).toBe(0);
+  });
+
+  it('returns correct factor during work window', () => {
+    vi.useFakeTimers();
+
+    // At 7am: 0/12 = 0
+    vi.setSystemTime(new Date('2025-01-16T07:00:00'));
+    expect(getWorkingHoursFactor()).toBeCloseTo(0, 5);
+
+    // At 9am: 2/12 ≈ 0.167
+    vi.setSystemTime(new Date('2025-01-16T09:00:00'));
+    expect(getWorkingHoursFactor()).toBeCloseTo(2/12, 5);
+
+    // At 1pm (13:00): 6/12 = 0.5
+    vi.setSystemTime(new Date('2025-01-16T13:00:00'));
+    expect(getWorkingHoursFactor()).toBeCloseTo(0.5, 5);
+
+    // At 6pm (18:00): 11/12 ≈ 0.917
+    vi.setSystemTime(new Date('2025-01-16T18:00:00'));
+    expect(getWorkingHoursFactor()).toBeCloseTo(11/12, 5);
+  });
+
+  it('returns 1 after work window (7pm+)', () => {
+    vi.useFakeTimers();
+
+    // At 7pm: factor = 1 (day complete)
+    vi.setSystemTime(new Date('2025-01-16T19:00:00'));
+    expect(getWorkingHoursFactor()).toBe(1);
+
+    // At 10pm: still 1
+    vi.setSystemTime(new Date('2025-01-16T22:00:00'));
+    expect(getWorkingHoursFactor()).toBe(1);
+
+    // At midnight: still 1 (for that calendar day)
+    vi.setSystemTime(new Date('2025-01-16T23:59:00'));
+    expect(getWorkingHoursFactor()).toBe(1);
+  });
+
+  it('handles fractional hours correctly', () => {
+    vi.useFakeTimers();
+
+    // At 10:30am: 3.5/12 ≈ 0.292
+    vi.setSystemTime(new Date('2025-01-16T10:30:00'));
+    expect(getWorkingHoursFactor()).toBeCloseTo(3.5/12, 5);
+  });
+});
 
 describe('applyProjections', () => {
   const mockCompleteness: DataCompleteness = {
@@ -63,7 +122,7 @@ describe('applyProjections', () => {
       vi.useRealTimers();
     });
 
-    it('projects today\'s data based on hours elapsed', () => {
+    it('projects today\'s data based on working hours factor', () => {
       const completeness: DataCompleteness = {
         claudeCode: { lastDataDate: '2025-01-15' },
         cursor: { lastDataDate: '2025-01-15' },
@@ -74,12 +133,14 @@ describe('applyProjections', () => {
 
       const result = applyProjections(data, completeness, '2025-01-16');
 
-      // At 12:00, factor = 12/24 = 0.5, so values should double
+      // At 12:00, factor = (12-7)/12 = 5/12 ≈ 0.417
+      // No historical data, so no cap applies
+      // 500 / 0.417 ≈ 1200, 250 / 0.417 ≈ 600
       expect(result[0].isIncomplete).toBe(true);
       expect(result[0].projectedClaudeCode).toBe(500);  // Original value stored
-      expect(result[0].claudeCode).toBe(1000);  // 500 / 0.5
+      expect(result[0].claudeCode).toBe(1200);  // 500 / (5/12)
       expect(result[0].projectedCursor).toBe(250);
-      expect(result[0].cursor).toBe(500);  // 250 / 0.5
+      expect(result[0].cursor).toBe(600);  // 250 / (5/12)
     });
 
     it('does not project zero values when no historical data', () => {
@@ -134,27 +195,27 @@ describe('applyProjections', () => {
 
       const result = applyProjections(data, completeness, '2025-01-16');
 
-      // At 12:00, both tools are projected since the day isn't complete
+      // At 12:00, factor = 5/12 ≈ 0.417, both tools are projected
       expect(result[0].isIncomplete).toBe(true);
       expect(result[0].projectedClaudeCode).toBe(500);
-      expect(result[0].claudeCode).toBe(1000);  // 500 / 0.5
+      expect(result[0].claudeCode).toBe(1200);  // 500 / (5/12)
       expect(result[0].projectedCursor).toBe(1000);  // Cursor also projected
-      expect(result[0].cursor).toBe(2000);  // 1000 / 0.5
+      expect(result[0].cursor).toBe(2400);  // 1000 / (5/12)
     });
   });
 
-  describe('early morning edge case', () => {
+  describe('before working hours edge case', () => {
     beforeEach(() => {
-      // Mock Date to be at 00:30
+      // Mock Date to be at 6:30am (before 7am work window)
       vi.useFakeTimers();
-      vi.setSystemTime(new Date('2025-01-16T00:30:00'));
+      vi.setSystemTime(new Date('2025-01-16T06:30:00'));
     });
 
     afterEach(() => {
       vi.useRealTimers();
     });
 
-    it('does not project when less than 1 hour elapsed', () => {
+    it('does not project before work window starts', () => {
       const completeness: DataCompleteness = {
         claudeCode: { lastDataDate: '2025-01-15' },
         cursor: { lastDataDate: '2025-01-15' },
@@ -165,10 +226,124 @@ describe('applyProjections', () => {
 
       const result = applyProjections(data, completeness, '2025-01-16');
 
-      // Marked as incomplete but no projection (too early)
+      // Marked as incomplete but no projection (before 7am work window)
       expect(result[0].isIncomplete).toBe(true);
       expect(result[0].projectedClaudeCode).toBeUndefined();
       expect(result[0].claudeCode).toBe(100);  // Unchanged
+    });
+  });
+
+  describe('after working hours', () => {
+    beforeEach(() => {
+      // Mock Date to be at 8pm (after 7pm work window)
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date('2025-01-16T20:00:00'));
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it('does not scale projection after work window ends (factor = 1)', () => {
+      const completeness: DataCompleteness = {
+        claudeCode: { lastDataDate: '2025-01-15' },
+        cursor: { lastDataDate: '2025-01-15' },
+      };
+      const data: DailyUsage[] = [
+        { date: '2025-01-16', claudeCode: 800, cursor: 400, cost: 0.08 },
+      ];
+
+      const result = applyProjections(data, completeness, '2025-01-16');
+
+      // After 7pm, factor = 1, so projected = actual (no scaling)
+      expect(result[0].isIncomplete).toBe(true);
+      expect(result[0].projectedClaudeCode).toBe(800);
+      expect(result[0].claudeCode).toBe(800);  // 800 / 1 = 800
+      expect(result[0].projectedCursor).toBe(400);
+      expect(result[0].cursor).toBe(400);  // 400 / 1 = 400
+    });
+  });
+
+  describe('blended projection with historical average', () => {
+    beforeEach(() => {
+      // Mock Date to be at 8am (early in work window, factor = 1/12 ≈ 0.083)
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date('2025-01-16T08:00:00'));
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it('blends extrapolation with historical average early in day', () => {
+      const completeness: DataCompleteness = {
+        claudeCode: { lastDataDate: '2025-01-15' },
+        cursor: { lastDataDate: '2025-01-15' },
+      };
+      const data: DailyUsage[] = [
+        { date: '2025-01-14', claudeCode: 1000, cursor: 500, cost: 0.10 },
+        { date: '2025-01-15', claudeCode: 1000, cursor: 500, cost: 0.10 },
+        { date: '2025-01-16', claudeCode: 200, cursor: 100, cost: 0.02 },  // Today, early
+      ];
+
+      const result = applyProjections(data, completeness, '2025-01-16');
+
+      // At 8am, factor = 1/12 ≈ 0.083
+      // extrapolated = 200 / 0.083 = 2400
+      // blended = 0.083 * 2400 + 0.917 * 1000 = 200 + 917 = 1117
+      // cap = 1.5 * 1000 = 1500, 1117 < 1500 so no cap
+      expect(result[2].projectedClaudeCode).toBe(200);
+      expect(result[2].claudeCode).toBe(1117);  // Blended, conservative
+
+      // Cursor: extrapolated = 1200, blended = 0.083*1200 + 0.917*500 ≈ 558
+      expect(result[2].projectedCursor).toBe(100);
+      expect(result[2].cursor).toBe(558);
+    });
+
+    it('caps at 1.5x historical average', () => {
+      const completeness: DataCompleteness = {
+        claudeCode: { lastDataDate: '2025-01-15' },
+        cursor: { lastDataDate: '2025-01-15' },
+      };
+      // Low historical average relative to today's early data
+      const data: DailyUsage[] = [
+        { date: '2025-01-14', claudeCode: 500, cursor: 250, cost: 0.05 },
+        { date: '2025-01-15', claudeCode: 500, cursor: 250, cost: 0.05 },
+        { date: '2025-01-16', claudeCode: 400, cursor: 200, cost: 0.04 },  // Today, already high
+      ];
+
+      const result = applyProjections(data, completeness, '2025-01-16');
+
+      // At 8am, factor = 1/12 ≈ 0.083
+      // extrapolated = 400 / 0.083 = 4800
+      // blended = 0.083 * 4800 + 0.917 * 500 = 398 + 459 = 857
+      // cap = 1.5 * 500 = 750, 857 > 750 so CAPPED
+      expect(result[2].projectedClaudeCode).toBe(400);
+      expect(result[2].claudeCode).toBe(750);  // Capped at 1.5x historical
+
+      expect(result[2].projectedCursor).toBe(200);
+      expect(result[2].cursor).toBe(375);  // Capped at 1.5 * 250
+    });
+
+    it('weights toward historical average early, extrapolation late', () => {
+      const completeness: DataCompleteness = {
+        claudeCode: { lastDataDate: '2025-01-15' },
+        cursor: { lastDataDate: '2025-01-15' },
+      };
+      const data: DailyUsage[] = [
+        { date: '2025-01-14', claudeCode: 5000, cursor: 2500, cost: 0.50 },
+        { date: '2025-01-15', claudeCode: 5000, cursor: 2500, cost: 0.50 },
+        { date: '2025-01-16', claudeCode: 200, cursor: 100, cost: 0.02 },  // Today, early
+      ];
+
+      const result = applyProjections(data, completeness, '2025-01-16');
+
+      // At 8am, factor = 1/12 ≈ 0.083 (heavily weighted to historical)
+      // extrapolated = 200 / 0.083 = 2400
+      // blended = 0.083 * 2400 + 0.917 * 5000 = 200 + 4585 = 4785
+      // cap = 1.5 * 5000 = 7500, so no cap
+      expect(result[2].projectedClaudeCode).toBe(200);
+      expect(result[2].claudeCode).toBe(4783);  // Heavily weighted to historical avg
     });
   });
 
@@ -369,7 +544,7 @@ describe('same-day-of-week averaging', () => {
 
 describe('projection math verification', () => {
   beforeEach(() => {
-    // Mock Date to be at 6pm (18:00) = 75% through the day
+    // Mock Date to be at 6pm (18:00) = 11/12 through work window
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2025-01-17T18:00:00'));
   });
@@ -378,7 +553,7 @@ describe('projection math verification', () => {
     vi.useRealTimers();
   });
 
-  it('correctly extrapolates partial data at 6pm (75% of day)', () => {
+  it('correctly blends partial data at 6pm (near end of work window)', () => {
     const completeness: DataCompleteness = {
       claudeCode: { lastDataDate: '2025-01-16' },
       cursor: { lastDataDate: '2025-01-16' },
@@ -390,11 +565,12 @@ describe('projection math verification', () => {
 
     const result = applyProjections(data, completeness, '2025-01-17');
 
-    // At 18:00, factor = 18/24 = 0.75
-    // Claude Code: 750 / 0.75 = 1000
-    // Cursor: 300 / 0.75 = 400
-    expect(result[1].claudeCode).toBe(1000);
-    expect(result[1].cursor).toBe(400);
+    // At 18:00, factor = 11/12 ≈ 0.917 (heavily weighted to extrapolation)
+    // extrapolated = 750 / 0.917 = 818
+    // blended = 0.917 * 818 + 0.083 * 1000 = 750 + 83 = 833
+    expect(result[1].claudeCode).toBe(833);
+    // Cursor: extrapolated = 327, blended = 0.917*327 + 0.083*500 = 300 + 42 = 342
+    expect(result[1].cursor).toBe(342);
     expect(result[1].projectedClaudeCode).toBe(750);
     expect(result[1].projectedCursor).toBe(300);
   });
@@ -412,9 +588,11 @@ describe('projection math verification', () => {
 
     const result = applyProjections(data, completeness, '2025-01-17');
 
-    // Historical average should be (1000+2000)/2 = 1500 for Claude Code
-    // But we have partial data, so we extrapolate instead: 600 / 0.75 = 800
-    expect(result[2].claudeCode).toBe(800);
+    // Historical average = (1000+2000)/2 = 1500 for Claude Code
+    // At 6pm, factor = 11/12 ≈ 0.917
+    // extrapolated = 600 / 0.917 = 655
+    // blended = 0.917 * 655 + 0.083 * 1500 ≈ 725
+    expect(result[2].claudeCode).toBe(725);
     expect(result[2].projectedClaudeCode).toBe(600);
   });
 
@@ -468,16 +646,18 @@ describe('projection math verification', () => {
     const result = applyProjections(data, completeness, '2025-01-17');
 
     // Yesterday (Jan 16): Claude Code uses avg (2000), Cursor is 1200 (complete, not today)
-    // But wait - Jan 16 is not today, so Cursor shouldn't be projected
     expect(result[1].claudeCode).toBe(2000);  // Avg from Jan 15
     expect(result[1].projectedClaudeCode).toBe(0);
     expect(result[1].cursor).toBe(1200);      // Original value, not projected
     expect(result[1].projectedCursor).toBeUndefined();
 
-    // Today: Claude Code uses avg (2000), Cursor extrapolates (450/0.75=600)
+    // Today at 6pm: Claude Code uses avg (2000), Cursor blends
+    // Cursor avg = (1000+1200)/2 = 1100
+    // extrapolated = 450 / 0.917 = 491
+    // blended = 0.917 * 491 + 0.083 * 1100 ≈ 542
     expect(result[2].claudeCode).toBe(2000);  // From avg
     expect(result[2].projectedClaudeCode).toBe(0);
-    expect(result[2].cursor).toBe(600);       // 450 / 0.75
+    expect(result[2].cursor).toBe(542);       // Blended
     expect(result[2].projectedCursor).toBe(450);
   });
 });

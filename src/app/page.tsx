@@ -132,11 +132,12 @@ function DashboardContent() {
     try {
       const { startDate, endDate } = getDateParams();
       const params = new URLSearchParams({ startDate, endDate });
+      const localTime = new Date().toISOString();
 
       const [statsRes, usersRes, trendsRes, modelsRes, commitsRes] = await Promise.all([
         fetch(`/api/stats?${params}&comparison=true`),
         fetch(`/api/users?limit=10&${params}`),
-        fetch(`/api/trends?${params}`),
+        fetch(`/api/trends?${params}&localTime=${localTime}`),
         fetch(`/api/models?${params}`),
         fetch(`/api/stats/commits?${params}&comparison=true`),
       ]);

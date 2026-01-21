@@ -13,6 +13,8 @@ export interface ToolConfig {
   text: string;
   /** Gradient classes for special effects */
   gradient: string;
+  /** Border color class for projected data (e.g., 'border-amber-500/60') */
+  border: string;
 }
 
 // GitHub Copilot config
@@ -22,6 +24,7 @@ const COPILOT_CONFIG: ToolConfig = {
   bgChart: 'bg-sky-500/80',
   text: 'text-sky-400',
   gradient: 'from-sky-500/80 to-sky-400/60',
+  border: 'border-sky-500/60',
 };
 
 // OpenAI Codex config
@@ -31,6 +34,7 @@ const CODEX_CONFIG: ToolConfig = {
   bgChart: 'bg-teal-500/80',
   text: 'text-teal-400',
   gradient: 'from-teal-500/80 to-teal-400/60',
+  border: 'border-teal-500/60',
 };
 
 export const TOOL_CONFIGS: Record<string, ToolConfig> = {
@@ -40,6 +44,7 @@ export const TOOL_CONFIGS: Record<string, ToolConfig> = {
     bgChart: 'bg-amber-500/80',
     text: 'text-amber-400',
     gradient: 'from-amber-500/80 to-amber-400/60',
+    border: 'border-amber-500/60',
   },
   cursor: {
     name: 'Cursor',
@@ -47,6 +52,7 @@ export const TOOL_CONFIGS: Record<string, ToolConfig> = {
     bgChart: 'bg-cyan-500/80',
     text: 'text-cyan-400',
     gradient: 'from-cyan-500/80 to-cyan-400/60',
+    border: 'border-cyan-500/60',
   },
   windsurf: {
     name: 'Windsurf',
@@ -54,6 +60,7 @@ export const TOOL_CONFIGS: Record<string, ToolConfig> = {
     bgChart: 'bg-emerald-500/80',
     text: 'text-emerald-400',
     gradient: 'from-emerald-500/80 to-emerald-400/60',
+    border: 'border-emerald-500/60',
   },
   github_copilot: COPILOT_CONFIG,
   // OpenAI Codex
@@ -74,6 +81,7 @@ const DEFAULT_CONFIG: ToolConfig = {
   bgChart: 'bg-rose-500/80',
   text: 'text-rose-400',
   gradient: 'from-rose-500/80 to-rose-400/60',
+  border: 'border-rose-500/60',
 };
 
 export function getToolConfig(tool: string): ToolConfig {
