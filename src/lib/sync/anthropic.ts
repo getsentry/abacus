@@ -293,9 +293,9 @@ async function syncClaudeCodeForDate(
     result.errors.push(err instanceof Error ? err.message : 'Unknown error');
   }
 
-  // Always clean up legacy records if we imported any new data
-  // This runs even after rate limit/error to prevent duplicates
-  if (result.recordsImported > 0) {
+  // Clean up legacy records only on successful complete sync
+  // Don't delete on partial sync (rate limit/error) to avoid data loss
+  if (result.success && result.recordsImported > 0) {
     try {
       await db.delete(usageRecords)
         .where(
