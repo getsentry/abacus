@@ -282,6 +282,7 @@ async function syncClaudeCodeForDate(
           } catch (err) {
             result.errors.push(`Insert error: ${err instanceof Error ? err.message : 'Unknown'}`);
             result.recordsSkipped++;
+            result.success = false;
             insertErrors++;
           }
         }
@@ -311,6 +312,7 @@ async function syncClaudeCodeForDate(
       const error = new Error(`Failed to clean up legacy records for ${date}: ${deleteErr instanceof Error ? deleteErr.message : 'Unknown'}`);
       Sentry.captureException(error);
       result.errors.push(error.message);
+      result.success = false;
     }
   }
 
