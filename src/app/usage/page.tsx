@@ -138,12 +138,10 @@ function UsagePageContent() {
     setError(null);
     try {
       const { startDate, endDate } = getDateParams();
-      const now = new Date();
-      const localHour = now.getHours() + now.getMinutes() / 60;
       const [modelTrendsRes, toolTrendsRes, trendsRes, modelsRes, statsRes] = await Promise.all([
         fetch(`/api/models/trends?startDate=${startDate}&endDate=${endDate}&view=models`),
         fetch(`/api/models/trends?startDate=${startDate}&endDate=${endDate}&view=tools`),
-        fetch(`/api/trends?startDate=${startDate}&endDate=${endDate}&localHour=${localHour}`),
+        fetch(`/api/trends?startDate=${startDate}&endDate=${endDate}`),
         fetch(`/api/models?startDate=${startDate}&endDate=${endDate}`),
         fetch(`/api/stats?startDate=${startDate}&endDate=${endDate}&comparison=true`),
       ]);

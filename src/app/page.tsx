@@ -132,13 +132,11 @@ function DashboardContent() {
     try {
       const { startDate, endDate } = getDateParams();
       const params = new URLSearchParams({ startDate, endDate });
-      const now = new Date();
-      const localHour = now.getHours() + now.getMinutes() / 60;
 
       const [statsRes, usersRes, trendsRes, modelsRes, commitsRes] = await Promise.all([
         fetch(`/api/stats?${params}&comparison=true`),
         fetch(`/api/users?limit=10&${params}`),
-        fetch(`/api/trends?${params}&localHour=${localHour}`),
+        fetch(`/api/trends?${params}`),
         fetch(`/api/models?${params}`),
         fetch(`/api/stats/commits?${params}&comparison=true`),
       ]);
