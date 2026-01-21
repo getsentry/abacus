@@ -184,6 +184,12 @@ export interface UnattributedStats {
   totalCost: number;
 }
 
+/**
+ * Get stats for records without email attribution.
+ * Note: Since email is now required (NOT NULL) and both Claude Code and Cursor
+ * provide email directly from their APIs, this will always return zeros.
+ * Kept for API compatibility.
+ */
 export async function getUnattributedStats(): Promise<UnattributedStats> {
   const result = await db.execute<{ totalTokens: number; totalCost: number }>(sql`
     SELECT
@@ -504,6 +510,12 @@ export async function getDataCompleteness(): Promise<DataCompleteness> {
   };
 }
 
+/**
+ * Get tool records that have no email attribution.
+ * Note: Since email is now required (NOT NULL) and both Claude Code and Cursor
+ * provide email directly from their APIs, this will always return empty.
+ * Kept for API compatibility.
+ */
 export async function getUnmappedToolRecords(tool: string = 'claude_code'): Promise<{ tool_record_id: string; usage_count: number }[]> {
   const result = await db.execute<{ tool_record_id: string; usage_count: number }>(sql`
     SELECT

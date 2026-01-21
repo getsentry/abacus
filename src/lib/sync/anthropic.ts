@@ -225,13 +225,13 @@ async function syncClaudeCodeForDate(
     do {
       const { response, data } = await fetchClaudeCodeAnalytics(adminKey, date, page);
 
-      // On rate limit, immediately abort
+      // On rate limit, stop pagination but continue to cleanup
       if (response.status === 429) {
         console.warn('[Anthropic Sync] Rate limited - will retry on next run');
         const errorText = await response.text();
         result.success = false;
         result.errors.push(`Anthropic API rate limited: ${errorText}`);
-        return result;
+        break;
       }
 
       if (!response.ok || !data) {
@@ -276,7 +276,6 @@ async function syncClaudeCodeForDate(
               cacheReadTokens,
               outputTokens,
               cost,
-              // No toolRecordId needed - old records are deleted before insert
             });
             result.recordsImported++;
           } catch (err) {
@@ -289,29 +288,28 @@ async function syncClaudeCodeForDate(
       page = data.has_more && data.next_page ? data.next_page : undefined;
     } while (page);
 
-    // Delete old records from legacy sync (which used API key IDs as toolRecordId)
-    // New records have toolRecordId=NULL, so this safely removes only stale data
-    if (result.recordsImported > 0) {
-      try {
-        await db.delete(usageRecords)
-          .where(
-            and(
-              eq(usageRecords.date, date),
-              eq(usageRecords.tool, 'claude_code'),
-              sql`${usageRecords.toolRecordId} IS NOT NULL`
-            )
-          );
-      } catch (deleteErr) {
-        const error = new Error(`Failed to clean up legacy records for ${date}: ${deleteErr instanceof Error ? deleteErr.message : 'Unknown'}`);
-        Sentry.captureException(error);
-        result.errors.push(error.message);
-        // Don't mark success=false - new data was imported, just cleanup failed
-      }
-    }
-
   } catch (err) {
     result.success = false;
     result.errors.push(err instanceof Error ? err.message : 'Unknown error');
+  }
+
+  // Always clean up legacy records if we imported any new data
+  // This runs even after rate limit/error to prevent duplicates
+  if (result.recordsImported > 0) {
+    try {
+      await db.delete(usageRecords)
+        .where(
+          and(
+            eq(usageRecords.date, date),
+            eq(usageRecords.tool, 'claude_code'),
+            sql`${usageRecords.toolRecordId} IS NOT NULL`
+          )
+        );
+    } catch (deleteErr) {
+      const error = new Error(`Failed to clean up legacy records for ${date}: ${deleteErr instanceof Error ? deleteErr.message : 'Unknown'}`);
+      Sentry.captureException(error);
+      result.errors.push(error.message);
+    }
   }
 
   return result;
