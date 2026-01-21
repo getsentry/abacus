@@ -102,8 +102,8 @@ export function normalizeModelName(model: string): string {
     return MODEL_DEFAULT;
   }
 
-  // Strip suffix like (T) or (Thinking) if present
-  const suffixMatch = normalized.match(/\s*\(([^)]+)\)\s*$/);
+  // Strip suffix like (T), (Thinking), or [1m] if present
+  const suffixMatch = normalized.match(/\s*(?:\(([^)]+)\)|\[([^\]]+)\])\s*$/);
   if (suffixMatch) {
     normalized = normalized.replace(suffixMatch[0], '').trim();
   }

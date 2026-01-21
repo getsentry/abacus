@@ -32,6 +32,11 @@ describe('normalizeModelName', () => {
     expect(normalizeModelName('sonnet-4 (T)')).toBe('sonnet-4');
   });
 
+  it('strips bracketed suffixes like [1m]', () => {
+    expect(normalizeModelName('claude-sonnet-4-5-20250929[1m]')).toBe('sonnet-4.5');
+    expect(normalizeModelName('sonnet-4[test]')).toBe('sonnet-4');
+  });
+
   it('returns default magic string for auto/default/unknown', () => {
     expect(normalizeModelName('default')).toBe(MODEL_DEFAULT);
     expect(normalizeModelName('auto')).toBe(MODEL_DEFAULT);
