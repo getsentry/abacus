@@ -22,7 +22,6 @@ import { formatTokens, formatDate, formatCurrency } from '@/lib/utils';
 import { getToolConfig, TOOL_CONFIGS } from '@/lib/tools';
 import { aggregateToWeekly } from '@/lib/dateUtils';
 import { calculateDelta } from '@/lib/comparison';
-import { hasProjectedData } from '@/lib/projection';
 import { InlineLegend } from '@/components/Legend';
 import type { DailyUsage } from '@/lib/queries';
 
@@ -139,11 +138,12 @@ function UsagePageContent() {
     setError(null);
     try {
       const { startDate, endDate } = getDateParams();
-      const localTime = new Date().toISOString();
+      const now = new Date();
+      const localHour = now.getHours() + now.getMinutes() / 60;
       const [modelTrendsRes, toolTrendsRes, trendsRes, modelsRes, statsRes] = await Promise.all([
         fetch(`/api/models/trends?startDate=${startDate}&endDate=${endDate}&view=models`),
         fetch(`/api/models/trends?startDate=${startDate}&endDate=${endDate}&view=tools`),
-        fetch(`/api/trends?startDate=${startDate}&endDate=${endDate}&localTime=${localTime}`),
+        fetch(`/api/trends?startDate=${startDate}&endDate=${endDate}&localHour=${localHour}`),
         fetch(`/api/models?startDate=${startDate}&endDate=${endDate}`),
         fetch(`/api/stats?startDate=${startDate}&endDate=${endDate}&comparison=true`),
       ]);
@@ -238,10 +238,6 @@ function UsagePageContent() {
   );
 
   const maxToolValue = Math.max(...toolTotalValues, 1);
-
-  // Check if we have projected data in tools view
-  // Don't show projected legend for weekly data since projections don't aggregate meaningfully
-  const showToolProjectedLegend = useMemo(() => !isWeekly && hasProjectedData(toolDataFinal), [isWeekly, toolDataFinal]);
 
   // Aggregate model breakdown by model (combining tools)
   interface AggregatedModel {
@@ -464,12 +460,6 @@ function UsagePageContent() {
                           { key: 'cursor', label: TOOL_CONFIGS.cursor.name, value: formatTokens(toolDataFinal.reduce((s, d) => s + Number(d.cursor), 0)), textColor: TOOL_CONFIGS.cursor.text },
                         ]}
                       />
-                      {showToolProjectedLegend && (
-                        <div className="flex items-center gap-1.5 text-xs text-white/40">
-                          <div className="w-3 h-3 bg-white/20 bg-stripes rounded-sm" />
-                          <span>Projected</span>
-                        </div>
-                      )}
                     </div>
                   ) : (
                     <div className="flex items-center gap-3">
@@ -536,11 +526,9 @@ function UsagePageContent() {
                                   initial={{ height: 0 }}
                                   animate={{ height: `${claudeProjectedHeight}%` }}
                                   transition={{ duration: 0.6, delay: Math.min(i * 0.02, 1) }}
-                                  className="w-full rounded-t relative overflow-hidden bg-white/20"
+                                  className={`w-full rounded-t border-2 border-dashed border-b-0 ${TOOL_CONFIGS.claude_code.border}`}
                                   style={{ minHeight: '2px' }}
-                                >
-                                  <div className="absolute inset-0 bg-stripes" />
-                                </motion.div>
+                                />
                               )}
                               {claudeActualHeight > 0 && (
                                 <motion.div
@@ -557,18 +545,16 @@ function UsagePageContent() {
                                   initial={{ height: 0 }}
                                   animate={{ height: `${cursorProjectedHeight}%` }}
                                   transition={{ duration: 0.6, delay: Math.min(i * 0.02 + 0.02, 1) }}
-                                  className="w-full relative overflow-hidden bg-white/15"
+                                  className={`w-full ${claudeProjectedHeight === 0 && claudeActualHeight === 0 ? 'rounded-t' : ''} border-2 border-dashed border-b-0 ${TOOL_CONFIGS.cursor.border}`}
                                   style={{ minHeight: '2px' }}
-                                >
-                                  <div className="absolute inset-0 bg-stripes" />
-                                </motion.div>
+                                />
                               )}
                               {cursorActualHeight > 0 && (
                                 <motion.div
                                   initial={{ height: 0 }}
                                   animate={{ height: `${cursorActualHeight}%` }}
                                   transition={{ duration: 0.6, delay: Math.min(i * 0.02 + 0.03, 1) }}
-                                  className={`w-full rounded-b ${TOOL_CONFIGS.cursor.bgChart}`}
+                                  className={`w-full rounded-b ${claudeProjectedHeight === 0 && claudeActualHeight === 0 && cursorProjectedHeight === 0 ? 'rounded-t' : ''} ${TOOL_CONFIGS.cursor.bgChart}`}
                                   style={{ minHeight: '2px' }}
                                 />
                               )}

@@ -24,11 +24,12 @@ const WORK_WINDOW_END = 19;    // Latest typical end (7pm)
  * - Between 7am-7pm: Returns linear progress through the work window
  * - After 7pm: Returns 1 (day is considered complete)
  *
- * @param now - The current time (defaults to new Date())
+ * @param localHour - The current hour in the user's local timezone (0-24, e.g., 14.5 for 2:30 PM).
+ *                    If not provided, falls back to server's local time.
  * @returns Factor between 0 and 1 representing day completion
  */
-export function getWorkingHoursFactor(now: Date = new Date()): number {
-  const hour = now.getHours() + now.getMinutes() / 60;
+export function getWorkingHoursFactor(localHour?: number): number {
+  const hour = localHour ?? (new Date().getHours() + new Date().getMinutes() / 60);
 
   if (hour < WORK_WINDOW_START) {
     return 0; // Too early to project
@@ -117,14 +118,14 @@ function calculateHistoricalAverages(
  * @param data - The daily usage data from the database
  * @param completeness - Data completeness info (last date with data per tool)
  * @param todayStr - Today's date as YYYY-MM-DD string
- * @param now - The current time in the user's timezone (for working hours calculation)
+ * @param localHour - The current hour in the user's local timezone (0-24) for working hours calculation
  * @returns Data with projection fields added where applicable
  */
 export function applyProjections(
   data: DailyUsage[],
   completeness: DataCompleteness,
   todayStr: string,
-  now?: Date
+  localHour?: number
 ): DailyUsage[] {
   // Get today's day of week for same-day averaging
   const [year, month, day] = todayStr.split('-').map(Number);
@@ -157,7 +158,7 @@ export function applyProjections(
     // Calculate time factor for today's projection using working hours model
     let factor = 1;
     if (isToday) {
-      factor = getWorkingHoursFactor(now);
+      factor = getWorkingHoursFactor(localHour);
       if (factor === 0) {
         // Too early to project (before work window), just mark as incomplete
         return result;

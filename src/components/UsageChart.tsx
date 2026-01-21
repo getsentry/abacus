@@ -86,8 +86,6 @@ export function UsageChart({ data, days }: UsageChartProps) {
 {showTrend && <TrendLine values={totalValues} maxValue={maxValue} />}
         <div className="flex items-end gap-0.5 h-full">
         {chartData.map((item, i) => {
-          const isIncomplete = item.isIncomplete;
-
           // Calculate actual vs projected portions for each tool
           // Skip projections for weekly data since aggregation doesn't preserve them meaningfully
           // For extrapolated: projectedX is the actual value, X is the projected total
