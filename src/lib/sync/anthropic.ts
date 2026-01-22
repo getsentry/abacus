@@ -233,16 +233,8 @@ async function syncClaudeCodeForDate(
   // would be treated as duplicates - the second insert would overwrite the first instead of summing.
   // Aggregating first ensures we don't lose data.
   type AggregationKey = string; // Format: "date|email|rawModel"
-  const aggregated = new Map<AggregationKey, {
-    date: string;
-    email: string;
-    rawModel: string;
-    inputTokens: number;
-    outputTokens: number;
-    cacheWriteTokens: number;
-    cacheReadTokens: number;
-    cost: number;
-  }>();
+  type AggregatedRecord = Omit<Parameters<typeof insertUsageRecord>[0], 'tool' | 'model'>;
+  const aggregated = new Map<AggregationKey, AggregatedRecord>();
 
   try {
     do {
@@ -284,8 +276,9 @@ async function syncClaudeCodeForDate(
 
         // Process each model in the breakdown
         for (const modelData of record.model_breakdown) {
-          const rawModel = modelData.model || 'unknown';
-          const key: AggregationKey = `${recordDate}|${email}|${rawModel}`;
+          const rawModel = modelData.model || undefined;
+          // Use 'unknown' as fallback for aggregation key only
+          const key: AggregationKey = `${recordDate}|${email}|${rawModel || 'unknown'}`;
 
           const existing = aggregated.get(key);
           if (existing) {
@@ -321,7 +314,7 @@ async function syncClaudeCodeForDate(
           date: record.date,
           email: record.email,
           tool: 'claude_code',
-          model: normalizeModelName(record.rawModel),
+          model: normalizeModelName(record.rawModel || 'unknown'),
           rawModel: record.rawModel,
           inputTokens: record.inputTokens,
           cacheWriteTokens: record.cacheWriteTokens,
