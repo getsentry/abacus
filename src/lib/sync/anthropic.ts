@@ -226,6 +226,19 @@ async function syncClaudeCodeForDate(
   // Build API key name -> email cache for resolving api_actor records
   const apiKeyNameToEmail = await getApiKeyNameToEmailMap({ includeArchived: true });
 
+  // Aggregate records by (date, email, rawModel) before inserting
+  type AggregationKey = string; // Format: "date|email|rawModel"
+  const aggregated = new Map<AggregationKey, {
+    date: string;
+    email: string;
+    rawModel: string;
+    inputTokens: number;
+    outputTokens: number;
+    cacheWriteTokens: number;
+    cacheReadTokens: number;
+    cost: number;
+  }>();
+
   try {
     do {
       const { response, data } = await fetchClaudeCodeAnalytics(adminKey, date, page);
@@ -266,39 +279,59 @@ async function syncClaudeCodeForDate(
 
         // Process each model in the breakdown
         for (const modelData of record.model_breakdown) {
-          const inputTokens = modelData.tokens.input || 0;
-          const outputTokens = modelData.tokens.output || 0;
-          const cacheWriteTokens = modelData.tokens.cache_creation || 0;
-          const cacheReadTokens = modelData.tokens.cache_read || 0;
+          const rawModel = modelData.model || 'unknown';
+          const key: AggregationKey = `${recordDate}|${email}|${rawModel}`;
 
-          // Use Anthropic's calculated cost (in cents, convert to dollars)
-          const cost = (modelData.estimated_cost.amount || 0) / 100;
-
-          try {
-            await insertUsageRecord({
+          const existing = aggregated.get(key);
+          if (existing) {
+            // Aggregate: sum tokens and costs
+            existing.inputTokens += modelData.tokens.input || 0;
+            existing.outputTokens += modelData.tokens.output || 0;
+            existing.cacheWriteTokens += modelData.tokens.cache_creation || 0;
+            existing.cacheReadTokens += modelData.tokens.cache_read || 0;
+            existing.cost += (modelData.estimated_cost.amount || 0) / 100;
+          } else {
+            // First occurrence: create new entry
+            aggregated.set(key, {
               date: recordDate,
               email,
-              tool: 'claude_code',
-              model: normalizeModelName(modelData.model || 'unknown'),
-              rawModel: modelData.model || undefined,
-              inputTokens,
-              cacheWriteTokens,
-              cacheReadTokens,
-              outputTokens,
-              cost,
+              rawModel,
+              inputTokens: modelData.tokens.input || 0,
+              outputTokens: modelData.tokens.output || 0,
+              cacheWriteTokens: modelData.tokens.cache_creation || 0,
+              cacheReadTokens: modelData.tokens.cache_read || 0,
+              cost: (modelData.estimated_cost.amount || 0) / 100,
             });
-            result.recordsImported++;
-          } catch (err) {
-            result.errors.push(`Insert error: ${err instanceof Error ? err.message : 'Unknown'}`);
-            result.recordsSkipped++;
-            result.success = false;
-            insertErrors++;
           }
         }
       }
 
       page = data.has_more && data.next_page ? data.next_page : undefined;
     } while (page);
+
+    // Insert aggregated records
+    for (const record of aggregated.values()) {
+      try {
+        await insertUsageRecord({
+          date: record.date,
+          email: record.email,
+          tool: 'claude_code',
+          model: normalizeModelName(record.rawModel),
+          rawModel: record.rawModel,
+          inputTokens: record.inputTokens,
+          cacheWriteTokens: record.cacheWriteTokens,
+          cacheReadTokens: record.cacheReadTokens,
+          outputTokens: record.outputTokens,
+          cost: record.cost,
+        });
+        result.recordsImported++;
+      } catch (err) {
+        result.errors.push(`Insert error: ${err instanceof Error ? err.message : 'Unknown'}`);
+        result.recordsSkipped++;
+        result.success = false;
+        insertErrors++;
+      }
+    }
 
   } catch (err) {
     result.success = false;

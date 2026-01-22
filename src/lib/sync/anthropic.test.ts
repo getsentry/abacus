@@ -316,6 +316,89 @@ describe('Anthropic Sync', () => {
       expect(records[0].email).toBe('apikey-owner@example.com');
     });
 
+    it('aggregates multiple api_actor records for same user/model', async () => {
+      // Mock API key mappings - both keys belong to same user
+      server.use(
+        http.get('https://api.anthropic.com/v1/organizations/users', () => {
+          return HttpResponse.json({
+            data: [
+              { id: 'user-123', email: 'developer@example.com', name: 'Test User', role: 'developer', type: 'user', added_at: '2024-01-01T00:00:00Z' }
+            ],
+            has_more: false,
+            first_id: 'user-123',
+            last_id: 'user-123',
+          });
+        }),
+        http.get('https://api.anthropic.com/v1/organizations/api_keys', () => {
+          return HttpResponse.json({
+            data: [
+              { id: 'key-prod', name: 'production-key', created_at: '2024-01-01T00:00:00Z', created_by: { id: 'user-123', type: 'user' }, partial_key_hint: 'sk-ant-...abc', status: 'active', workspace_id: 'ws-123', type: 'user_key' },
+              { id: 'key-dev', name: 'development-key', created_at: '2024-01-01T00:00:00Z', created_by: { id: 'user-123', type: 'user' }, partial_key_hint: 'sk-ant-...xyz', status: 'active', workspace_id: 'ws-123', type: 'user_key' }
+            ],
+            has_more: false,
+            first_id: 'key-prod',
+            last_id: 'key-dev',
+          });
+        }),
+        // Mock Claude Code Analytics API with 2 separate records (different API keys, same user)
+        http.get('https://api.anthropic.com/v1/organizations/usage_report/claude_code', () => {
+          return HttpResponse.json({
+            data: [
+              {
+                date: '2025-01-15T00:00:00Z',
+                actor: { type: 'api_actor', api_key_name: 'production-key' },
+                organization_id: 'org-test',
+                customer_type: 'api',
+                terminal_type: 'vscode',
+                core_metrics: { num_sessions: 1, lines_of_code: { added: 0, removed: 0 }, commits_by_claude_code: 0, pull_requests_by_claude_code: 0 },
+                tool_actions: { edit_tool: { accepted: 0, rejected: 0 }, write_tool: { accepted: 0, rejected: 0 }, notebook_edit_tool: { accepted: 0, rejected: 0 } },
+                model_breakdown: [{
+                  model: 'claude-sonnet-4-20250514',
+                  tokens: { input: 1000, output: 200, cache_read: 500, cache_creation: 100 },
+                  estimated_cost: { currency: 'USD', amount: 150 }, // $1.50
+                }],
+              },
+              {
+                date: '2025-01-15T00:00:00Z',
+                actor: { type: 'api_actor', api_key_name: 'development-key' },
+                organization_id: 'org-test',
+                customer_type: 'api',
+                terminal_type: 'vscode',
+                core_metrics: { num_sessions: 1, lines_of_code: { added: 0, removed: 0 }, commits_by_claude_code: 0, pull_requests_by_claude_code: 0 },
+                tool_actions: { edit_tool: { accepted: 0, rejected: 0 }, write_tool: { accepted: 0, rejected: 0 }, notebook_edit_tool: { accepted: 0, rejected: 0 } },
+                model_breakdown: [{
+                  model: 'claude-sonnet-4-20250514',
+                  tokens: { input: 2000, output: 400, cache_read: 300, cache_creation: 200 },
+                  estimated_cost: { currency: 'USD', amount: 250 }, // $2.50
+                }],
+              },
+            ],
+            has_more: false,
+            next_page: null,
+          });
+        })
+      );
+
+      const result = await syncAnthropicUsage('2025-01-15', '2025-01-15');
+
+      expect(result.success).toBe(true);
+      expect(result.recordsImported).toBe(1); // Should be 1 aggregated record, not 2
+      expect(result.recordsSkipped).toBe(0);
+
+      // Verify aggregated record has summed values
+      const records = await db
+        .select()
+        .from(usageRecords)
+        .where(eq(usageRecords.email, 'developer@example.com'));
+      expect(records).toHaveLength(1);
+      expect(records[0].email).toBe('developer@example.com');
+      expect(Number(records[0].inputTokens)).toBe(3000); // 1000 + 2000
+      expect(Number(records[0].outputTokens)).toBe(600); // 200 + 400
+      expect(Number(records[0].cacheReadTokens)).toBe(800); // 500 + 300
+      expect(Number(records[0].cacheWriteTokens)).toBe(300); // 100 + 200
+      expect(Number(records[0].cost)).toBeCloseTo(4.00); // $1.50 + $2.50
+    });
+
     it('skips records without email when api_actor cannot be resolved', async () => {
       // Mock empty mappings
       server.use(
