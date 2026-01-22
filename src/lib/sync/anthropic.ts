@@ -226,7 +226,12 @@ async function syncClaudeCodeForDate(
   // Build API key name -> email cache for resolving api_actor records
   const apiKeyNameToEmail = await getApiKeyNameToEmailMap({ includeArchived: true });
 
-  // Aggregate records by (date, email, rawModel) before inserting
+  // Aggregate records by (date, email, rawModel) before inserting.
+  // This is necessary because multiple API keys can belong to the same user, and the
+  // insertUsageRecord UPSERT has a unique constraint on (date, email, tool, raw_model, tool_record_id, timestamp_ms).
+  // Since we insert with tool_record_id=NULL, multiple records for the same user/date/model
+  // would be treated as duplicates - the second insert would overwrite the first instead of summing.
+  // Aggregating first ensures we don't lose data.
   type AggregationKey = string; // Format: "date|email|rawModel"
   const aggregated = new Map<AggregationKey, {
     date: string;
