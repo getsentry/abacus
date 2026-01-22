@@ -3,6 +3,7 @@ import { insertUsageRecord } from '../queries';
 import { db, syncState, usageRecords } from '../db';
 import { normalizeModelName } from '../utils';
 import { eq, min, and, sql } from 'drizzle-orm';
+import { getApiKeyNameToEmailMap } from './anthropic-mappings';
 
 /**
  * Claude Code Analytics API response types
@@ -222,6 +223,9 @@ async function syncClaudeCodeForDate(
   let page: string | undefined;
   let insertErrors = 0;
 
+  // Build API key name -> email cache for resolving api_actor records
+  const apiKeyNameToEmail = await getApiKeyNameToEmailMap({ includeArchived: true });
+
   try {
     do {
       const { response, data } = await fetchClaudeCodeAnalytics(adminKey, date, page);
@@ -243,8 +247,13 @@ async function syncClaudeCodeForDate(
       }
 
       for (const record of data.data) {
-        // Extract email from actor (only user_actor has email_address)
-        const email = record.actor.email_address ?? null;
+        // Extract email from actor
+        let email = record.actor.email_address ?? null;
+
+        // If no direct email, try to resolve via API key name for api_actor records
+        if (!email && record.actor.type === 'api_actor' && record.actor.api_key_name) {
+          email = apiKeyNameToEmail.get(record.actor.api_key_name) ?? null;
+        }
 
         // Skip records without email attribution
         if (!email) {

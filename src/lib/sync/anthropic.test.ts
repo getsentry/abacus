@@ -248,8 +248,32 @@ describe('Anthropic Sync', () => {
       expect(Number(records[0].cacheReadTokens)).toBe(1200);
     });
 
-    it('skips records without email (api_actor type)', async () => {
+    it('resolves email for api_actor via API key mappings', async () => {
+      // Mock API key mappings endpoints
       server.use(
+        // Mock users endpoint
+        http.get('https://api.anthropic.com/v1/organizations/users', () => {
+          return HttpResponse.json({
+            data: [
+              { id: 'user-123', email: 'apikey-owner@example.com', name: 'Test User', role: 'developer', type: 'user', added_at: '2024-01-01T00:00:00Z' }
+            ],
+            has_more: false,
+            first_id: 'user-123',
+            last_id: 'user-123',
+          });
+        }),
+        // Mock API keys endpoint
+        http.get('https://api.anthropic.com/v1/organizations/api_keys', () => {
+          return HttpResponse.json({
+            data: [
+              { id: 'key-123', name: 'test-api-key', created_at: '2024-01-01T00:00:00Z', created_by: { id: 'user-123', type: 'user' }, partial_key_hint: 'sk-ant-...abc', status: 'active', workspace_id: 'ws-123', type: 'user_key' }
+            ],
+            has_more: false,
+            first_id: 'key-123',
+            last_id: 'key-123',
+          });
+        }),
+        // Mock Claude Code Analytics API with api_actor
         http.get('https://api.anthropic.com/v1/organizations/usage_report/claude_code', () => {
           return HttpResponse.json({
             data: [
@@ -257,7 +281,68 @@ describe('Anthropic Sync', () => {
                 date: '2025-01-15T00:00:00Z',
                 actor: {
                   type: 'api_actor',
-                  api_key_name: 'some-key',
+                  api_key_name: 'test-api-key',
+                },
+                organization_id: 'org-test',
+                customer_type: 'api',
+                terminal_type: 'vscode',
+                core_metrics: { num_sessions: 1, lines_of_code: { added: 0, removed: 0 }, commits_by_claude_code: 0, pull_requests_by_claude_code: 0 },
+                tool_actions: { edit_tool: { accepted: 0, rejected: 0 }, write_tool: { accepted: 0, rejected: 0 }, notebook_edit_tool: { accepted: 0, rejected: 0 } },
+                model_breakdown: [{
+                  model: 'claude-sonnet-4-20250514',
+                  tokens: { input: 1000, output: 200, cache_read: 0, cache_creation: 0 },
+                  estimated_cost: { currency: 'USD', amount: 100 },
+                }],
+              },
+            ],
+            has_more: false,
+            next_page: null,
+          });
+        })
+      );
+
+      const result = await syncAnthropicUsage('2025-01-15', '2025-01-15');
+
+      expect(result.success).toBe(true);
+      expect(result.recordsImported).toBe(1);
+      expect(result.recordsSkipped).toBe(0);
+
+      // Verify record was inserted with resolved email
+      const records = await db
+        .select()
+        .from(usageRecords)
+        .where(eq(usageRecords.email, 'apikey-owner@example.com'));
+      expect(records).toHaveLength(1);
+      expect(records[0].email).toBe('apikey-owner@example.com');
+    });
+
+    it('skips records without email when api_actor cannot be resolved', async () => {
+      // Mock empty mappings
+      server.use(
+        http.get('https://api.anthropic.com/v1/organizations/users', () => {
+          return HttpResponse.json({
+            data: [],
+            has_more: false,
+            first_id: '',
+            last_id: '',
+          });
+        }),
+        http.get('https://api.anthropic.com/v1/organizations/api_keys', () => {
+          return HttpResponse.json({
+            data: [],
+            has_more: false,
+            first_id: '',
+            last_id: '',
+          });
+        }),
+        http.get('https://api.anthropic.com/v1/organizations/usage_report/claude_code', () => {
+          return HttpResponse.json({
+            data: [
+              {
+                date: '2025-01-15T00:00:00Z',
+                actor: {
+                  type: 'api_actor',
+                  api_key_name: 'unknown-key',
                 },
                 organization_id: 'org-test',
                 customer_type: 'api',

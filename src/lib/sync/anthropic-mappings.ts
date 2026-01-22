@@ -361,3 +361,47 @@ async function syncApiKeyMappingsIncremental(apiKeyIds: string[]): Promise<Mappi
 
   return result;
 }
+
+/**
+ * Build a map of API key name -> email for fast lookups during sync.
+ * Useful when the Claude Code Analytics API returns api_actor records with only api_key_name.
+ */
+export async function getApiKeyNameToEmailMap(
+  options: { includeArchived?: boolean } = {}
+): Promise<Map<string, string>> {
+  const adminKey = process.env.ANTHROPIC_ADMIN_KEY;
+  if (!adminKey) {
+    return new Map();
+  }
+
+  try {
+    // Fetch all users and API keys in parallel
+    const fetchPromises: Promise<unknown>[] = [
+      fetchAllUsers(adminKey),
+      fetchAllApiKeys(adminKey, 'active')
+    ];
+
+    if (options.includeArchived) {
+      fetchPromises.push(fetchAllApiKeys(adminKey, 'archived'));
+    }
+
+    const results = await Promise.all(fetchPromises);
+    const userMap = results[0] as Map<string, string>; // user_id -> email
+    const activeKeys = results[1] as AnthropicApiKey[];
+    const archivedKeys = options.includeArchived ? (results[2] as AnthropicApiKey[]) : [];
+    const apiKeys = [...activeKeys, ...archivedKeys];
+
+    // Build name -> email map
+    const nameToEmailMap = new Map<string, string>();
+    for (const apiKey of apiKeys) {
+      const email = userMap.get(apiKey.created_by.id);
+      if (email) {
+        nameToEmailMap.set(apiKey.name, email);
+      }
+    }
+
+    return nameToEmailMap;
+  } catch {
+    return new Map();
+  }
+}
