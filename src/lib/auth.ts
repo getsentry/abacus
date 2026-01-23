@@ -2,6 +2,32 @@ import { betterAuth } from 'better-auth';
 import { Pool } from '@neondatabase/serverless';
 import { headers } from 'next/headers';
 
+// Auth bypass for local development (set AUTH_BYPASS_LOCAL=true in .env.local)
+export const isAuthBypassed = process.env.AUTH_BYPASS_LOCAL === 'true';
+
+// Mock session returned when auth is bypassed
+export const mockSession = {
+  session: {
+    id: 'dev-session',
+    userId: 'dev-user',
+    expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000), // 24 hours from now
+    createdAt: new Date(),
+    updatedAt: new Date(),
+    ipAddress: '127.0.0.1',
+    userAgent: 'Dev Browser',
+    token: 'dev-token',
+  },
+  user: {
+    id: 'dev-user',
+    email: `dev@${process.env.NEXT_PUBLIC_DOMAIN || 'localhost'}`,
+    name: 'Dev User',
+    image: null,
+    emailVerified: true,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  },
+};
+
 // Create database pool for better-auth
 const pool = new Pool({
   connectionString: process.env.POSTGRES_URL,
@@ -65,6 +91,9 @@ export const auth = betterAuth({
 
 // Helper to get session in server components
 export async function getSession() {
+  if (isAuthBypassed) {
+    return mockSession;
+  }
   return auth.api.getSession({
     headers: await headers(),
   });
