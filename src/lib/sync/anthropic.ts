@@ -210,7 +210,8 @@ async function fetchClaudeCodeAnalytics(
  */
 async function syncClaudeCodeForDate(
   adminKey: string,
-  date: string
+  date: string,
+  apiKeyNameToEmail: Map<string, string>
 ): Promise<SyncResult> {
   const result: SyncResult = {
     success: true,
@@ -222,9 +223,6 @@ async function syncClaudeCodeForDate(
 
   let page: string | undefined;
   let insertErrors = 0;
-
-  // Build API key name -> email cache for resolving api_actor records
-  const apiKeyNameToEmail = await getApiKeyNameToEmailMap({ includeArchived: true });
 
   // Aggregate records by (date, email, rawModel) before inserting.
   // This is necessary because multiple API keys can belong to the same user, and the
@@ -395,9 +393,12 @@ export async function syncAnthropicUsage(
     current.setDate(current.getDate() + 1);
   }
 
+  // Fetch API key name -> email map once for all dates (avoids redundant API calls)
+  const apiKeyNameToEmail = await getApiKeyNameToEmailMap({ includeArchived: true });
+
   // Sync each date
   for (const date of dates) {
-    const dateResult = await syncClaudeCodeForDate(adminKey, date);
+    const dateResult = await syncClaudeCodeForDate(adminKey, date, apiKeyNameToEmail);
 
     result.recordsImported += dateResult.recordsImported;
     result.recordsSkipped += dateResult.recordsSkipped;
