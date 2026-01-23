@@ -393,10 +393,16 @@ export async function getApiKeyNameToEmailMap(
     const apiKeys = [...activeKeys, ...archivedKeys];
 
     // Build name -> email map
+    // Process archived keys first, then active keys, so active keys take priority on collision
     const nameToEmailMap = new Map<string, string>();
-    for (const apiKey of apiKeys) {
+    const allKeysOrderedByPriority = [...archivedKeys, ...activeKeys];
+    for (const apiKey of allKeysOrderedByPriority) {
       const email = userMap.get(apiKey.created_by.id);
       if (email) {
+        const existingEmail = nameToEmailMap.get(apiKey.name);
+        if (existingEmail && existingEmail !== email) {
+          console.warn(`[Anthropic Sync] Duplicate API key name "${apiKey.name}" maps to different users (${existingEmail} and ${email}) - using ${email}`);
+        }
         nameToEmailMap.set(apiKey.name, email);
       }
     }
