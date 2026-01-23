@@ -8,6 +8,7 @@
  * Cross-references to create external_id → email mappings for the claude_code tool
  */
 
+import * as Sentry from '@sentry/nextjs';
 import { setIdentityMapping, getIdentityMappings, getUnmappedToolRecords } from '../queries';
 
 const TOOL = 'claude_code';
@@ -401,7 +402,10 @@ export async function getApiKeyNameToEmailMap(
     }
 
     return nameToEmailMap;
-  } catch {
+  } catch (err) {
+    const error = new Error(`Failed to fetch API key mappings: ${err instanceof Error ? err.message : 'Unknown error'}`);
+    console.error('[Anthropic Sync]', error.message, '- api_actor records will not be attributed to users');
+    Sentry.captureException(error);
     return new Map();
   }
 }
