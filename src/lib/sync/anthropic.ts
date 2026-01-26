@@ -3,6 +3,7 @@ import { insertUsageRecord } from '../queries';
 import { db, syncState, usageRecords } from '../db';
 import { normalizeModelName } from '../utils';
 import { eq, min, and, sql } from 'drizzle-orm';
+import { getApiKeyNameToEmailMap } from './anthropic-mappings';
 
 /**
  * Claude Code Analytics API response types
@@ -203,13 +204,19 @@ async function fetchClaudeCodeAnalytics(
  * Sync Claude Code usage for a specific date.
  * Uses the Claude Code Analytics API for accurate costs and direct email attribution.
  *
- * After inserting fresh data, cleans up stale records from the old sync
- * (which used API key IDs as toolRecordId). New records have toolRecordId=NULL,
- * so we delete any records with non-null toolRecordId after successful insert.
+ * After inserting fresh data, cleans up stale records from the old sync that used
+ * API key IDs as toolRecordId. New records have toolRecordId=NULL, so any records
+ * with non-null toolRecordId are deleted after successful insert.
+ *
+ * CONCURRENCY NOTE: Not safe for concurrent execution on the same date.
+ * Multiple concurrent syncs will race on UPSERT, causing last write to win and data loss.
+ * Mitigation: syncAnthropicCron() has early-exit logic to prevent concurrent runs.
+ * Manual CLI calls should avoid overlapping dates.
  */
 async function syncClaudeCodeForDate(
   adminKey: string,
-  date: string
+  date: string,
+  apiKeyNameToEmail: Map<string, string>
 ): Promise<SyncResult> {
   const result: SyncResult = {
     success: true,
@@ -221,6 +228,14 @@ async function syncClaudeCodeForDate(
 
   let page: string | undefined;
   let insertErrors = 0;
+
+  // Aggregate records by (date, email, rawModel) before inserting.
+  // Multiple API keys can belong to the same user, and the insertUsageRecord UPSERT
+  // would overwrite instead of summing when it encounters duplicate (date, email, tool, raw_model).
+  // Aggregating first ensures we don't lose data.
+  type AggregationKey = string; // Format: "date|email|rawModel"
+  type AggregatedRecord = Omit<Parameters<typeof insertUsageRecord>[0], 'tool' | 'model'>;
+  const aggregated = new Map<AggregationKey, AggregatedRecord>();
 
   try {
     do {
@@ -243,8 +258,11 @@ async function syncClaudeCodeForDate(
       }
 
       for (const record of data.data) {
-        // Extract email from actor (only user_actor has email_address)
-        const email = record.actor.email_address ?? null;
+        // Extract email from actor
+        const email = record.actor.email_address
+          ?? (record.actor.type === 'api_actor' && record.actor.api_key_name
+            ? apiKeyNameToEmail.get(record.actor.api_key_name)
+            : null);
 
         // Skip records without email attribution
         if (!email) {
@@ -257,33 +275,31 @@ async function syncClaudeCodeForDate(
 
         // Process each model in the breakdown
         for (const modelData of record.model_breakdown) {
-          const inputTokens = modelData.tokens.input || 0;
-          const outputTokens = modelData.tokens.output || 0;
-          const cacheWriteTokens = modelData.tokens.cache_creation || 0;
-          const cacheReadTokens = modelData.tokens.cache_read || 0;
+          const rawModel = modelData.model || undefined;
+          const key: AggregationKey = `${recordDate}|${email}|${rawModel || 'unknown'}`;
 
-          // Use Anthropic's calculated cost (in cents, convert to dollars)
-          const cost = (modelData.estimated_cost.amount || 0) / 100;
+          const existing = aggregated.get(key);
+          const costInDollars = (modelData.estimated_cost.amount || 0) / 100;
 
-          try {
-            await insertUsageRecord({
+          if (existing) {
+            // Aggregate: sum tokens and costs
+            existing.inputTokens += modelData.tokens.input || 0;
+            existing.outputTokens += modelData.tokens.output || 0;
+            existing.cacheWriteTokens += modelData.tokens.cache_creation || 0;
+            existing.cacheReadTokens += modelData.tokens.cache_read || 0;
+            existing.cost += costInDollars;
+          } else {
+            // First occurrence: create new entry
+            aggregated.set(key, {
               date: recordDate,
               email,
-              tool: 'claude_code',
-              model: normalizeModelName(modelData.model || 'unknown'),
-              rawModel: modelData.model || undefined,
-              inputTokens,
-              cacheWriteTokens,
-              cacheReadTokens,
-              outputTokens,
-              cost,
+              rawModel,
+              inputTokens: modelData.tokens.input || 0,
+              outputTokens: modelData.tokens.output || 0,
+              cacheWriteTokens: modelData.tokens.cache_creation || 0,
+              cacheReadTokens: modelData.tokens.cache_read || 0,
+              cost: costInDollars,
             });
-            result.recordsImported++;
-          } catch (err) {
-            result.errors.push(`Insert error: ${err instanceof Error ? err.message : 'Unknown'}`);
-            result.recordsSkipped++;
-            result.success = false;
-            insertErrors++;
           }
         }
       }
@@ -291,13 +307,36 @@ async function syncClaudeCodeForDate(
       page = data.has_more && data.next_page ? data.next_page : undefined;
     } while (page);
 
+    // Insert aggregated records
+    for (const record of aggregated.values()) {
+      try {
+        await insertUsageRecord({
+          date: record.date,
+          email: record.email,
+          tool: 'claude_code',
+          model: normalizeModelName(record.rawModel || 'unknown'),
+          rawModel: record.rawModel,
+          inputTokens: record.inputTokens,
+          cacheWriteTokens: record.cacheWriteTokens,
+          cacheReadTokens: record.cacheReadTokens,
+          outputTokens: record.outputTokens,
+          cost: record.cost,
+        });
+        result.recordsImported++;
+      } catch (err) {
+        result.errors.push(`Insert error: ${err instanceof Error ? err.message : 'Unknown'}`);
+        result.recordsSkipped++;
+        result.success = false;
+        insertErrors++;
+      }
+    }
+
   } catch (err) {
     result.success = false;
     result.errors.push(err instanceof Error ? err.message : 'Unknown error');
   }
 
   // Clean up legacy records only on fully successful sync
-  // Don't delete if any inserts failed to avoid data loss
   if (result.success && result.recordsImported > 0 && insertErrors === 0) {
     try {
       await db.delete(usageRecords)
@@ -355,9 +394,12 @@ export async function syncAnthropicUsage(
     current.setDate(current.getDate() + 1);
   }
 
+  // Fetch API key name -> email map once for all dates (avoids redundant API calls)
+  const apiKeyNameToEmail = await getApiKeyNameToEmailMap({ includeArchived: true });
+
   // Sync each date
   for (const date of dates) {
-    const dateResult = await syncClaudeCodeForDate(adminKey, date);
+    const dateResult = await syncClaudeCodeForDate(adminKey, date, apiKeyNameToEmail);
 
     result.recordsImported += dateResult.recordsImported;
     result.recordsSkipped += dateResult.recordsSkipped;

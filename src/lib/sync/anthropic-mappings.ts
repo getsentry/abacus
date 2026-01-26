@@ -8,6 +8,7 @@
  * Cross-references to create external_id → email mappings for the claude_code tool
  */
 
+import * as Sentry from '@sentry/nextjs';
 import { setIdentityMapping, getIdentityMappings, getUnmappedToolRecords } from '../queries';
 
 const TOOL = 'claude_code';
@@ -143,17 +144,13 @@ export async function syncAnthropicApiKeyMappings(
 
   try {
     // Fetch all users and API keys in parallel
-    // Include archived keys when backfilling historical data
-    const fetchPromises: Promise<unknown>[] = [
+    const promises = [
       fetchAllUsers(adminKey),
-      fetchAllApiKeys(adminKey, 'active')
+      fetchAllApiKeys(adminKey, 'active'),
+      ...(options.includeArchived ? [fetchAllApiKeys(adminKey, 'archived')] : [])
     ];
 
-    if (options.includeArchived) {
-      fetchPromises.push(fetchAllApiKeys(adminKey, 'archived'));
-    }
-
-    const results = await Promise.all(fetchPromises);
+    const results = await Promise.all(promises);
     const userMap = results[0] as Map<string, string>;
     const activeKeys = results[1] as AnthropicApiKey[];
     const archivedKeys = options.includeArchived ? (results[2] as AnthropicApiKey[]) : [];
@@ -163,18 +160,16 @@ export async function syncAnthropicApiKeyMappings(
     const existingMappings = await getIdentityMappings(TOOL);
     const existingSet = new Set(existingMappings.map(m => m.external_id));
 
-    // Create mappings for each API key (already filtered to active keys)
+    // Create mappings for each API key
     for (const apiKey of apiKeys) {
-      const creatorEmail = userMap.get(apiKey.created_by.id);
-
-      if (!creatorEmail) {
-        result.errors.push(`No email found for creator ${apiKey.created_by.id} of key ${apiKey.id}`);
+      if (existingSet.has(apiKey.id)) {
         result.mappingsSkipped++;
         continue;
       }
 
-      // Skip if already mapped
-      if (existingSet.has(apiKey.id)) {
+      const creatorEmail = userMap.get(apiKey.created_by.id);
+      if (!creatorEmail) {
+        result.errors.push(`No email found for creator ${apiKey.created_by.id} of key ${apiKey.id}`);
         result.mappingsSkipped++;
         continue;
       }
@@ -260,8 +255,8 @@ export async function syncApiKeyMappingsSmart(
     };
   }
 
-  // If we have few unmapped keys, do individual lookups (2 API calls per key)
-  // If we have many, do full sync (2 paginated API calls total)
+  // If few unmapped keys, do individual lookups (2 API calls per key)
+  // If many, do full sync (2 paginated API calls total)
   if (unmappedRecords.length <= threshold) {
     return syncApiKeyMappingsIncremental(unmappedRecords.map(k => k.tool_record_id));
   }
@@ -317,7 +312,6 @@ async function syncApiKeyMappingsIncremental(apiKeyIds: string[]): Promise<Mappi
 
       const apiKey: AnthropicApiKey = await keyResponse.json();
       const creatorId = apiKey.created_by?.id;
-
       if (!creatorId) {
         result.mappingsSkipped++;
         continue;
@@ -325,7 +319,6 @@ async function syncApiKeyMappingsIncremental(apiKeyIds: string[]): Promise<Mappi
 
       // Check user cache first
       let email = userCache.get(creatorId);
-
       if (!email) {
         // Fetch user details
         const userResponse = await fetch(
@@ -349,7 +342,6 @@ async function syncApiKeyMappingsIncremental(apiKeyIds: string[]): Promise<Mappi
         userCache.set(creatorId, email);
       }
 
-      // Save the mapping (also updates usage_records)
       await setIdentityMapping(TOOL, apiKeyId, email);
       result.mappingsCreated++;
 
@@ -360,4 +352,55 @@ async function syncApiKeyMappingsIncremental(apiKeyIds: string[]): Promise<Mappi
   }
 
   return result;
+}
+
+/**
+ * Build a map of API key name -> email for fast lookups during sync.
+ * Useful when the Claude Code Analytics API returns api_actor records with only api_key_name.
+ */
+export async function getApiKeyNameToEmailMap(
+  options: { includeArchived?: boolean } = {}
+): Promise<Map<string, string>> {
+  const adminKey = process.env.ANTHROPIC_ADMIN_KEY;
+  if (!adminKey) {
+    return new Map();
+  }
+
+  try {
+    // Fetch all users and API keys in parallel
+    const promises = [
+      fetchAllUsers(adminKey),
+      fetchAllApiKeys(adminKey, 'active'),
+      ...(options.includeArchived ? [fetchAllApiKeys(adminKey, 'archived')] : [])
+    ];
+
+    const results = await Promise.all(promises);
+    const userMap = results[0] as Map<string, string>;
+    const activeKeys = results[1] as AnthropicApiKey[];
+    const archivedKeys = options.includeArchived ? (results[2] as AnthropicApiKey[]) : [];
+    const apiKeys = [...activeKeys, ...archivedKeys];
+
+    // Build name -> email map
+    // Process archived keys first, then active keys, so active keys take priority
+    const nameToEmailMap = new Map<string, string>();
+    const allKeysOrderedByPriority = [...archivedKeys, ...activeKeys];
+
+    for (const apiKey of allKeysOrderedByPriority) {
+      const email = userMap.get(apiKey.created_by.id);
+      if (!email) continue;
+
+      const existingEmail = nameToEmailMap.get(apiKey.name);
+      if (existingEmail && existingEmail !== email) {
+        console.warn(`[Anthropic Sync] Duplicate API key name "${apiKey.name}" maps to different users (${existingEmail} and ${email}) - using ${email}`);
+      }
+      nameToEmailMap.set(apiKey.name, email);
+    }
+
+    return nameToEmailMap;
+  } catch (err) {
+    const error = new Error(`Failed to fetch API key mappings: ${err instanceof Error ? err.message : 'Unknown error'}`);
+    console.error('[Anthropic Sync]', error.message, '- api_actor records will not be attributed to users');
+    Sentry.captureException(error);
+    return new Map();
+  }
 }
