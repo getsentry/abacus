@@ -204,9 +204,14 @@ async function fetchClaudeCodeAnalytics(
  * Sync Claude Code usage for a specific date.
  * Uses the Claude Code Analytics API for accurate costs and direct email attribution.
  *
- * After inserting fresh data, cleans up stale records from the old sync
- * (which used API key IDs as toolRecordId). New records have toolRecordId=NULL,
- * so we delete any records with non-null toolRecordId after successful insert.
+ * After inserting fresh data, cleans up stale records from the old sync that used
+ * API key IDs as toolRecordId. New records have toolRecordId=NULL, so any records
+ * with non-null toolRecordId are deleted after successful insert.
+ *
+ * CONCURRENCY NOTE: Not safe for concurrent execution on the same date.
+ * Multiple concurrent syncs will race on UPSERT, causing last write to win and data loss.
+ * Mitigation: syncAnthropicCron() has early-exit logic to prevent concurrent runs.
+ * Manual CLI calls should avoid overlapping dates.
  */
 async function syncClaudeCodeForDate(
   adminKey: string,
@@ -225,10 +230,8 @@ async function syncClaudeCodeForDate(
   let insertErrors = 0;
 
   // Aggregate records by (date, email, rawModel) before inserting.
-  // This is necessary because multiple API keys can belong to the same user, and the
-  // insertUsageRecord UPSERT has a unique constraint on (date, email, tool, raw_model, tool_record_id, timestamp_ms).
-  // Since we insert with tool_record_id=NULL, multiple records for the same user/date/model
-  // would be treated as duplicates - the second insert would overwrite the first instead of summing.
+  // Multiple API keys can belong to the same user, and the insertUsageRecord UPSERT
+  // would overwrite instead of summing when it encounters duplicate (date, email, tool, raw_model).
   // Aggregating first ensures we don't lose data.
   type AggregationKey = string; // Format: "date|email|rawModel"
   type AggregatedRecord = Omit<Parameters<typeof insertUsageRecord>[0], 'tool' | 'model'>;
@@ -256,12 +259,10 @@ async function syncClaudeCodeForDate(
 
       for (const record of data.data) {
         // Extract email from actor
-        let email = record.actor.email_address ?? null;
-
-        // If no direct email, try to resolve via API key name for api_actor records
-        if (!email && record.actor.type === 'api_actor' && record.actor.api_key_name) {
-          email = apiKeyNameToEmail.get(record.actor.api_key_name) ?? null;
-        }
+        const email = record.actor.email_address
+          ?? (record.actor.type === 'api_actor' && record.actor.api_key_name
+            ? apiKeyNameToEmail.get(record.actor.api_key_name)
+            : null);
 
         // Skip records without email attribution
         if (!email) {
@@ -275,17 +276,18 @@ async function syncClaudeCodeForDate(
         // Process each model in the breakdown
         for (const modelData of record.model_breakdown) {
           const rawModel = modelData.model || undefined;
-          // Use 'unknown' as fallback for aggregation key only
           const key: AggregationKey = `${recordDate}|${email}|${rawModel || 'unknown'}`;
 
           const existing = aggregated.get(key);
+          const costInDollars = (modelData.estimated_cost.amount || 0) / 100;
+
           if (existing) {
             // Aggregate: sum tokens and costs
             existing.inputTokens += modelData.tokens.input || 0;
             existing.outputTokens += modelData.tokens.output || 0;
             existing.cacheWriteTokens += modelData.tokens.cache_creation || 0;
             existing.cacheReadTokens += modelData.tokens.cache_read || 0;
-            existing.cost += (modelData.estimated_cost.amount || 0) / 100;
+            existing.cost += costInDollars;
           } else {
             // First occurrence: create new entry
             aggregated.set(key, {
@@ -296,7 +298,7 @@ async function syncClaudeCodeForDate(
               outputTokens: modelData.tokens.output || 0,
               cacheWriteTokens: modelData.tokens.cache_creation || 0,
               cacheReadTokens: modelData.tokens.cache_read || 0,
-              cost: (modelData.estimated_cost.amount || 0) / 100,
+              cost: costInDollars,
             });
           }
         }
@@ -335,7 +337,6 @@ async function syncClaudeCodeForDate(
   }
 
   // Clean up legacy records only on fully successful sync
-  // Don't delete if any inserts failed to avoid data loss
   if (result.success && result.recordsImported > 0 && insertErrors === 0) {
     try {
       await db.delete(usageRecords)

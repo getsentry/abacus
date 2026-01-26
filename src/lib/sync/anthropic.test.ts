@@ -452,6 +452,256 @@ describe('Anthropic Sync', () => {
       expect(result.recordsSkipped).toBe(1);
     });
 
+    it('creates separate records for different models (no cross-model aggregation)', async () => {
+      // Mock API key mappings - single user with one key
+      server.use(
+        http.get('https://api.anthropic.com/v1/organizations/users', () => {
+          return HttpResponse.json({
+            data: [
+              { id: 'user-123', email: 'multimodel@example.com', name: 'Test User', role: 'developer', type: 'user', added_at: '2024-01-01T00:00:00Z' }
+            ],
+            has_more: false,
+            first_id: 'user-123',
+            last_id: 'user-123',
+          });
+        }),
+        http.get('https://api.anthropic.com/v1/organizations/api_keys', () => {
+          return HttpResponse.json({
+            data: [
+              { id: 'key-123', name: 'prod-key', created_at: '2024-01-01T00:00:00Z', created_by: { id: 'user-123', type: 'user' }, partial_key_hint: 'sk-ant-...abc', status: 'active', workspace_id: 'ws-123', type: 'user_key' }
+            ],
+            has_more: false,
+            first_id: 'key-123',
+            last_id: 'key-123',
+          });
+        }),
+        // Mock Claude Code Analytics API with 2 records - same user/key but different models
+        http.get('https://api.anthropic.com/v1/organizations/usage_report/claude_code', () => {
+          return HttpResponse.json({
+            data: [
+              {
+                date: '2025-01-15T00:00:00Z',
+                actor: { type: 'api_actor', api_key_name: 'prod-key' },
+                organization_id: 'org-test',
+                customer_type: 'api',
+                terminal_type: 'vscode',
+                core_metrics: { num_sessions: 1, lines_of_code: { added: 0, removed: 0 }, commits_by_claude_code: 0, pull_requests_by_claude_code: 0 },
+                tool_actions: { edit_tool: { accepted: 0, rejected: 0 }, write_tool: { accepted: 0, rejected: 0 }, notebook_edit_tool: { accepted: 0, rejected: 0 } },
+                model_breakdown: [{
+                  model: 'claude-sonnet-4-20250514',
+                  tokens: { input: 1000, output: 200, cache_read: 0, cache_creation: 0 },
+                  estimated_cost: { currency: 'USD', amount: 100 },
+                }],
+              },
+              {
+                date: '2025-01-15T00:00:00Z',
+                actor: { type: 'api_actor', api_key_name: 'prod-key' },
+                organization_id: 'org-test',
+                customer_type: 'api',
+                terminal_type: 'vscode',
+                core_metrics: { num_sessions: 1, lines_of_code: { added: 0, removed: 0 }, commits_by_claude_code: 0, pull_requests_by_claude_code: 0 },
+                tool_actions: { edit_tool: { accepted: 0, rejected: 0 }, write_tool: { accepted: 0, rejected: 0 }, notebook_edit_tool: { accepted: 0, rejected: 0 } },
+                model_breakdown: [{
+                  model: 'claude-opus-4-20250514',
+                  tokens: { input: 2000, output: 400, cache_read: 0, cache_creation: 0 },
+                  estimated_cost: { currency: 'USD', amount: 300 },
+                }],
+              },
+            ],
+            has_more: false,
+            next_page: null,
+          });
+        })
+      );
+
+      const result = await syncAnthropicUsage('2025-01-15', '2025-01-15');
+
+      expect(result.success).toBe(true);
+      expect(result.recordsImported).toBe(2); // Should be 2 separate records
+
+      // Verify we have 2 records with different models
+      const records = await db
+        .select()
+        .from(usageRecords)
+        .where(eq(usageRecords.email, 'multimodel@example.com'));
+      expect(records).toHaveLength(2);
+
+      const models = records.map(r => r.model).sort();
+      expect(models).toEqual(['opus-4', 'sonnet-4']);
+
+      // Verify tokens are kept separate, not summed
+      const sonnetRecord = records.find(r => r.model === 'sonnet-4');
+      const opusRecord = records.find(r => r.model === 'opus-4');
+      expect(Number(sonnetRecord?.inputTokens)).toBe(1000);
+      expect(Number(opusRecord?.inputTokens)).toBe(2000);
+    });
+
+    it('re-sync is idempotent (aggregated records UPSERT correctly)', async () => {
+      // Mock API key mappings - both keys belong to same user
+      server.use(
+        http.get('https://api.anthropic.com/v1/organizations/users', () => {
+          return HttpResponse.json({
+            data: [
+              { id: 'user-123', email: 'idempotent@example.com', name: 'Test User', role: 'developer', type: 'user', added_at: '2024-01-01T00:00:00Z' }
+            ],
+            has_more: false,
+            first_id: 'user-123',
+            last_id: 'user-123',
+          });
+        }),
+        http.get('https://api.anthropic.com/v1/organizations/api_keys', () => {
+          return HttpResponse.json({
+            data: [
+              { id: 'key-1', name: 'key-one', created_at: '2024-01-01T00:00:00Z', created_by: { id: 'user-123', type: 'user' }, partial_key_hint: 'sk-ant-...abc', status: 'active', workspace_id: 'ws-123', type: 'user_key' },
+              { id: 'key-2', name: 'key-two', created_at: '2024-01-01T00:00:00Z', created_by: { id: 'user-123', type: 'user' }, partial_key_hint: 'sk-ant-...xyz', status: 'active', workspace_id: 'ws-123', type: 'user_key' }
+            ],
+            has_more: false,
+            first_id: 'key-1',
+            last_id: 'key-2',
+          });
+        }),
+        http.get('https://api.anthropic.com/v1/organizations/usage_report/claude_code', () => {
+          return HttpResponse.json({
+            data: [
+              {
+                date: '2025-01-15T00:00:00Z',
+                actor: { type: 'api_actor', api_key_name: 'key-one' },
+                organization_id: 'org-test',
+                customer_type: 'api',
+                terminal_type: 'vscode',
+                core_metrics: { num_sessions: 1, lines_of_code: { added: 0, removed: 0 }, commits_by_claude_code: 0, pull_requests_by_claude_code: 0 },
+                tool_actions: { edit_tool: { accepted: 0, rejected: 0 }, write_tool: { accepted: 0, rejected: 0 }, notebook_edit_tool: { accepted: 0, rejected: 0 } },
+                model_breakdown: [{
+                  model: 'claude-sonnet-4-20250514',
+                  tokens: { input: 1000, output: 200, cache_read: 0, cache_creation: 0 },
+                  estimated_cost: { currency: 'USD', amount: 100 },
+                }],
+              },
+              {
+                date: '2025-01-15T00:00:00Z',
+                actor: { type: 'api_actor', api_key_name: 'key-two' },
+                organization_id: 'org-test',
+                customer_type: 'api',
+                terminal_type: 'vscode',
+                core_metrics: { num_sessions: 1, lines_of_code: { added: 0, removed: 0 }, commits_by_claude_code: 0, pull_requests_by_claude_code: 0 },
+                tool_actions: { edit_tool: { accepted: 0, rejected: 0 }, write_tool: { accepted: 0, rejected: 0 }, notebook_edit_tool: { accepted: 0, rejected: 0 } },
+                model_breakdown: [{
+                  model: 'claude-sonnet-4-20250514',
+                  tokens: { input: 2000, output: 400, cache_read: 0, cache_creation: 0 },
+                  estimated_cost: { currency: 'USD', amount: 200 },
+                }],
+              },
+            ],
+            has_more: false,
+            next_page: null,
+          });
+        })
+      );
+
+      // First sync - should aggregate to 3000 tokens
+      const result1 = await syncAnthropicUsage('2025-01-15', '2025-01-15');
+      expect(result1.success).toBe(true);
+      expect(result1.recordsImported).toBe(1);
+
+      let records = await db
+        .select()
+        .from(usageRecords)
+        .where(eq(usageRecords.email, 'idempotent@example.com'));
+      expect(records).toHaveLength(1);
+      expect(Number(records[0].inputTokens)).toBe(3000); // 1000 + 2000
+
+      // Second sync with SAME data - should UPSERT to 3000 (not 6000)
+      const result2 = await syncAnthropicUsage('2025-01-15', '2025-01-15');
+      expect(result2.success).toBe(true);
+      expect(result2.recordsImported).toBe(1);
+
+      records = await db
+        .select()
+        .from(usageRecords)
+        .where(eq(usageRecords.email, 'idempotent@example.com'));
+      expect(records).toHaveLength(1);
+      expect(Number(records[0].inputTokens)).toBe(3000); // Still 3000, not doubled
+      expect(Number(records[0].cost)).toBeCloseTo(3.00); // $1.00 + $2.00, not doubled
+    });
+
+    it('aggregates mixed user_actor and api_actor for same user', async () => {
+      // Mock API key mappings
+      server.use(
+        http.get('https://api.anthropic.com/v1/organizations/users', () => {
+          return HttpResponse.json({
+            data: [
+              { id: 'user-123', email: 'mixed@example.com', name: 'Test User', role: 'developer', type: 'user', added_at: '2024-01-01T00:00:00Z' }
+            ],
+            has_more: false,
+            first_id: 'user-123',
+            last_id: 'user-123',
+          });
+        }),
+        http.get('https://api.anthropic.com/v1/organizations/api_keys', () => {
+          return HttpResponse.json({
+            data: [
+              { id: 'key-123', name: 'api-key', created_at: '2024-01-01T00:00:00Z', created_by: { id: 'user-123', type: 'user' }, partial_key_hint: 'sk-ant-...abc', status: 'active', workspace_id: 'ws-123', type: 'user_key' }
+            ],
+            has_more: false,
+            first_id: 'key-123',
+            last_id: 'key-123',
+          });
+        }),
+        // Mock both user_actor (email) and api_actor (api key) for same user
+        http.get('https://api.anthropic.com/v1/organizations/usage_report/claude_code', () => {
+          return HttpResponse.json({
+            data: [
+              {
+                date: '2025-01-15T00:00:00Z',
+                actor: { type: 'user_actor', email_address: 'mixed@example.com' },
+                organization_id: 'org-test',
+                customer_type: 'api',
+                terminal_type: 'vscode',
+                core_metrics: { num_sessions: 1, lines_of_code: { added: 0, removed: 0 }, commits_by_claude_code: 0, pull_requests_by_claude_code: 0 },
+                tool_actions: { edit_tool: { accepted: 0, rejected: 0 }, write_tool: { accepted: 0, rejected: 0 }, notebook_edit_tool: { accepted: 0, rejected: 0 } },
+                model_breakdown: [{
+                  model: 'claude-sonnet-4-20250514',
+                  tokens: { input: 1000, output: 200, cache_read: 0, cache_creation: 0 },
+                  estimated_cost: { currency: 'USD', amount: 100 },
+                }],
+              },
+              {
+                date: '2025-01-15T00:00:00Z',
+                actor: { type: 'api_actor', api_key_name: 'api-key' },
+                organization_id: 'org-test',
+                customer_type: 'api',
+                terminal_type: 'vscode',
+                core_metrics: { num_sessions: 1, lines_of_code: { added: 0, removed: 0 }, commits_by_claude_code: 0, pull_requests_by_claude_code: 0 },
+                tool_actions: { edit_tool: { accepted: 0, rejected: 0 }, write_tool: { accepted: 0, rejected: 0 }, notebook_edit_tool: { accepted: 0, rejected: 0 } },
+                model_breakdown: [{
+                  model: 'claude-sonnet-4-20250514',
+                  tokens: { input: 2000, output: 400, cache_read: 0, cache_creation: 0 },
+                  estimated_cost: { currency: 'USD', amount: 200 },
+                }],
+              },
+            ],
+            has_more: false,
+            next_page: null,
+          });
+        })
+      );
+
+      const result = await syncAnthropicUsage('2025-01-15', '2025-01-15');
+
+      expect(result.success).toBe(true);
+      expect(result.recordsImported).toBe(1); // Should aggregate into 1 record
+
+      // Verify aggregation across actor types
+      const records = await db
+        .select()
+        .from(usageRecords)
+        .where(eq(usageRecords.email, 'mixed@example.com'));
+      expect(records).toHaveLength(1);
+      expect(Number(records[0].inputTokens)).toBe(3000); // 1000 + 2000 from both sources
+      expect(Number(records[0].outputTokens)).toBe(600); // 200 + 400
+      expect(Number(records[0].cost)).toBeCloseTo(3.00); // $1.00 + $2.00
+    });
+
     it('deletes old records with toolRecordId after successful sync', async () => {
       // Insert an old record with toolRecordId (from legacy sync)
       await db.insert(usageRecords).values({
