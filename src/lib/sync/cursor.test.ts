@@ -6,6 +6,7 @@ import {
   syncCursorCron,
   getCursorSyncState,
   getPreviousCompleteHourEnd,
+  NO_CURSOR_KEYS_ERROR,
 } from './cursor';
 import { insertUsageRecord } from '../queries';
 import { db, usageRecords, syncState } from '../db';
@@ -69,13 +70,14 @@ describe('Cursor Sync', () => {
   });
 
   describe('syncCursorUsage', () => {
-    it('returns error when CURSOR_ADMIN_KEY not configured', async () => {
+    it('returns error when no Cursor keys configured', async () => {
       vi.stubEnv('CURSOR_ADMIN_KEY', '');
+      vi.stubEnv('CURSOR_ADMIN_KEYS', '');
 
       const result = await syncCursorUsage('2025-01-01', '2025-01-07');
 
       expect(result.success).toBe(false);
-      expect(result.errors).toContain('CURSOR_ADMIN_KEY not configured');
+      expect(result.errors).toContain(NO_CURSOR_KEYS_ERROR);
     });
 
     it('imports usage records from Cursor API', async () => {
@@ -269,13 +271,14 @@ describe('Cursor Sync', () => {
   });
 
   describe('syncCursorCron', () => {
-    it('returns error when CURSOR_ADMIN_KEY not configured', async () => {
+    it('returns error when no Cursor keys configured', async () => {
       vi.stubEnv('CURSOR_ADMIN_KEY', '');
+      vi.stubEnv('CURSOR_ADMIN_KEYS', '');
 
       const result = await syncCursorCron();
 
       expect(result.success).toBe(false);
-      expect(result.errors).toContain('CURSOR_ADMIN_KEY not configured');
+      expect(result.errors).toContain(NO_CURSOR_KEYS_ERROR);
     });
 
     it('skips sync if already synced up to current hour', async () => {

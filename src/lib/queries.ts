@@ -787,10 +787,12 @@ export async function insertUsageRecord(record: {
   cost: number;
   toolRecordId?: string;
   timestampMs?: number;  // Epoch milliseconds for per-event deduplication (Cursor)
+  organizationId?: string;  // Anthropic org UUID or derived Cursor team ID
+  customerType?: string;  // 'api' or 'subscription' (Anthropic only)
 }): Promise<void> {
   await db.execute(sql`
-    INSERT INTO ${usageRecords} (date, email, tool, model, raw_model, input_tokens, cache_write_tokens, cache_read_tokens, output_tokens, cost, tool_record_id, timestamp_ms)
-    VALUES (${record.date}, ${record.email}, ${record.tool}, ${record.model}, ${record.rawModel ?? null}, ${record.inputTokens}, ${record.cacheWriteTokens}, ${record.cacheReadTokens}, ${record.outputTokens}, ${record.cost}, ${record.toolRecordId ?? null}, ${record.timestampMs ?? null})
+    INSERT INTO ${usageRecords} (date, email, tool, model, raw_model, input_tokens, cache_write_tokens, cache_read_tokens, output_tokens, cost, tool_record_id, timestamp_ms, organization_id, customer_type)
+    VALUES (${record.date}, ${record.email}, ${record.tool}, ${record.model}, ${record.rawModel ?? null}, ${record.inputTokens}, ${record.cacheWriteTokens}, ${record.cacheReadTokens}, ${record.outputTokens}, ${record.cost}, ${record.toolRecordId ?? null}, ${record.timestampMs ?? null}, ${record.organizationId ?? null}, ${record.customerType ?? null})
     ON CONFLICT (date, COALESCE(email, ''), tool, COALESCE(raw_model, ''), COALESCE(tool_record_id, ''), COALESCE(timestamp_ms::text, ''))
     DO UPDATE SET
       model = EXCLUDED.model,
@@ -798,7 +800,9 @@ export async function insertUsageRecord(record: {
       cache_write_tokens = EXCLUDED.cache_write_tokens,
       cache_read_tokens = EXCLUDED.cache_read_tokens,
       output_tokens = EXCLUDED.output_tokens,
-      cost = EXCLUDED.cost
+      cost = EXCLUDED.cost,
+      organization_id = EXCLUDED.organization_id,
+      customer_type = EXCLUDED.customer_type
   `);
 }
 
