@@ -10,6 +10,7 @@
 
 import * as Sentry from '@sentry/nextjs';
 import { setIdentityMapping, getIdentityMappings, getUnmappedToolRecords } from '../queries';
+import { getAnthropicKeys, NO_ANTHROPIC_KEYS_ERROR } from './provider-keys';
 
 const TOOL = 'claude_code';
 
@@ -125,13 +126,13 @@ async function fetchAllApiKeys(adminKey: string, status: 'active' | 'inactive' |
 export async function syncAnthropicApiKeyMappings(
   options: { includeArchived?: boolean } = {}
 ): Promise<MappingResult> {
-  const adminKey = process.env.ANTHROPIC_ADMIN_KEY;
-  if (!adminKey) {
+  const keys = getAnthropicKeys();
+  if (keys.length === 0) {
     return {
       success: false,
       mappingsCreated: 0,
       mappingsSkipped: 0,
-      errors: ['ANTHROPIC_ADMIN_KEY not configured']
+      errors: [NO_ANTHROPIC_KEYS_ERROR]
     };
   }
 
@@ -142,96 +143,106 @@ export async function syncAnthropicApiKeyMappings(
     errors: []
   };
 
-  try {
-    // Fetch all users and API keys in parallel
-    const promises = [
-      fetchAllUsers(adminKey),
-      fetchAllApiKeys(adminKey, 'active'),
-      ...(options.includeArchived ? [fetchAllApiKeys(adminKey, 'archived')] : [])
-    ];
+  // Get existing mappings once to avoid duplicates across all orgs
+  const existingMappings = await getIdentityMappings(TOOL);
+  const existingSet = new Set(existingMappings.map(m => m.external_id));
 
-    const results = await Promise.all(promises);
-    const userMap = results[0] as Map<string, string>;
-    const activeKeys = results[1] as AnthropicApiKey[];
-    const archivedKeys = options.includeArchived ? (results[2] as AnthropicApiKey[]) : [];
-    const apiKeys = [...activeKeys, ...archivedKeys];
+  // Process each organization
+  for (const { key: adminKey, name: orgName } of keys) {
+    try {
+      // Fetch all users and API keys in parallel
+      const promises = [
+        fetchAllUsers(adminKey),
+        fetchAllApiKeys(adminKey, 'active'),
+        ...(options.includeArchived ? [fetchAllApiKeys(adminKey, 'archived')] : [])
+      ];
 
-    // Get existing mappings to avoid duplicates
-    const existingMappings = await getIdentityMappings(TOOL);
-    const existingSet = new Set(existingMappings.map(m => m.external_id));
+      const results = await Promise.all(promises);
+      const userMap = results[0] as Map<string, string>;
+      const activeKeys = results[1] as AnthropicApiKey[];
+      const archivedKeys = options.includeArchived ? (results[2] as AnthropicApiKey[]) : [];
+      const apiKeys = [...activeKeys, ...archivedKeys];
 
-    // Create mappings for each API key
-    for (const apiKey of apiKeys) {
-      if (existingSet.has(apiKey.id)) {
-        result.mappingsSkipped++;
-        continue;
+      // Create mappings for each API key
+      for (const apiKey of apiKeys) {
+        if (existingSet.has(apiKey.id)) {
+          result.mappingsSkipped++;
+          continue;
+        }
+
+        const creatorEmail = userMap.get(apiKey.created_by.id);
+        if (!creatorEmail) {
+          result.errors.push(`[${orgName}] No email found for creator ${apiKey.created_by.id} of key ${apiKey.id}`);
+          result.mappingsSkipped++;
+          continue;
+        }
+
+        try {
+          await setIdentityMapping(TOOL, apiKey.id, creatorEmail);
+          existingSet.add(apiKey.id); // Track newly created mappings
+          result.mappingsCreated++;
+        } catch (err) {
+          result.errors.push(`[${orgName}] Failed to save mapping for ${apiKey.id}: ${err}`);
+          result.mappingsSkipped++;
+        }
       }
 
-      const creatorEmail = userMap.get(apiKey.created_by.id);
-      if (!creatorEmail) {
-        result.errors.push(`No email found for creator ${apiKey.created_by.id} of key ${apiKey.id}`);
-        result.mappingsSkipped++;
-        continue;
-      }
-
-      try {
-        await setIdentityMapping(TOOL, apiKey.id, creatorEmail);
-        result.mappingsCreated++;
-      } catch (err) {
-        result.errors.push(`Failed to save mapping for ${apiKey.id}: ${err}`);
-        result.mappingsSkipped++;
-      }
+    } catch (err) {
+      result.success = false;
+      result.errors.push(`[${orgName}] ${err instanceof Error ? err.message : 'Unknown error'}`);
     }
-
-  } catch (err) {
-    result.success = false;
-    result.errors.push(err instanceof Error ? err.message : 'Unknown error');
   }
 
   return result;
 }
 
 // Get user email by API key ID (for on-the-fly lookups)
+// Tries each configured admin key until one succeeds
 export async function getEmailForApiKey(apiKeyId: string): Promise<string | null> {
-  const adminKey = process.env.ANTHROPIC_ADMIN_KEY;
-  if (!adminKey) return null;
+  const keys = getAnthropicKeys();
+  if (keys.length === 0) return null;
 
-  try {
-    // First get the API key details
-    const keyResponse = await fetch(
-      `https://api.anthropic.com/v1/organizations/api_keys/${apiKeyId}`,
-      {
-        headers: {
-          'X-Api-Key': adminKey,
-          'anthropic-version': '2023-06-01'
+  for (const { key: adminKey } of keys) {
+    try {
+      // First get the API key details
+      const keyResponse = await fetch(
+        `https://api.anthropic.com/v1/organizations/api_keys/${apiKeyId}`,
+        {
+          headers: {
+            'X-Api-Key': adminKey,
+            'anthropic-version': '2023-06-01'
+          }
         }
-      }
-    );
+      );
 
-    if (!keyResponse.ok) return null;
+      if (!keyResponse.ok) continue; // Try next org
 
-    const apiKey: AnthropicApiKey = await keyResponse.json();
-    const creatorId = apiKey.created_by.id;
+      const apiKey: AnthropicApiKey = await keyResponse.json();
+      const creatorId = apiKey.created_by.id;
 
-    // Then get the user details
-    const userResponse = await fetch(
-      `https://api.anthropic.com/v1/organizations/users/${creatorId}`,
-      {
-        headers: {
-          'X-Api-Key': adminKey,
-          'anthropic-version': '2023-06-01'
+      // Then get the user details
+      const userResponse = await fetch(
+        `https://api.anthropic.com/v1/organizations/users/${creatorId}`,
+        {
+          headers: {
+            'X-Api-Key': adminKey,
+            'anthropic-version': '2023-06-01'
+          }
         }
-      }
-    );
+      );
 
-    if (!userResponse.ok) return null;
+      if (!userResponse.ok) continue; // Try next org
 
-    const user: AnthropicUser = await userResponse.json();
-    return user.email;
+      const user: AnthropicUser = await userResponse.json();
+      return user.email;
 
-  } catch {
-    return null;
+    } catch {
+      // Try next org
+      continue;
+    }
   }
+
+  return null;
 }
 
 /**
@@ -267,15 +278,16 @@ export async function syncApiKeyMappingsSmart(
 /**
  * Incremental sync - looks up only specific API keys individually.
  * More efficient when only a few keys need mapping.
+ * Tries each configured admin key for each API key until one succeeds.
  */
 async function syncApiKeyMappingsIncremental(apiKeyIds: string[]): Promise<MappingResult> {
-  const adminKey = process.env.ANTHROPIC_ADMIN_KEY;
-  if (!adminKey) {
+  const keys = getAnthropicKeys();
+  if (keys.length === 0) {
     return {
       success: false,
       mappingsCreated: 0,
       mappingsSkipped: 0,
-      errors: ['ANTHROPIC_ADMIN_KEY not configured']
+      errors: [NO_ANTHROPIC_KEYS_ERROR]
     };
   }
 
@@ -286,43 +298,18 @@ async function syncApiKeyMappingsIncremental(apiKeyIds: string[]): Promise<Mappi
     errors: []
   };
 
-  // Cache user lookups to avoid duplicate API calls
+  // Cache user lookups to avoid duplicate API calls (keyed by adminKey + creatorId)
   const userCache = new Map<string, string>();
 
   for (const apiKeyId of apiKeyIds) {
-    try {
-      // Get API key details
-      const keyResponse = await fetch(
-        `https://api.anthropic.com/v1/organizations/api_keys/${apiKeyId}`,
-        {
-          headers: {
-            'X-Api-Key': adminKey,
-            'anthropic-version': '2023-06-01'
-          }
-        }
-      );
+    let found = false;
 
-      if (!keyResponse.ok) {
-        result.mappingsSkipped++;
-        if (keyResponse.status !== 404) {
-          result.errors.push(`Failed to fetch key ${apiKeyId}: ${keyResponse.status}`);
-        }
-        continue;
-      }
-
-      const apiKey: AnthropicApiKey = await keyResponse.json();
-      const creatorId = apiKey.created_by?.id;
-      if (!creatorId) {
-        result.mappingsSkipped++;
-        continue;
-      }
-
-      // Check user cache first
-      let email = userCache.get(creatorId);
-      if (!email) {
-        // Fetch user details
-        const userResponse = await fetch(
-          `https://api.anthropic.com/v1/organizations/users/${creatorId}`,
+    // Try each admin key until one succeeds
+    for (const { key: adminKey, name: orgName } of keys) {
+      try {
+        // Get API key details
+        const keyResponse = await fetch(
+          `https://api.anthropic.com/v1/organizations/api_keys/${apiKeyId}`,
           {
             headers: {
               'X-Api-Key': adminKey,
@@ -331,23 +318,57 @@ async function syncApiKeyMappingsIncremental(apiKeyIds: string[]): Promise<Mappi
           }
         );
 
-        if (!userResponse.ok) {
-          result.mappingsSkipped++;
-          result.errors.push(`Failed to fetch user ${creatorId}: ${userResponse.status}`);
-          continue;
+        if (!keyResponse.ok) {
+          if (keyResponse.status !== 404) {
+            result.errors.push(`[${orgName}] Failed to fetch key ${apiKeyId}: ${keyResponse.status}`);
+          }
+          continue; // Try next org
         }
 
-        const user: AnthropicUser = await userResponse.json();
-        email = user.email;
-        userCache.set(creatorId, email);
+        const apiKey: AnthropicApiKey = await keyResponse.json();
+        const creatorId = apiKey.created_by?.id;
+        if (!creatorId) {
+          continue; // Try next org
+        }
+
+        // Check user cache first (scoped by adminKey to avoid cross-org collisions)
+        const cacheKey = `${adminKey}:${creatorId}`;
+        let email = userCache.get(cacheKey);
+        if (!email) {
+          // Fetch user details
+          const userResponse = await fetch(
+            `https://api.anthropic.com/v1/organizations/users/${creatorId}`,
+            {
+              headers: {
+                'X-Api-Key': adminKey,
+                'anthropic-version': '2023-06-01'
+              }
+            }
+          );
+
+          if (!userResponse.ok) {
+            result.errors.push(`[${orgName}] Failed to fetch user ${creatorId}: ${userResponse.status}`);
+            continue; // Try next org
+          }
+
+          const user: AnthropicUser = await userResponse.json();
+          email = user.email;
+          userCache.set(cacheKey, email);
+        }
+
+        await setIdentityMapping(TOOL, apiKeyId, email);
+        result.mappingsCreated++;
+        found = true;
+        break; // Successfully mapped, move to next apiKeyId
+
+      } catch (err) {
+        result.errors.push(`[${orgName}] Error processing ${apiKeyId}: ${err instanceof Error ? err.message : 'Unknown'}`);
+        continue; // Try next org
       }
+    }
 
-      await setIdentityMapping(TOOL, apiKeyId, email);
-      result.mappingsCreated++;
-
-    } catch (err) {
+    if (!found) {
       result.mappingsSkipped++;
-      result.errors.push(`Error processing ${apiKeyId}: ${err instanceof Error ? err.message : 'Unknown'}`);
     }
   }
 
@@ -359,9 +380,9 @@ async function syncApiKeyMappingsIncremental(apiKeyIds: string[]): Promise<Mappi
  * Useful when the Claude Code Analytics API returns api_actor records with only api_key_name.
  */
 export async function getApiKeyNameToEmailMap(
+  adminKey: string,
   options: { includeArchived?: boolean } = {}
 ): Promise<Map<string, string>> {
-  const adminKey = process.env.ANTHROPIC_ADMIN_KEY;
   if (!adminKey) {
     return new Map();
   }
@@ -378,7 +399,6 @@ export async function getApiKeyNameToEmailMap(
     const userMap = results[0] as Map<string, string>;
     const activeKeys = results[1] as AnthropicApiKey[];
     const archivedKeys = options.includeArchived ? (results[2] as AnthropicApiKey[]) : [];
-    const apiKeys = [...activeKeys, ...archivedKeys];
 
     // Build name -> email map
     // Process archived keys first, then active keys, so active keys take priority

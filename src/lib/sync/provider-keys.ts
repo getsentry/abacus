@@ -8,6 +8,8 @@
  * Multi-key format: [{"key": "sk-...", "name": "Org Name"}, ...]
  */
 
+export const NO_ANTHROPIC_KEYS_ERROR = 'No Anthropic admin keys configured (set ANTHROPIC_ADMIN_KEY or ANTHROPIC_ADMIN_KEYS)';
+
 export interface ProviderKey {
   key: string;
   name: string;

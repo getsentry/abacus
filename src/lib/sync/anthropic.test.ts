@@ -87,13 +87,14 @@ describe('Anthropic Sync', () => {
   });
 
   describe('syncAnthropicUsage', () => {
-    it('returns error when ANTHROPIC_ADMIN_KEY not configured', async () => {
+    it('returns error when no admin keys configured', async () => {
       vi.stubEnv('ANTHROPIC_ADMIN_KEY', '');
+      vi.stubEnv('ANTHROPIC_ADMIN_KEYS', '');
 
       const result = await syncAnthropicUsage('2025-01-01', '2025-01-07');
 
       expect(result.success).toBe(false);
-      expect(result.errors).toContain('ANTHROPIC_ADMIN_KEY not configured');
+      expect(result.errors).toContain('No Anthropic admin keys configured (set ANTHROPIC_ADMIN_KEY or ANTHROPIC_ADMIN_KEYS)');
     });
 
     it('imports usage records from Claude Code Analytics API', async () => {
@@ -768,13 +769,14 @@ describe('Anthropic Sync', () => {
   });
 
   describe('syncAnthropicCron', () => {
-    it('returns error when ANTHROPIC_ADMIN_KEY not configured', async () => {
+    it('returns error when no admin keys configured', async () => {
       vi.stubEnv('ANTHROPIC_ADMIN_KEY', '');
+      vi.stubEnv('ANTHROPIC_ADMIN_KEYS', '');
 
       const result = await syncAnthropicCron();
 
       expect(result.success).toBe(false);
-      expect(result.errors).toContain('ANTHROPIC_ADMIN_KEY not configured');
+      expect(result.errors).toContain('No Anthropic admin keys configured (set ANTHROPIC_ADMIN_KEY or ANTHROPIC_ADMIN_KEYS)');
     });
 
     it('does not update sync state on rate limit', async () => {
