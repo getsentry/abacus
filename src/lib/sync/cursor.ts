@@ -3,6 +3,17 @@ import { insertUsageRecord } from '../queries';
 import { normalizeModelName } from '../utils';
 import { db, syncState, usageRecords } from '../db';
 import { eq, min } from 'drizzle-orm';
+import { getCursorKeys } from './provider-keys';
+
+export const NO_CURSOR_KEYS_ERROR = 'No Cursor admin keys configured (set CURSOR_ADMIN_KEY or CURSOR_ADMIN_KEYS)';
+
+/**
+ * Derive organization ID from Cursor team name.
+ * Returns undefined for 'default' (single-key config), otherwise prefixes with 'cursor:'.
+ */
+function deriveOrganizationId(teamName: string): string | undefined {
+  return teamName !== 'default' ? `cursor:${teamName}` : undefined;
+}
 
 interface CursorUsageEvent {
   userEmail: string;
@@ -130,11 +141,7 @@ export async function resetCursorBackfillComplete(): Promise<void> {
     .where(eq(syncState.id, SYNC_STATE_ID));
 }
 
-function getCursorAuthHeader(): string | null {
-  const adminKey = process.env.CURSOR_ADMIN_KEY;
-  if (!adminKey) {
-    return null;
-  }
+function getCursorAuthHeader(adminKey: string): string {
   // Cursor API uses Basic auth with API key as username, empty password
   const credentials = `${adminKey}:`;
   return `Basic ${Buffer.from(credentials).toString('base64')}`;
@@ -237,9 +244,13 @@ async function fetchCursorUsage(
 /**
  * Process events and insert directly into database (one row per event).
  * Uses timestampMs for per-event deduplication - no aggregation needed.
+ *
+ * @param events - The usage events from the Cursor API
+ * @param organizationId - Derived organization ID from the key name (Cursor API doesn't provide org ID)
  */
 async function processAndInsertEvents(
-  events: CursorUsageEvent[]
+  events: CursorUsageEvent[],
+  organizationId?: string
 ): Promise<{ imported: number; skipped: number; errors: string[] }> {
   let imported = 0;
   let skipped = 0;
@@ -278,6 +289,7 @@ async function processAndInsertEvents(
         outputTokens: tokenUsage?.outputTokens || 0,
         cost: (tokenUsage?.totalCents || 0) / 100,
         timestampMs,
+        organizationId,
       });
       imported++;
     } catch (err) {
@@ -293,15 +305,16 @@ async function processAndInsertEvents(
  * Sync Cursor usage for the cron job.
  * Only syncs if there's a new complete hour that hasn't been synced yet.
  * Returns early if already synced to respect rate limits.
+ * Iterates through each configured team key.
  */
 export async function syncCursorCron(): Promise<SyncResult> {
-  const authHeader = getCursorAuthHeader();
-  if (!authHeader) {
+  const keys = getCursorKeys();
+  if (keys.length === 0) {
     return {
       success: false,
       recordsImported: 0,
       recordsSkipped: 0,
-      errors: ['CURSOR_ADMIN_KEY not configured']
+      errors: [NO_CURSOR_KEYS_ERROR]
     };
   }
 
@@ -327,30 +340,51 @@ export async function syncCursorCron(): Promise<SyncResult> {
   const startMs = lastSyncedHourEnd || (currentHourEnd - 24 * 60 * 60 * 1000);
   const endMs = currentHourEnd;
 
-  // Fetch and process
-  const { events, errors: fetchErrors, rateLimited } = await fetchCursorUsage(startMs, endMs, authHeader);
-  const { imported, skipped, errors: insertErrors } = await processAndInsertEvents(events);
+  const result: SyncResult = {
+    success: true,
+    recordsImported: 0,
+    recordsSkipped: 0,
+    errors: [],
+    syncedRange: { startMs, endMs }
+  };
 
-  // Only update sync state if fetch was successful (no errors, not rate limited)
+  // Sync each team
+  for (const { key: adminKey, name: teamName } of keys) {
+    const authHeader = getCursorAuthHeader(adminKey);
+    const organizationId = deriveOrganizationId(teamName);
+
+    const { events, errors: fetchErrors, rateLimited } = await fetchCursorUsage(startMs, endMs, authHeader);
+    const { imported, skipped, errors: insertErrors } = await processAndInsertEvents(events, organizationId);
+
+    result.recordsImported += imported;
+    result.recordsSkipped += skipped;
+    result.errors.push(...fetchErrors.map(e => `[${teamName}] ${e}`));
+    result.errors.push(...insertErrors.map(e => `[${teamName}] ${e}`));
+
+    if (rateLimited) {
+      result.success = false;
+      break;
+    }
+
+    if (fetchErrors.length > 0) {
+      result.success = false;
+    }
+  }
+
+  // Only update sync state if all fetches were successful (no errors, not rate limited)
   // This ensures we'll retry failed hours on the next run
-  const success = fetchErrors.length === 0 && !rateLimited;
-  if (success) {
+  if (result.success) {
     await updateCursorSyncState(endMs);
   }
 
-  return {
-    success,
-    recordsImported: imported,
-    recordsSkipped: skipped,
-    errors: [...fetchErrors, ...insertErrors],
-    syncedRange: { startMs, endMs }
-  };
+  return result;
 }
 
 /**
  * Sync Cursor usage for a specific date range.
  * Used for backfills and manual syncs.
  * Does NOT update sync state - use syncCursorCron for production syncing.
+ * Iterates through each configured team key.
  *
  * @param startDate ISO date string (YYYY-MM-DD)
  * @param endDate ISO date string (YYYY-MM-DD)
@@ -359,13 +393,13 @@ export async function syncCursorUsage(
   startDate: string,
   endDate: string
 ): Promise<SyncResult> {
-  const authHeader = getCursorAuthHeader();
-  if (!authHeader) {
+  const keys = getCursorKeys();
+  if (keys.length === 0) {
     return {
       success: false,
       recordsImported: 0,
       recordsSkipped: 0,
-      errors: ['CURSOR_ADMIN_KEY not configured']
+      errors: [NO_CURSOR_KEYS_ERROR]
     };
   }
 
@@ -373,16 +407,33 @@ export async function syncCursorUsage(
   const startMs = new Date(startDate).getTime();
   const endMs = new Date(endDate).getTime() + 24 * 60 * 60 * 1000; // End of end day
 
-  const { events, errors: fetchErrors } = await fetchCursorUsage(startMs, endMs, authHeader);
-  const { imported, skipped, errors: insertErrors } = await processAndInsertEvents(events);
-
-  return {
-    success: fetchErrors.length === 0,
-    recordsImported: imported,
-    recordsSkipped: skipped,
-    errors: [...fetchErrors, ...insertErrors],
+  const result: SyncResult = {
+    success: true,
+    recordsImported: 0,
+    recordsSkipped: 0,
+    errors: [],
     syncedRange: { startMs, endMs }
   };
+
+  // Sync each team
+  for (const { key: adminKey, name: teamName } of keys) {
+    const authHeader = getCursorAuthHeader(adminKey);
+    const organizationId = deriveOrganizationId(teamName);
+
+    const { events, errors: fetchErrors } = await fetchCursorUsage(startMs, endMs, authHeader);
+    const { imported, skipped, errors: insertErrors } = await processAndInsertEvents(events, organizationId);
+
+    result.recordsImported += imported;
+    result.recordsSkipped += skipped;
+    result.errors.push(...fetchErrors.map(e => `[${teamName}] ${e}`));
+    result.errors.push(...insertErrors.map(e => `[${teamName}] ${e}`));
+
+    if (fetchErrors.length > 0) {
+      result.success = false;
+    }
+  }
+
+  return result;
 }
 
 /**
@@ -391,6 +442,7 @@ export async function syncCursorUsage(
  * - Immediately aborts on rate limit
  * - Marks complete when hitting consecutive empty days (no more historical data)
  * - Can be resumed by calling again with the same target date
+ * - Iterates through each configured team key
  */
 export async function backfillCursorUsage(
   targetDate: string,
@@ -399,13 +451,13 @@ export async function backfillCursorUsage(
     stopOnEmptyDays?: number;   // Stop after N consecutive days with 0 events (default: 7)
   } = {}
 ): Promise<SyncResult & { rateLimited: boolean; lastProcessedDate: string | null }> {
-  const authHeader = getCursorAuthHeader();
-  if (!authHeader) {
+  const keys = getCursorKeys();
+  if (keys.length === 0) {
     return {
       success: false,
       recordsImported: 0,
       recordsSkipped: 0,
-      errors: ['CURSOR_ADMIN_KEY not configured'],
+      errors: [NO_CURSOR_KEYS_ERROR],
       rateLimited: false,
       lastProcessedDate: null
     };
@@ -472,35 +524,58 @@ export async function backfillCursorUsage(
 
     log(`Fetching ${dateStr}...`);
 
-    const { events, errors: fetchErrors, rateLimited: wasRateLimited } = await fetchCursorUsage(
-      currentStart,
-      currentEnd,
-      authHeader
-    );
+    let dayEventsTotal = 0;
+    let dayHadErrors = false;
 
-    if (wasRateLimited) {
-      rateLimited = true;
-      log(`  Rate limited! Will retry on next run.`);
-      allErrors.push(`Rate limited at ${dateStr}`);
+    // Fetch from all teams for this day
+    for (const { key: adminKey, name: teamName } of keys) {
+      const authHeader = getCursorAuthHeader(adminKey);
+      const organizationId = deriveOrganizationId(teamName);
+
+      const { events, errors: fetchErrors, rateLimited: wasRateLimited } = await fetchCursorUsage(
+        currentStart,
+        currentEnd,
+        authHeader
+      );
+
+      if (wasRateLimited) {
+        rateLimited = true;
+        log(`  [${teamName}] Rate limited! Will retry on next run.`);
+        allErrors.push(`[${teamName}] Rate limited at ${dateStr}`);
+        break;
+      }
+
+      if (fetchErrors.length > 0) {
+        allErrors.push(...fetchErrors.map(e => `[${teamName}] ${e}`));
+        log(`  [${teamName}] Errors: ${fetchErrors.join(', ')}`);
+        dayHadErrors = true;
+        break;
+      }
+
+      // Process the events
+      const { imported, skipped, errors: insertErrors } = await processAndInsertEvents(events, organizationId);
+      totalImported += imported;
+      totalSkipped += skipped;
+      allErrors.push(...insertErrors.map(e => `[${teamName}] ${e}`));
+      dayEventsTotal += events.length;
+
+      if (keys.length > 1) {
+        log(`  [${teamName}] Imported: ${imported}, Skipped: ${skipped}`);
+      }
+    }
+
+    if (rateLimited || dayHadErrors) {
       break;
     }
 
-    if (fetchErrors.length > 0) {
-      allErrors.push(...fetchErrors);
-      log(`  Errors: ${fetchErrors.join(', ')}`);
-      break;
+    if (keys.length === 1) {
+      log(`  Imported: ${totalImported}, Skipped: ${totalSkipped}`);
     }
 
-    // Process the events
-    const { imported, skipped, errors: insertErrors } = await processAndInsertEvents(events);
-    totalImported += imported;
-    totalSkipped += skipped;
-    allErrors.push(...insertErrors);
-    log(`  Imported: ${imported}, Skipped: ${skipped}`);
     lastProcessedDate = dateStr;
 
-    // Track consecutive empty days (0 events from API)
-    if (events.length === 0) {
+    // Track consecutive empty days (0 events from API across ALL teams)
+    if (dayEventsTotal === 0) {
       consecutiveEmptyDays++;
       if (consecutiveEmptyDays >= stopOnEmptyDays) {
         log(`  ${consecutiveEmptyDays} consecutive empty days. Marking backfill complete.`);
