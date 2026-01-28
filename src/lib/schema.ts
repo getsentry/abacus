@@ -59,6 +59,10 @@ export const usageRecords = pgTable('usage_records', {
   toolRecordId: varchar('tool_record_id', { length: 255 }),
   // Epoch milliseconds timestamp for per-event deduplication (Cursor)
   timestampMs: bigint('timestamp_ms', { mode: 'number' }),
+  // Organization/team ID for multi-org support (Anthropic org UUID or derived Cursor team ID)
+  organizationId: varchar('organization_id', { length: 64 }),
+  // Customer type: 'api' or 'subscription' (Anthropic only)
+  customerType: varchar('customer_type', { length: 32 }),
   createdAt: timestamp('created_at').defaultNow(),
 }, (table) => [
   index('idx_usage_date').on(table.date),
