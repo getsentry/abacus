@@ -8,6 +8,18 @@ allowed-tools: Read, Grep, Glob, Edit, Write, Bash
 
 Create schema changes with proper migrations.
 
+## CRITICAL: Never Write Migrations By Hand
+
+**ALWAYS use `drizzle-kit generate` to create migrations. NEVER write SQL migration files manually.**
+
+Why this matters:
+- Drizzle tracks schema state via snapshot files in `drizzle/meta/`
+- Hand-written migrations don't update snapshots
+- This causes `drizzle-kit generate` to fail with confusing prompts about tables being "created or renamed"
+- It breaks the entire migration system for future changes
+
+If you're tempted to write SQL by hand (e.g., for data migrations), create a separate script in `scripts/` instead.
+
 ## Before Starting
 
 1. Read current schema: `src/lib/schema.ts`
@@ -92,12 +104,13 @@ export const newTable = pgTable('new_table', {
 ]);
 ```
 
-## Anti-Patterns (Don't Do This)
+## Anti-Patterns (NEVER Do This)
 
+- **Writing migration SQL by hand** - This breaks drizzle's snapshot tracking and causes future `generate` commands to fail. ALWAYS use `drizzle-kit generate`.
+- **Using `IF NOT EXISTS` or `IF EXISTS`** - These clauses signal you're writing SQL by hand. Generated migrations never include them.
 - Editing schema.ts without running `drizzle-kit generate`
-- Writing migration SQL by hand (use generate)
 - Modifying existing migrations after they've been applied to prod
-- Using `IF NOT EXISTS` in new migrations (signals drift)
+- Adding data migrations to schema migration files (use separate scripts)
 
 ## Checklist
 

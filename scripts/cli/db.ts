@@ -24,7 +24,15 @@ export async function cmdDbMigrate() {
     const journal = JSON.parse(fs.readFileSync(journalPath, 'utf-8'));
 
     // Check what's already applied in the database
-    const applied = await migrationClient`SELECT hash FROM drizzle.__drizzle_migrations` as { hash: string }[];
+    // On fresh installs, the migrations table doesn't exist yet - that's fine,
+    // migrate() will create it. We just treat it as 0 applied migrations.
+    let applied: { hash: string }[] = [];
+    try {
+      applied = await migrationClient`SELECT hash FROM drizzle.__drizzle_migrations` as { hash: string }[];
+    } catch {
+      // Table doesn't exist yet - fresh install
+      console.log('Fresh database detected, will run all migrations\n');
+    }
     const appliedSet = new Set(applied.map(r => r.hash));
 
     // Find pending migrations
