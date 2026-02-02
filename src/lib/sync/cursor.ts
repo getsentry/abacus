@@ -392,9 +392,10 @@ export async function syncCursorCron(): Promise<SyncResult> {
  */
 export async function syncCursorUsage(
   startDate: string,
-  endDate: string
+  endDate: string,
+  options: { orgName?: string } = {}
 ): Promise<SyncResult> {
-  const keys = getCursorKeys();
+  let keys = getCursorKeys();
   if (keys.length === 0) {
     return {
       success: false,
@@ -402,6 +403,19 @@ export async function syncCursorUsage(
       recordsSkipped: 0,
       errors: [NO_CURSOR_KEYS_ERROR]
     };
+  }
+
+  // Filter to specific org/team if requested
+  if (options.orgName) {
+    keys = keys.filter(k => k.name === options.orgName);
+    if (keys.length === 0) {
+      return {
+        success: false,
+        recordsImported: 0,
+        recordsSkipped: 0,
+        errors: [`Team '${options.orgName}' not found in configured keys`]
+      };
+    }
   }
 
   // Convert to epoch milliseconds (start of start day, end of end day)
@@ -455,9 +469,10 @@ export async function backfillCursorUsage(
   options: {
     onProgress?: (msg: string) => void;
     stopOnEmptyDays?: number;   // Stop after N consecutive days with 0 events (default: 7)
+    orgName?: string;           // Filter to specific team by name
   } = {}
 ): Promise<SyncResult & { rateLimited: boolean; lastProcessedDate: string | null }> {
-  const keys = getCursorKeys();
+  let keys = getCursorKeys();
   if (keys.length === 0) {
     return {
       success: false,
@@ -467,6 +482,21 @@ export async function backfillCursorUsage(
       rateLimited: false,
       lastProcessedDate: null
     };
+  }
+
+  // Filter to specific team if requested
+  if (options.orgName) {
+    keys = keys.filter(k => k.name === options.orgName);
+    if (keys.length === 0) {
+      return {
+        success: false,
+        recordsImported: 0,
+        recordsSkipped: 0,
+        errors: [`Team '${options.orgName}' not found in configured keys`],
+        rateLimited: false,
+        lastProcessedDate: null
+      };
+    }
   }
 
   const log = options.onProgress || (() => {});

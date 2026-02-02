@@ -373,9 +373,10 @@ async function syncClaudeCodeForDate(
  */
 export async function syncAnthropicUsage(
   startDate: string,
-  endDate: string
+  endDate: string,
+  options: { orgName?: string } = {}
 ): Promise<SyncResult> {
-  const keys = getAnthropicKeys();
+  let keys = getAnthropicKeys();
   if (keys.length === 0) {
     return {
       success: false,
@@ -383,6 +384,19 @@ export async function syncAnthropicUsage(
       recordsSkipped: 0,
       errors: [NO_ANTHROPIC_KEYS_ERROR]
     };
+  }
+
+  // Filter to specific org if requested
+  if (options.orgName) {
+    keys = keys.filter(k => k.name === options.orgName);
+    if (keys.length === 0) {
+      return {
+        success: false,
+        recordsImported: 0,
+        recordsSkipped: 0,
+        errors: [`Organization '${options.orgName}' not found in configured keys`]
+      };
+    }
   }
 
   const result: SyncResult = {
@@ -493,7 +507,7 @@ export async function syncAnthropicCron(): Promise<SyncResult> {
  */
 export async function backfillAnthropicUsage(
   targetDate: string,
-  options: { onProgress?: (msg: string) => void; stopOnEmptyDays?: number } = {}
+  options: { onProgress?: (msg: string) => void; stopOnEmptyDays?: number; orgName?: string } = {}
 ): Promise<SyncResult & { rateLimited: boolean }> {
   const log = options.onProgress || (() => {});
   const stopOnEmptyDays = options.stopOnEmptyDays ?? 7;
@@ -548,7 +562,7 @@ export async function backfillAnthropicUsage(
   }
 
   log(`Fetching Anthropic usage from ${targetDate} to ${endDate}...`);
-  const result = await syncAnthropicUsage(targetDate, endDate);
+  const result = await syncAnthropicUsage(targetDate, endDate, { orgName: options.orgName });
 
   // Check if we were rate limited
   const rateLimited = result.errors.some(e => e.includes('rate limited'));

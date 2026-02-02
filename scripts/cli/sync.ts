@@ -10,10 +10,11 @@ interface SyncOptions {
   toDate?: string;
   tools?: ('anthropic' | 'cursor')[];
   skipMappings?: boolean;
+  orgName?: string;  // Filter to specific org/team by name
 }
 
 export async function cmdSync(options: SyncOptions = {}) {
-  const { days = 7, fromDate, toDate, tools = ['anthropic', 'cursor'], skipMappings = false } = options;
+  const { days = 7, fromDate, toDate, tools = ['anthropic', 'cursor'], skipMappings = false, orgName } = options;
 
   // Use explicit dates if provided, otherwise calculate from days
   const endDate = toDate || new Date().toISOString().split('T')[0];
@@ -51,8 +52,8 @@ export async function cmdSync(options: SyncOptions = {}) {
   }
 
   if (configuredTools.includes('anthropic')) {
-    console.log('Syncing Anthropic usage...');
-    const anthropicResult = await syncAnthropicUsage(startDate, endDate);
+    console.log(`Syncing Anthropic usage${orgName ? ` (org: ${orgName})` : ''}...`);
+    const anthropicResult = await syncAnthropicUsage(startDate, endDate, { orgName });
     console.log(`  Imported: ${anthropicResult.recordsImported}, Skipped: ${anthropicResult.recordsSkipped}`);
     if (anthropicResult.errors.length > 0) {
       console.log(`  Errors: ${anthropicResult.errors.slice(0, 3).join(', ')}`);
@@ -61,8 +62,8 @@ export async function cmdSync(options: SyncOptions = {}) {
 
   if (configuredTools.includes('cursor')) {
     if (configuredTools.includes('anthropic')) console.log('');
-    console.log('Syncing Cursor usage...');
-    const cursorResult = await syncCursorUsage(startDate, endDate);
+    console.log(`Syncing Cursor usage${orgName ? ` (team: ${orgName})` : ''}...`);
+    const cursorResult = await syncCursorUsage(startDate, endDate, { orgName });
     console.log(`  Imported: ${cursorResult.recordsImported}, Skipped: ${cursorResult.recordsSkipped}`);
     if (cursorResult.errors.length > 0) {
       console.log(`  Errors: ${cursorResult.errors.slice(0, 3).join(', ')}`);
@@ -72,18 +73,19 @@ export async function cmdSync(options: SyncOptions = {}) {
   console.log('\n✓ Sync complete!');
 }
 
-export async function cmdBackfill(tool: 'anthropic' | 'cursor', fromDate: string) {
+export async function cmdBackfill(tool: 'anthropic' | 'cursor', fromDate: string, orgName?: string) {
   // Check if provider is configured
-  if (tool === 'anthropic' && !process.env.ANTHROPIC_ADMIN_KEY) {
-    console.error('❌ ANTHROPIC_ADMIN_KEY not configured');
+  if (tool === 'anthropic' && !process.env.ANTHROPIC_ADMIN_KEY && !process.env.ANTHROPIC_ADMIN_KEYS) {
+    console.error('❌ ANTHROPIC_ADMIN_KEY or ANTHROPIC_ADMIN_KEYS not configured');
     return;
   }
-  if (tool === 'cursor' && !process.env.CURSOR_ADMIN_KEY) {
-    console.error('❌ CURSOR_ADMIN_KEY not configured');
+  if (tool === 'cursor' && !process.env.CURSOR_ADMIN_KEY && !process.env.CURSOR_ADMIN_KEYS) {
+    console.error('❌ CURSOR_ADMIN_KEY or CURSOR_ADMIN_KEYS not configured');
     return;
   }
 
-  console.log(`📥 Backfilling ${tool} backwards to ${fromDate}\n`);
+  const orgLabel = orgName ? ` (org: ${orgName})` : '';
+  console.log(`📥 Backfilling ${tool}${orgLabel} backwards to ${fromDate}\n`);
 
   if (tool === 'anthropic') {
     // Sync API key mappings first
@@ -94,7 +96,8 @@ export async function cmdBackfill(tool: 'anthropic' | 'cursor', fromDate: string
     // Use backfillAnthropicUsage which updates sync state
     // Note: backfill works backwards from existing data toward targetDate (fromDate)
     const result = await backfillAnthropicUsage(fromDate, {
-      onProgress: (msg: string) => console.log(msg)
+      onProgress: (msg: string) => console.log(msg),
+      orgName
     });
     console.log(`\n✓ Backfill complete`);
     console.log(`  Imported: ${result.recordsImported}, Skipped: ${result.recordsSkipped}`);
@@ -105,7 +108,8 @@ export async function cmdBackfill(tool: 'anthropic' | 'cursor', fromDate: string
     // For Cursor, use the proper backfill function with progress
     // Note: backfill works backwards from existing data toward targetDate (fromDate)
     const result = await backfillCursorUsage(fromDate, {
-      onProgress: (msg: string) => console.log(msg)
+      onProgress: (msg: string) => console.log(msg),
+      orgName
     });
     console.log(`\n✓ Backfill complete`);
     console.log(`  Imported: ${result.recordsImported}, Skipped: ${result.recordsSkipped}`);
