@@ -403,8 +403,12 @@ export async function syncAnthropicUsage(
     current.setDate(current.getDate() + 1);
   }
 
+  let rateLimited = false;
+
   // Sync each organization
   for (const { key: adminKey, name: orgName } of keys) {
+    if (rateLimited) break;
+
     // Fetch API key name -> email map once per org (avoids redundant API calls)
     const apiKeyNameToEmail = await getApiKeyNameToEmailMap(adminKey, { includeArchived: true });
 
@@ -418,8 +422,9 @@ export async function syncAnthropicUsage(
 
       if (!dateResult.success) {
         result.success = false;
-        // Stop on rate limit or error
+        // Stop on rate limit
         if (dateResult.errors.some(e => e.includes('rate limited'))) {
+          rateLimited = true;
           break;
         }
       }

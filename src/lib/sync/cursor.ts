@@ -3,9 +3,10 @@ import { insertUsageRecord } from '../queries';
 import { normalizeModelName } from '../utils';
 import { db, syncState, usageRecords } from '../db';
 import { eq, min } from 'drizzle-orm';
-import { getCursorKeys } from './provider-keys';
+import { getCursorKeys, NO_CURSOR_KEYS_ERROR } from './provider-keys';
 
-export const NO_CURSOR_KEYS_ERROR = 'No Cursor admin keys configured (set CURSOR_ADMIN_KEY or CURSOR_ADMIN_KEYS)';
+// Re-export for backward compatibility
+export { NO_CURSOR_KEYS_ERROR };
 
 /**
  * Derive organization ID from Cursor team name.
@@ -420,13 +421,18 @@ export async function syncCursorUsage(
     const authHeader = getCursorAuthHeader(adminKey);
     const organizationId = deriveOrganizationId(teamName);
 
-    const { events, errors: fetchErrors } = await fetchCursorUsage(startMs, endMs, authHeader);
+    const { events, errors: fetchErrors, rateLimited } = await fetchCursorUsage(startMs, endMs, authHeader);
     const { imported, skipped, errors: insertErrors } = await processAndInsertEvents(events, organizationId);
 
     result.recordsImported += imported;
     result.recordsSkipped += skipped;
     result.errors.push(...fetchErrors.map(e => `[${teamName}] ${e}`));
     result.errors.push(...insertErrors.map(e => `[${teamName}] ${e}`));
+
+    if (rateLimited) {
+      result.success = false;
+      break;
+    }
 
     if (fetchErrors.length > 0) {
       result.success = false;
@@ -526,6 +532,8 @@ export async function backfillCursorUsage(
 
     let dayEventsTotal = 0;
     let dayHadErrors = false;
+    let dayImported = 0;
+    let daySkipped = 0;
 
     // Fetch from all teams for this day
     for (const { key: adminKey, name: teamName } of keys) {
@@ -556,6 +564,8 @@ export async function backfillCursorUsage(
       const { imported, skipped, errors: insertErrors } = await processAndInsertEvents(events, organizationId);
       totalImported += imported;
       totalSkipped += skipped;
+      dayImported += imported;
+      daySkipped += skipped;
       allErrors.push(...insertErrors.map(e => `[${teamName}] ${e}`));
       dayEventsTotal += events.length;
 
@@ -569,7 +579,7 @@ export async function backfillCursorUsage(
     }
 
     if (keys.length === 1) {
-      log(`  Imported: ${totalImported}, Skipped: ${totalSkipped}`);
+      log(`  Imported: ${dayImported}, Skipped: ${daySkipped}`);
     }
 
     lastProcessedDate = dateStr;

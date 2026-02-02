@@ -9,6 +9,7 @@
  */
 
 export const NO_ANTHROPIC_KEYS_ERROR = 'No Anthropic admin keys configured (set ANTHROPIC_ADMIN_KEY or ANTHROPIC_ADMIN_KEYS)';
+export const NO_CURSOR_KEYS_ERROR = 'No Cursor admin keys configured (set CURSOR_ADMIN_KEY or CURSOR_ADMIN_KEYS)';
 
 export interface ProviderKey {
   key: string;
