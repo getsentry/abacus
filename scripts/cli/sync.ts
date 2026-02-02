@@ -3,7 +3,7 @@ import { syncAnthropicUsage, backfillAnthropicUsage, resetAnthropicBackfillCompl
 import { syncCursorUsage, backfillCursorUsage, resetCursorBackfillComplete } from '../../src/lib/sync/cursor';
 import { backfillGitHubUsage, resetGitHubBackfillComplete } from '../../src/lib/sync/github';
 import { syncApiKeyMappingsSmart } from '../../src/lib/sync/anthropic-mappings';
-import { getAnthropicKeys } from '../../src/lib/sync/provider-keys';
+import { getAnthropicKeys, getCursorKeys } from '../../src/lib/sync/provider-keys';
 
 interface SyncOptions {
   days?: number;
@@ -235,7 +235,7 @@ export async function cmdGaps(toolArg?: string) {
  * Fetch the organization ID for an Anthropic admin key by querying the API.
  * Returns null if no data is available or API call fails.
  */
-async function fetchOrgIdForKey(adminKey: string): Promise<string | null> {
+async function fetchAnthropicOrgIdForKey(adminKey: string): Promise<string | null> {
   // Fetch yesterday's data (most likely to have records)
   const yesterday = new Date();
   yesterday.setDate(yesterday.getDate() - 1);
@@ -264,15 +264,35 @@ async function fetchOrgIdForKey(adminKey: string): Promise<string | null> {
 }
 
 /**
- * Backfill organization IDs for legacy Anthropic usage records.
+ * Derive Cursor organization ID from team name (matches sync logic).
+ */
+function deriveCursorOrgId(teamName: string): string | null {
+  return teamName !== 'default' ? `cursor:${teamName}` : null;
+}
+
+/**
+ * Backfill organization IDs for legacy usage records.
  *
  * This should be run BEFORE switching from single-key to multi-key configuration.
- * It updates all claude_code records that have NULL organization_id with the
- * org ID from the configured Anthropic API key.
+ * It updates records that have NULL organization_id with the appropriate org ID.
  *
- * If multiple keys are configured, use --org to specify which org owned the legacy data.
+ * For Anthropic: Fetches org UUID from API
+ * For Cursor: Derives org ID from team name (cursor:TeamName)
+ *
+ * @param tool - 'anthropic' or 'cursor'
+ * @param orgName - For multi-key configs, specify which org/team owned the legacy data
  */
-export async function cmdBackfillOrgIds(orgName?: string) {
+export async function cmdBackfillOrgIds(tool: 'anthropic' | 'cursor', orgName?: string) {
+  if (tool === 'anthropic') {
+    await backfillAnthropicOrgIds(orgName);
+  } else if (tool === 'cursor') {
+    await backfillCursorOrgIds(orgName);
+  } else {
+    console.error('❌ Please specify tool: anthropic or cursor');
+  }
+}
+
+async function backfillAnthropicOrgIds(orgName?: string) {
   const keys = getAnthropicKeys();
 
   if (keys.length === 0) {
@@ -289,17 +309,17 @@ export async function cmdBackfillOrgIds(orgName?: string) {
   const recordsToUpdate = parseInt(nullCount.rows[0].count);
 
   if (recordsToUpdate === 0) {
-    console.log('✓ No legacy records to update (all records already have organization_id)');
+    console.log('✓ No legacy Anthropic records to update (all records already have organization_id)');
     return;
   }
 
-  console.log(`Found ${recordsToUpdate} legacy records with NULL organization_id\n`);
+  console.log(`Found ${recordsToUpdate} legacy Anthropic records with NULL organization_id\n`);
 
   // Fetch org IDs for all configured keys
-  console.log('Fetching organization IDs from API...');
+  console.log('Fetching organization IDs from Anthropic API...');
   const orgsWithIds: { name: string; orgId: string | null }[] = [];
   for (const key of keys) {
-    const orgId = await fetchOrgIdForKey(key.key);
+    const orgId = await fetchAnthropicOrgIdForKey(key.key);
     orgsWithIds.push({ name: key.name, orgId });
     if (orgId) {
       console.log(`  ${key.name}: ${orgId}`);
@@ -340,7 +360,7 @@ export async function cmdBackfillOrgIds(orgName?: string) {
     // Multi-key, no --org specified - show options and exit
     console.log('Multiple orgs configured. Specify which org owned the legacy data:\n');
     validOrgs.forEach(o => console.log(`  ${o.name} (${o.orgId})`));
-    console.log('\nRun: pnpm cli migrate:backfill-org-ids --org "Org Name"');
+    console.log('\nRun: pnpm cli migrate:backfill-org-ids anthropic --org "Org Name"');
     return;
   }
 
@@ -350,6 +370,108 @@ export async function cmdBackfillOrgIds(orgName?: string) {
     UPDATE usage_records
     SET organization_id = ${targetOrg.orgId}
     WHERE organization_id IS NULL AND tool = 'claude_code'
+  `;
+
+  console.log(`\n✓ Updated ${result.rowCount} records`);
+}
+
+async function backfillCursorOrgIds(orgName?: string) {
+  const keys = getCursorKeys();
+
+  if (keys.length === 0) {
+    console.error('❌ No Cursor keys configured');
+    return;
+  }
+
+  // First, check if there are any NULL records to update
+  const nullCount = await sql`
+    SELECT COUNT(*) as count
+    FROM usage_records
+    WHERE organization_id IS NULL AND tool = 'cursor'
+  `;
+  const recordsToUpdate = parseInt(nullCount.rows[0].count);
+
+  if (recordsToUpdate === 0) {
+    console.log('✓ No legacy Cursor records to update (all records already have organization_id)');
+    return;
+  }
+
+  console.log(`Found ${recordsToUpdate} legacy Cursor records with NULL organization_id\n`);
+
+  // For Cursor, org ID is derived from team name, not fetched from API
+  const teamsWithIds = keys.map(k => ({
+    name: k.name,
+    orgId: deriveCursorOrgId(k.name)
+  }));
+
+  console.log('Configured teams:');
+  teamsWithIds.forEach(t => {
+    if (t.orgId) {
+      console.log(`  ${t.name}: ${t.orgId}`);
+    } else {
+      console.log(`  ${t.name}: (default - uses NULL)`);
+    }
+  });
+  console.log('');
+
+  // Filter to teams that have non-null IDs (i.e., not 'default')
+  const validTeams = teamsWithIds.filter(t => t.orgId !== null);
+
+  if (keys.length === 1 && keys[0].name === 'default') {
+    // Single key with 'default' name - legacy records should stay NULL
+    console.log('Single-key config with default name. Legacy records should remain NULL.');
+    console.log('No action needed - records will match on re-sync.');
+    return;
+  }
+
+  if (keys.length === 1) {
+    // Single key with custom name - use it
+    const targetOrg = teamsWithIds[0];
+    if (!targetOrg.orgId) {
+      console.log('Single-key config with default name. No update needed.');
+      return;
+    }
+
+    console.log(`Updating ${recordsToUpdate} records with organization_id = ${targetOrg.orgId} (${targetOrg.name})...`);
+
+    const result = await sql`
+      UPDATE usage_records
+      SET organization_id = ${targetOrg.orgId}
+      WHERE organization_id IS NULL AND tool = 'cursor'
+    `;
+
+    console.log(`\n✓ Updated ${result.rowCount} records`);
+    return;
+  }
+
+  // Multi-key config
+  if (!orgName) {
+    console.log('Multiple teams configured. Specify which team owned the legacy data:\n');
+    teamsWithIds.forEach(t => console.log(`  ${t.name}${t.orgId ? ` (${t.orgId})` : ' (default)'}`));
+    console.log('\nRun: pnpm cli migrate:backfill-org-ids cursor --org "Team Name"');
+    return;
+  }
+
+  const targetTeam = teamsWithIds.find(t => t.name === orgName);
+  if (!targetTeam) {
+    console.error(`❌ Team '${orgName}' not found in configured keys`);
+    console.error('Available teams:');
+    teamsWithIds.forEach(t => console.error(`  ${t.name}`));
+    return;
+  }
+
+  if (!targetTeam.orgId) {
+    console.log(`Team '${orgName}' uses default (NULL) organization_id.`);
+    console.log('No update needed - legacy records already have NULL.');
+    return;
+  }
+
+  console.log(`Updating ${recordsToUpdate} records with organization_id = ${targetTeam.orgId} (${targetTeam.name})...`);
+
+  const result = await sql`
+    UPDATE usage_records
+    SET organization_id = ${targetTeam.orgId}
+    WHERE organization_id IS NULL AND tool = 'cursor'
   `;
 
   console.log(`\n✓ Updated ${result.rowCount} records`);

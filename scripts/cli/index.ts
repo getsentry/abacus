@@ -57,8 +57,9 @@ Commands:
   backfill:complete <tool>
                         Mark backfill as complete for a tool (anthropic|cursor|github)
   backfill:reset <tool> Reset backfill status for a tool (allows re-backfilling)
-  migrate:backfill-org-ids [--org NAME]
-                        Backfill organization_id for legacy Anthropic records.
+  migrate:backfill-org-ids <tool> [--org NAME]
+                        Backfill organization_id for legacy records.
+                        tool: anthropic or cursor
                         Run BEFORE switching to multi-org config.
   gaps [tool]           Check for gaps in usage data (tool: anthropic|cursor, default: both)
   mappings              List API key mappings
@@ -247,9 +248,15 @@ async function main() {
         break;
       }
       case 'migrate:backfill-org-ids': {
+        const tool = args[1] as 'anthropic' | 'cursor';
+        if (!tool || !['anthropic', 'cursor'].includes(tool)) {
+          console.error('Error: Please specify tool (anthropic or cursor)');
+          console.error('Usage: pnpm cli migrate:backfill-org-ids <tool> [--org NAME]');
+          break;
+        }
         const orgIdx = args.indexOf('--org');
         const orgName = orgIdx >= 0 ? args[orgIdx + 1] : undefined;
-        await cmdBackfillOrgIds(orgName);
+        await cmdBackfillOrgIds(tool, orgName);
         break;
       }
       case 'import:cursor-csv': {
