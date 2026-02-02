@@ -35,7 +35,7 @@ import { cmdAnthropicStatus } from './anthropic';
 import { cmdCursorStatus, cmdImportCursorCsv } from './cursor';
 import { cmdGitHubStatus, cmdGitHubSync, cmdGitHubCommits, cmdGitHubUsers, cmdGitHubUsersMap, cmdGitHubUsersSync, cmdGitHubCleanupMerges } from './github';
 import { cmdMappings, cmdMappingsSync, cmdMappingsFix } from './mappings';
-import { cmdSync, cmdBackfill, cmdGitHubBackfill, cmdBackfillComplete, cmdBackfillReset, cmdGaps } from './sync';
+import { cmdSync, cmdBackfill, cmdGitHubBackfill, cmdBackfillComplete, cmdBackfillReset, cmdGaps, cmdBackfillOrgIds } from './sync';
 import { cmdFixDuplicates } from './fix-duplicates';
 
 function printHelp() {
@@ -57,6 +57,9 @@ Commands:
   backfill:complete <tool>
                         Mark backfill as complete for a tool (anthropic|cursor|github)
   backfill:reset <tool> Reset backfill status for a tool (allows re-backfilling)
+  migrate:backfill-org-ids [--org NAME]
+                        Backfill organization_id for legacy Anthropic records.
+                        Run BEFORE switching to multi-org config.
   gaps [tool]           Check for gaps in usage data (tool: anthropic|cursor, default: both)
   mappings              List API key mappings
   mappings:sync [--full] Sync API key mappings from Anthropic (--full for all keys)
@@ -241,6 +244,12 @@ async function main() {
       case 'gaps': {
         const toolArg = args[1];
         await cmdGaps(toolArg);
+        break;
+      }
+      case 'migrate:backfill-org-ids': {
+        const orgIdx = args.indexOf('--org');
+        const orgName = orgIdx >= 0 ? args[orgIdx + 1] : undefined;
+        await cmdBackfillOrgIds(orgName);
         break;
       }
       case 'import:cursor-csv': {

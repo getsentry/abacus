@@ -3,6 +3,7 @@ import { syncAnthropicUsage, backfillAnthropicUsage, resetAnthropicBackfillCompl
 import { syncCursorUsage, backfillCursorUsage, resetCursorBackfillComplete } from '../../src/lib/sync/cursor';
 import { backfillGitHubUsage, resetGitHubBackfillComplete } from '../../src/lib/sync/github';
 import { syncApiKeyMappingsSmart } from '../../src/lib/sync/anthropic-mappings';
+import { getAnthropicKeys } from '../../src/lib/sync/provider-keys';
 
 interface SyncOptions {
   days?: number;
@@ -228,4 +229,128 @@ export async function cmdGaps(toolArg?: string) {
       console.log(`\nTotal missing days: ${totalMissing} out of ${expectedDays} expected`);
     }
   }
+}
+
+/**
+ * Fetch the organization ID for an Anthropic admin key by querying the API.
+ * Returns null if no data is available or API call fails.
+ */
+async function fetchOrgIdForKey(adminKey: string): Promise<string | null> {
+  // Fetch yesterday's data (most likely to have records)
+  const yesterday = new Date();
+  yesterday.setDate(yesterday.getDate() - 1);
+  const date = yesterday.toISOString().split('T')[0];
+
+  const response = await fetch(
+    `https://api.anthropic.com/v1/organizations/usage_report/claude_code?starting_at=${date}&limit=1`,
+    {
+      headers: {
+        'X-Api-Key': adminKey,
+        'anthropic-version': '2023-06-01'
+      }
+    }
+  );
+
+  if (!response.ok) {
+    return null;
+  }
+
+  const data = await response.json();
+  if (data.data && data.data.length > 0) {
+    return data.data[0].organization_id;
+  }
+
+  return null;
+}
+
+/**
+ * Backfill organization IDs for legacy Anthropic usage records.
+ *
+ * This should be run BEFORE switching from single-key to multi-key configuration.
+ * It updates all claude_code records that have NULL organization_id with the
+ * org ID from the configured Anthropic API key.
+ *
+ * If multiple keys are configured, use --org to specify which org owned the legacy data.
+ */
+export async function cmdBackfillOrgIds(orgName?: string) {
+  const keys = getAnthropicKeys();
+
+  if (keys.length === 0) {
+    console.error('❌ No Anthropic keys configured');
+    return;
+  }
+
+  // First, check if there are any NULL records to update
+  const nullCount = await sql`
+    SELECT COUNT(*) as count
+    FROM usage_records
+    WHERE organization_id IS NULL AND tool = 'claude_code'
+  `;
+  const recordsToUpdate = parseInt(nullCount.rows[0].count);
+
+  if (recordsToUpdate === 0) {
+    console.log('✓ No legacy records to update (all records already have organization_id)');
+    return;
+  }
+
+  console.log(`Found ${recordsToUpdate} legacy records with NULL organization_id\n`);
+
+  // Fetch org IDs for all configured keys
+  console.log('Fetching organization IDs from API...');
+  const orgsWithIds: { name: string; orgId: string | null }[] = [];
+  for (const key of keys) {
+    const orgId = await fetchOrgIdForKey(key.key);
+    orgsWithIds.push({ name: key.name, orgId });
+    if (orgId) {
+      console.log(`  ${key.name}: ${orgId}`);
+    } else {
+      console.log(`  ${key.name}: (no data found)`);
+    }
+  }
+  console.log('');
+
+  // Filter to orgs that have valid IDs
+  const validOrgs = orgsWithIds.filter(o => o.orgId !== null);
+  if (validOrgs.length === 0) {
+    console.error('❌ Could not fetch organization ID from any configured key.');
+    console.error('   Make sure you have usage data in the Anthropic API.');
+    return;
+  }
+
+  let targetOrg: { name: string; orgId: string };
+
+  if (keys.length === 1) {
+    // Single key - use it
+    if (!validOrgs[0].orgId) {
+      console.error('❌ Could not fetch organization ID from API');
+      return;
+    }
+    targetOrg = { name: validOrgs[0].name, orgId: validOrgs[0].orgId };
+  } else if (orgName) {
+    // Multi-key with --org specified
+    const found = validOrgs.find(o => o.name === orgName);
+    if (!found) {
+      console.error(`❌ Org '${orgName}' not found or has no data`);
+      console.error('Available orgs with data:');
+      validOrgs.forEach(o => console.error(`  ${o.name}`));
+      return;
+    }
+    targetOrg = { name: found.name, orgId: found.orgId! };
+  } else {
+    // Multi-key, no --org specified - show options and exit
+    console.log('Multiple orgs configured. Specify which org owned the legacy data:\n');
+    validOrgs.forEach(o => console.log(`  ${o.name} (${o.orgId})`));
+    console.log('\nRun: pnpm cli migrate:backfill-org-ids --org "Org Name"');
+    return;
+  }
+
+  console.log(`Updating ${recordsToUpdate} records with organization_id = ${targetOrg.orgId} (${targetOrg.name})...`);
+
+  const result = await sql`
+    UPDATE usage_records
+    SET organization_id = ${targetOrg.orgId}
+    WHERE organization_id IS NULL AND tool = 'claude_code'
+  `;
+
+  console.log(`\n✓ Updated ${result.rowCount} records`);
 }
