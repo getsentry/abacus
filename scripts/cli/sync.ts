@@ -414,9 +414,6 @@ async function backfillCursorOrgIds(orgName?: string) {
   });
   console.log('');
 
-  // Filter to teams that have non-null IDs (i.e., not 'default')
-  const validTeams = teamsWithIds.filter(t => t.orgId !== null);
-
   if (keys.length === 1 && keys[0].name === 'default') {
     // Single key with 'default' name - legacy records should stay NULL
     console.log('Single-key config with default name. Legacy records should remain NULL.');
