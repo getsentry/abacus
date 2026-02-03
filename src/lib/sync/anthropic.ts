@@ -507,7 +507,7 @@ export async function syncAnthropicCron(): Promise<SyncResult> {
  */
 export async function backfillAnthropicUsage(
   targetDate: string,
-  options: { onProgress?: (msg: string) => void; stopOnEmptyDays?: number; orgName?: string } = {}
+  options: { onProgress?: (msg: string) => void; stopOnEmptyDays?: number } = {}
 ): Promise<SyncResult & { rateLimited: boolean }> {
   const log = options.onProgress || (() => {});
   const stopOnEmptyDays = options.stopOnEmptyDays ?? 7;
@@ -562,7 +562,7 @@ export async function backfillAnthropicUsage(
   }
 
   log(`Fetching Anthropic usage from ${targetDate} to ${endDate}...`);
-  const result = await syncAnthropicUsage(targetDate, endDate, { orgName: options.orgName });
+  const result = await syncAnthropicUsage(targetDate, endDate);
 
   // Check if we were rate limited
   const rateLimited = result.errors.some(e => e.includes('rate limited'));

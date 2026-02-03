@@ -74,7 +74,7 @@ export async function cmdSync(options: SyncOptions = {}) {
   console.log('\n✓ Sync complete!');
 }
 
-export async function cmdBackfill(tool: 'anthropic' | 'cursor', fromDate: string, orgName?: string) {
+export async function cmdBackfill(tool: 'anthropic' | 'cursor', fromDate: string) {
   // Check if provider is configured
   if (tool === 'anthropic' && !process.env.ANTHROPIC_ADMIN_KEY && !process.env.ANTHROPIC_ADMIN_KEYS) {
     console.error('❌ ANTHROPIC_ADMIN_KEY or ANTHROPIC_ADMIN_KEYS not configured');
@@ -85,8 +85,7 @@ export async function cmdBackfill(tool: 'anthropic' | 'cursor', fromDate: string
     return;
   }
 
-  const orgLabel = orgName ? ` (org: ${orgName})` : '';
-  console.log(`📥 Backfilling ${tool}${orgLabel} backwards to ${fromDate}\n`);
+  console.log(`📥 Backfilling ${tool} backwards to ${fromDate}\n`);
 
   if (tool === 'anthropic') {
     // Sync API key mappings first
@@ -98,7 +97,6 @@ export async function cmdBackfill(tool: 'anthropic' | 'cursor', fromDate: string
     // Note: backfill works backwards from existing data toward targetDate (fromDate)
     const result = await backfillAnthropicUsage(fromDate, {
       onProgress: (msg: string) => console.log(msg),
-      orgName
     });
     console.log(`\n✓ Backfill complete`);
     console.log(`  Imported: ${result.recordsImported}, Skipped: ${result.recordsSkipped}`);
@@ -110,7 +108,6 @@ export async function cmdBackfill(tool: 'anthropic' | 'cursor', fromDate: string
     // Note: backfill works backwards from existing data toward targetDate (fromDate)
     const result = await backfillCursorUsage(fromDate, {
       onProgress: (msg: string) => console.log(msg),
-      orgName
     });
     console.log(`\n✓ Backfill complete`);
     console.log(`  Imported: ${result.recordsImported}, Skipped: ${result.recordsSkipped}`);

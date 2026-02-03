@@ -469,10 +469,9 @@ export async function backfillCursorUsage(
   options: {
     onProgress?: (msg: string) => void;
     stopOnEmptyDays?: number;   // Stop after N consecutive days with 0 events (default: 7)
-    orgName?: string;           // Filter to specific team by name
   } = {}
 ): Promise<SyncResult & { rateLimited: boolean; lastProcessedDate: string | null }> {
-  let keys = getCursorKeys();
+  const keys = getCursorKeys();
   if (keys.length === 0) {
     return {
       success: false,
@@ -482,21 +481,6 @@ export async function backfillCursorUsage(
       rateLimited: false,
       lastProcessedDate: null
     };
-  }
-
-  // Filter to specific team if requested
-  if (options.orgName) {
-    keys = keys.filter(k => k.name === options.orgName);
-    if (keys.length === 0) {
-      return {
-        success: false,
-        recordsImported: 0,
-        recordsSkipped: 0,
-        errors: [`Team '${options.orgName}' not found in configured keys`],
-        rateLimited: false,
-        lastProcessedDate: null
-      };
-    }
   }
 
   const log = options.onProgress || (() => {});

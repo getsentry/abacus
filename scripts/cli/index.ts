@@ -51,9 +51,8 @@ Commands:
                         Sync recent usage data (tool: anthropic|cursor, default: both)
                         Use --from/--to for precise date range (YYYY-MM-DD)
                         Use --org to filter to specific org/team by name
-  backfill <tool> --from YYYY-MM-DD [--org NAME]
+  backfill <tool> --from YYYY-MM-DD
                         Backfill historical data backwards to the specified date
-                        Use --org to filter to specific org/team by name
   backfill:complete <tool>
                         Mark backfill as complete for a tool (anthropic|cursor|github)
   backfill:reset <tool> Reset backfill status for a tool (allows re-backfilling)
@@ -194,13 +193,13 @@ async function main() {
         const tool = args[1] as 'anthropic' | 'cursor' | 'github';
         if (!tool || !['anthropic', 'cursor', 'github'].includes(tool)) {
           console.error('Error: Please specify tool (anthropic, cursor, or github)');
-          console.error('Usage: npm run cli backfill <tool> --from YYYY-MM-DD [--org NAME]');
+          console.error('Usage: npm run cli backfill <tool> --from YYYY-MM-DD');
           break;
         }
         const fromIdx = args.indexOf('--from');
         if (fromIdx < 0) {
           console.error('Error: Please specify --from date');
-          console.error('Usage: npm run cli backfill <tool> --from YYYY-MM-DD [--org NAME]');
+          console.error('Usage: npm run cli backfill <tool> --from YYYY-MM-DD');
           break;
         }
         const fromDate = args[fromIdx + 1];
@@ -213,12 +212,10 @@ async function main() {
           console.error('Error: --from date must be in YYYY-MM-DD format');
           break;
         }
-        const orgIdx = args.indexOf('--org');
-        const orgName = orgIdx >= 0 ? args[orgIdx + 1] : undefined;
         if (tool === 'github') {
           await cmdGitHubBackfill(fromDate);
         } else {
-          await cmdBackfill(tool, fromDate, orgName);
+          await cmdBackfill(tool, fromDate);
         }
         break;
       }
