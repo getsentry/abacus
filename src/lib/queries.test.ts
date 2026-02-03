@@ -155,6 +155,56 @@ describe('Database Queries', () => {
       expect(records).toHaveLength(1);
       expect(records[0].inputTokens).toBe(2000);
     });
+
+    it('migrates NULL organization_id record when inserting with real org ID (migration support)', async () => {
+      // Simulate legacy record with NULL organization_id
+      await insertUsageRecord({
+        ...createTestUsageRecord(),
+        // organizationId not set = NULL
+        inputTokens: 1000,
+        outputTokens: 500,
+      });
+
+      // Verify the record exists with NULL org
+      const beforeRecords = await db
+        .select()
+        .from(usageRecords)
+        .where(
+          and(
+            eq(usageRecords.email, 'test@example.com'),
+            eq(usageRecords.date, '2025-01-15'),
+            eq(usageRecords.tool, 'claude_code')
+          )
+        );
+      expect(beforeRecords).toHaveLength(1);
+      expect(beforeRecords[0].organizationId).toBeNull();
+
+      // Now insert same record but with a real organization_id
+      // This should UPDATE the existing NULL record, not create a duplicate
+      await insertUsageRecord({
+        ...createTestUsageRecord(),
+        organizationId: 'org-real-uuid',
+        inputTokens: 2000,
+        outputTokens: 1000,
+      });
+
+      // Should still be only 1 record, now with the org ID populated
+      const afterRecords = await db
+        .select()
+        .from(usageRecords)
+        .where(
+          and(
+            eq(usageRecords.email, 'test@example.com'),
+            eq(usageRecords.date, '2025-01-15'),
+            eq(usageRecords.tool, 'claude_code')
+          )
+        );
+
+      expect(afterRecords).toHaveLength(1);
+      expect(afterRecords[0].organizationId).toBe('org-real-uuid');
+      expect(afterRecords[0].inputTokens).toBe(2000);
+      expect(afterRecords[0].outputTokens).toBe(1000);
+    });
   });
 
   describe('getOverallStats', () => {
