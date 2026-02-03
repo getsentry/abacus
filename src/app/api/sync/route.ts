@@ -3,6 +3,7 @@ import { wrapRouteHandlerWithSentry } from '@sentry/nextjs';
 import { runFullSync, getSyncState, syncMappings } from '@/lib/sync';
 import { getSession } from '@/lib/auth';
 import { isValidDateString } from '@/lib/utils';
+import { getAnthropicKeys, getCursorKeys } from '@/lib/sync/provider-keys';
 
 // Get sync status
 async function getHandler() {
@@ -14,8 +15,8 @@ async function getHandler() {
   const state = await getSyncState('main');
   return NextResponse.json({
     lastSync: state.lastSyncAt,
-    anthropicConfigured: !!process.env.ANTHROPIC_ADMIN_KEY,
-    cursorConfigured: !!(process.env.CURSOR_TEAM_SLUG && process.env.CURSOR_ADMIN_KEY)
+    anthropicConfigured: getAnthropicKeys().length > 0,
+    cursorConfigured: getCursorKeys().length > 0
   });
 }
 

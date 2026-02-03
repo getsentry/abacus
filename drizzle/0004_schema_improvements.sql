@@ -5,7 +5,7 @@
 -- - Convert backfill_complete to boolean
 
 -- ============================================
--- 1. Convert usage_records text columns to varchar
+-- 1. Convert usage_records text columns to varchar (safe to re-run)
 -- ============================================
 ALTER TABLE usage_records ALTER COLUMN email TYPE VARCHAR(255);
 ALTER TABLE usage_records ALTER COLUMN tool TYPE VARCHAR(64);
@@ -45,10 +45,10 @@ END $$;
 -- ============================================
 
 -- Index for setToolIdentityMapping() UPDATE query: WHERE tool = ? AND tool_record_id = ?
-CREATE INDEX idx_usage_tool_record_id ON usage_records (tool, tool_record_id) WHERE tool_record_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_usage_tool_record_id ON usage_records (tool, tool_record_id) WHERE tool_record_id IS NOT NULL;
 
 -- Index for reverse email lookups on tool_identity_mappings
-CREATE INDEX idx_identity_email ON tool_identity_mappings (email);
+CREATE INDEX IF NOT EXISTS idx_identity_email ON tool_identity_mappings (email);
 
 -- ============================================
 -- 4. Remove redundant single-column indexes

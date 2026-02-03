@@ -59,6 +59,10 @@ export const usageRecords = pgTable('usage_records', {
   toolRecordId: varchar('tool_record_id', { length: 255 }),
   // Epoch milliseconds timestamp for per-event deduplication (Cursor)
   timestampMs: bigint('timestamp_ms', { mode: 'number' }),
+  // Organization/team ID for multi-org support (Anthropic org UUID or derived Cursor team ID)
+  organizationId: varchar('organization_id', { length: 64 }),
+  // Customer type: 'api' or 'subscription' (Anthropic only)
+  customerType: varchar('customer_type', { length: 32 }),
   createdAt: timestamp('created_at').defaultNow(),
 }, (table) => [
   index('idx_usage_date').on(table.date),
@@ -67,13 +71,15 @@ export const usageRecords = pgTable('usage_records', {
   // Partial index for tool_record_id lookups (only where not null)
   index('idx_usage_tool_record_id').on(table.tool, table.toolRecordId),
   // Unique index for deduplication - includes timestamp_ms for per-event uniqueness
+  // and organization_id for multi-org support
   uniqueIndex('idx_usage_unique').on(
     table.date,
     sql`COALESCE(${table.email}, '')`,
     table.tool,
     sql`COALESCE(${table.rawModel}, '')`,
     sql`COALESCE(${table.toolRecordId}, '')`,
-    sql`COALESCE(${table.timestampMs}::text, '')`
+    sql`COALESCE(${table.timestampMs}::text, '')`,
+    sql`COALESCE(${table.organizationId}, '')`
   ),
 ]);
 

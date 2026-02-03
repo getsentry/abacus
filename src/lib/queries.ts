@@ -787,18 +787,56 @@ export async function insertUsageRecord(record: {
   cost: number;
   toolRecordId?: string;
   timestampMs?: number;  // Epoch milliseconds for per-event deduplication (Cursor)
+  organizationId?: string;  // Anthropic org UUID or derived Cursor team ID
+  customerType?: string;  // 'api' or 'subscription' (Anthropic only)
 }): Promise<void> {
+  // TODO(dcramer): Remove this migration block after March 1st, 2026
+  // This handles the transition from NULL organization_id to real UUIDs.
+  // After sufficient time has passed for all users to have synced, this
+  // UPDATE-first logic can be removed and we can use INSERT only.
+  if (record.organizationId) {
+    // Try to update existing record with NULL organization_id first
+    // This prevents duplicates during the migration period
+    const updateResult = await db.execute(sql`
+      UPDATE ${usageRecords}
+      SET
+        model = ${record.model},
+        input_tokens = ${record.inputTokens},
+        cache_write_tokens = ${record.cacheWriteTokens},
+        cache_read_tokens = ${record.cacheReadTokens},
+        output_tokens = ${record.outputTokens},
+        cost = ${record.cost},
+        organization_id = ${record.organizationId},
+        customer_type = ${record.customerType ?? null}
+      WHERE date = ${record.date}
+        AND COALESCE(email, '') = COALESCE(${record.email}, '')
+        AND tool = ${record.tool}
+        AND COALESCE(raw_model, '') = COALESCE(${record.rawModel ?? null}, '')
+        AND COALESCE(tool_record_id, '') = COALESCE(${record.toolRecordId ?? null}, '')
+        AND COALESCE(timestamp_ms::text, '') = COALESCE(${record.timestampMs ?? null}::text, '')
+        AND organization_id IS NULL
+    `);
+
+    // If we updated a row, we're done - no need to insert
+    if (updateResult.rowCount && updateResult.rowCount > 0) {
+      return;
+    }
+  }
+
+  // Normal insert with ON CONFLICT for true duplicates
   await db.execute(sql`
-    INSERT INTO ${usageRecords} (date, email, tool, model, raw_model, input_tokens, cache_write_tokens, cache_read_tokens, output_tokens, cost, tool_record_id, timestamp_ms)
-    VALUES (${record.date}, ${record.email}, ${record.tool}, ${record.model}, ${record.rawModel ?? null}, ${record.inputTokens}, ${record.cacheWriteTokens}, ${record.cacheReadTokens}, ${record.outputTokens}, ${record.cost}, ${record.toolRecordId ?? null}, ${record.timestampMs ?? null})
-    ON CONFLICT (date, COALESCE(email, ''), tool, COALESCE(raw_model, ''), COALESCE(tool_record_id, ''), COALESCE(timestamp_ms::text, ''))
+    INSERT INTO ${usageRecords} (date, email, tool, model, raw_model, input_tokens, cache_write_tokens, cache_read_tokens, output_tokens, cost, tool_record_id, timestamp_ms, organization_id, customer_type)
+    VALUES (${record.date}, ${record.email}, ${record.tool}, ${record.model}, ${record.rawModel ?? null}, ${record.inputTokens}, ${record.cacheWriteTokens}, ${record.cacheReadTokens}, ${record.outputTokens}, ${record.cost}, ${record.toolRecordId ?? null}, ${record.timestampMs ?? null}, ${record.organizationId ?? null}, ${record.customerType ?? null})
+    ON CONFLICT (date, COALESCE(email, ''), tool, COALESCE(raw_model, ''), COALESCE(tool_record_id, ''), COALESCE(timestamp_ms::text, ''), COALESCE(organization_id, ''))
     DO UPDATE SET
       model = EXCLUDED.model,
       input_tokens = EXCLUDED.input_tokens,
       cache_write_tokens = EXCLUDED.cache_write_tokens,
       cache_read_tokens = EXCLUDED.cache_read_tokens,
       output_tokens = EXCLUDED.output_tokens,
-      cost = EXCLUDED.cost
+      cost = EXCLUDED.cost,
+      organization_id = EXCLUDED.organization_id,
+      customer_type = EXCLUDED.customer_type
   `);
 }
 

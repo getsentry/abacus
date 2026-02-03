@@ -2,17 +2,17 @@
 -- This enables tracking AI Attributed commits across repositories (GitHub, GitLab, etc.)
 
 -- Normalized repositories table (saves space, enables source-agnostic design)
-CREATE TABLE repositories (
+CREATE TABLE IF NOT EXISTS repositories (
   id SERIAL PRIMARY KEY,
   source VARCHAR(64) NOT NULL,        -- 'github', 'gitlab', 'bitbucket'
   full_name VARCHAR(255) NOT NULL,    -- 'getsentry/sentry'
   created_at TIMESTAMP DEFAULT NOW()
 );
 
-CREATE UNIQUE INDEX idx_repositories_unique ON repositories(source, full_name);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_repositories_unique ON repositories(source, full_name);
 
 -- Commits table (stores ALL commits for percentage calculations)
-CREATE TABLE commits (
+CREATE TABLE IF NOT EXISTS commits (
   id SERIAL PRIMARY KEY,
   repo_id INTEGER NOT NULL REFERENCES repositories(id),
   commit_id VARCHAR(64) NOT NULL,     -- SHA (40 chars for git)
@@ -26,12 +26,12 @@ CREATE TABLE commits (
 );
 
 -- Unique constraint on repo + commit
-CREATE UNIQUE INDEX idx_commits_unique ON commits(repo_id, commit_id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_commits_unique ON commits(repo_id, commit_id);
 
 -- Query indexes
-CREATE INDEX idx_commits_author ON commits(author_email);
-CREATE INDEX idx_commits_committed_at ON commits(committed_at);
-CREATE INDEX idx_commits_repo_date ON commits(repo_id, committed_at);
+CREATE INDEX IF NOT EXISTS idx_commits_author ON commits(author_email);
+CREATE INDEX IF NOT EXISTS idx_commits_committed_at ON commits(committed_at);
+CREATE INDEX IF NOT EXISTS idx_commits_repo_date ON commits(repo_id, committed_at);
 
 -- Partial index for AI Attributed commits (commonly queried)
-CREATE INDEX idx_commits_ai_tool ON commits(ai_tool) WHERE ai_tool IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_commits_ai_tool ON commits(ai_tool) WHERE ai_tool IS NOT NULL;

@@ -35,7 +35,7 @@ import { cmdAnthropicStatus } from './anthropic';
 import { cmdCursorStatus, cmdImportCursorCsv } from './cursor';
 import { cmdGitHubStatus, cmdGitHubSync, cmdGitHubCommits, cmdGitHubUsers, cmdGitHubUsersMap, cmdGitHubUsersSync, cmdGitHubCleanupMerges } from './github';
 import { cmdMappings, cmdMappingsSync, cmdMappingsFix } from './mappings';
-import { cmdSync, cmdBackfill, cmdGitHubBackfill, cmdBackfillComplete, cmdBackfillReset, cmdGaps } from './sync';
+import { cmdSync, cmdBackfill, cmdGitHubBackfill, cmdBackfillComplete, cmdBackfillReset, cmdGaps, cmdBackfillOrgIds } from './sync';
 import { cmdFixDuplicates } from './fix-duplicates';
 
 function printHelp() {
@@ -47,14 +47,19 @@ Usage:
 
 Commands:
   db:migrate            Run pending database migrations
-  sync [tool] [--days N] [--from DATE] [--to DATE] [--skip-mappings]
+  sync [tool] [--days N] [--from DATE] [--to DATE] [--org NAME] [--skip-mappings]
                         Sync recent usage data (tool: anthropic|cursor, default: both)
                         Use --from/--to for precise date range (YYYY-MM-DD)
+                        Use --org to filter to specific org/team by name
   backfill <tool> --from YYYY-MM-DD
                         Backfill historical data backwards to the specified date
   backfill:complete <tool>
                         Mark backfill as complete for a tool (anthropic|cursor|github)
   backfill:reset <tool> Reset backfill status for a tool (allows re-backfilling)
+  migrate:backfill-org-ids <tool> [--org NAME]
+                        Backfill organization_id for legacy records.
+                        tool: anthropic or cursor
+                        Run BEFORE switching to multi-org config.
   gaps [tool]           Check for gaps in usage data (tool: anthropic|cursor, default: both)
   mappings              List API key mappings
   mappings:sync [--full] Sync API key mappings from Anthropic (--full for all keys)
@@ -168,8 +173,10 @@ async function main() {
         const days = daysIdx >= 0 ? parseInt(args[daysIdx + 1]) : 7;
         const fromIdx = args.indexOf('--from');
         const toIdx = args.indexOf('--to');
+        const orgIdx = args.indexOf('--org');
         const fromDate = fromIdx >= 0 ? args[fromIdx + 1] : undefined;
         const toDate = toIdx >= 0 ? args[toIdx + 1] : undefined;
+        const orgName = orgIdx >= 0 ? args[orgIdx + 1] : undefined;
         const skipMappings = args.includes('--skip-mappings');
         // Parse tool filter: sync [anthropic|cursor] --days N
         const toolArg = args[1];
@@ -179,7 +186,7 @@ async function main() {
         } else if (toolArg === 'cursor') {
           tools = ['cursor'];
         }
-        await cmdSync({ days, fromDate, toDate, tools, skipMappings });
+        await cmdSync({ days, fromDate, toDate, tools, skipMappings, orgName });
         break;
       }
       case 'backfill': {
@@ -235,6 +242,18 @@ async function main() {
       case 'gaps': {
         const toolArg = args[1];
         await cmdGaps(toolArg);
+        break;
+      }
+      case 'migrate:backfill-org-ids': {
+        const tool = args[1] as 'anthropic' | 'cursor';
+        if (!tool || !['anthropic', 'cursor'].includes(tool)) {
+          console.error('Error: Please specify tool (anthropic or cursor)');
+          console.error('Usage: pnpm cli migrate:backfill-org-ids <tool> [--org NAME]');
+          break;
+        }
+        const orgIdx = args.indexOf('--org');
+        const orgName = orgIdx >= 0 ? args[orgIdx + 1] : undefined;
+        await cmdBackfillOrgIds(tool, orgName);
         break;
       }
       case 'import:cursor-csv': {

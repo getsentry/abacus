@@ -1,5 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { insertUsageRecord, getOverallStats, getLifetimeStats } from '@/lib/queries';
+import { db, usageRecords } from '@/lib/db';
+import { eq, and } from 'drizzle-orm';
 
 // Helper to create test usage records
 function createTestUsageRecord(overrides: Partial<Parameters<typeof insertUsageRecord>[0]> = {}) {
@@ -83,6 +85,125 @@ describe('Database Queries', () => {
 
       const stats = await getOverallStats(record1.date, record1.date);
       expect(stats.activeUsers).toBe(2);
+    });
+
+    it('keeps records separate for different organizations (multi-org support)', async () => {
+      // Insert record for Org A
+      await insertUsageRecord({
+        ...createTestUsageRecord(),
+        organizationId: 'org-a-uuid',
+        inputTokens: 1000,
+        outputTokens: 500,
+      });
+
+      // Insert record for Org B with same user/date/tool/model
+      await insertUsageRecord({
+        ...createTestUsageRecord(),
+        organizationId: 'org-b-uuid',
+        inputTokens: 2000,
+        outputTokens: 1000,
+      });
+
+      // Both records should exist
+      const records = await db
+        .select()
+        .from(usageRecords)
+        .where(
+          and(
+            eq(usageRecords.email, 'test@example.com'),
+            eq(usageRecords.date, '2025-01-15'),
+            eq(usageRecords.tool, 'claude_code')
+          )
+        );
+
+      expect(records).toHaveLength(2);
+
+      const orgARecord = records.find(r => r.organizationId === 'org-a-uuid');
+      const orgBRecord = records.find(r => r.organizationId === 'org-b-uuid');
+
+      expect(orgARecord).toBeDefined();
+      expect(orgBRecord).toBeDefined();
+      expect(orgARecord!.inputTokens).toBe(1000);
+      expect(orgBRecord!.inputTokens).toBe(2000);
+    });
+
+    it('upserts correctly within the same organization', async () => {
+      // Insert record for Org A
+      await insertUsageRecord({
+        ...createTestUsageRecord(),
+        organizationId: 'org-a-uuid',
+        inputTokens: 1000,
+      });
+
+      // Update record for same org (should upsert)
+      await insertUsageRecord({
+        ...createTestUsageRecord(),
+        organizationId: 'org-a-uuid',
+        inputTokens: 2000,
+      });
+
+      const records = await db
+        .select()
+        .from(usageRecords)
+        .where(
+          and(
+            eq(usageRecords.email, 'test@example.com'),
+            eq(usageRecords.organizationId, 'org-a-uuid')
+          )
+        );
+
+      expect(records).toHaveLength(1);
+      expect(records[0].inputTokens).toBe(2000);
+    });
+
+    it('migrates NULL organization_id record when inserting with real org ID (migration support)', async () => {
+      // Simulate legacy record with NULL organization_id
+      await insertUsageRecord({
+        ...createTestUsageRecord(),
+        // organizationId not set = NULL
+        inputTokens: 1000,
+        outputTokens: 500,
+      });
+
+      // Verify the record exists with NULL org
+      const beforeRecords = await db
+        .select()
+        .from(usageRecords)
+        .where(
+          and(
+            eq(usageRecords.email, 'test@example.com'),
+            eq(usageRecords.date, '2025-01-15'),
+            eq(usageRecords.tool, 'claude_code')
+          )
+        );
+      expect(beforeRecords).toHaveLength(1);
+      expect(beforeRecords[0].organizationId).toBeNull();
+
+      // Now insert same record but with a real organization_id
+      // This should UPDATE the existing NULL record, not create a duplicate
+      await insertUsageRecord({
+        ...createTestUsageRecord(),
+        organizationId: 'org-real-uuid',
+        inputTokens: 2000,
+        outputTokens: 1000,
+      });
+
+      // Should still be only 1 record, now with the org ID populated
+      const afterRecords = await db
+        .select()
+        .from(usageRecords)
+        .where(
+          and(
+            eq(usageRecords.email, 'test@example.com'),
+            eq(usageRecords.date, '2025-01-15'),
+            eq(usageRecords.tool, 'claude_code')
+          )
+        );
+
+      expect(afterRecords).toHaveLength(1);
+      expect(afterRecords[0].organizationId).toBe('org-real-uuid');
+      expect(afterRecords[0].inputTokens).toBe(2000);
+      expect(afterRecords[0].outputTokens).toBe(1000);
     });
   });
 

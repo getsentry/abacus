@@ -22,8 +22,9 @@ describe('GET /api/cron/sync-anthropic', () => {
     expect(response.status).toBe(401);
   });
 
-  it('skips when ANTHROPIC_ADMIN_KEY not configured', async () => {
+  it('skips when no Anthropic keys configured', async () => {
     vi.stubEnv('ANTHROPIC_ADMIN_KEY', '');
+    vi.stubEnv('ANTHROPIC_ADMIN_KEYS', '');
 
     const response = await GET(
       new Request('http://localhost/api/cron/sync-anthropic', {
@@ -34,7 +35,7 @@ describe('GET /api/cron/sync-anthropic', () => {
     expect(response.status).toBe(200);
     const data = await response.json();
     expect(data.skipped).toBe(true);
-    expect(data.reason).toContain('ANTHROPIC_ADMIN_KEY');
+    expect(data.reason).toContain('No Anthropic admin keys configured');
   });
 
   // Note: Full integration testing of the sync flow would require

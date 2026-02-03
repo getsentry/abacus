@@ -6,6 +6,7 @@ import { getGitHubBackfillState } from '@/lib/sync/github';
 import { getUnmappedGitHubUsers } from '@/lib/sync/github-mappings';
 import { getUnattributedStats, getLifetimeStats, getUnmappedToolRecords } from '@/lib/queries';
 import { getSession } from '@/lib/auth';
+import { getAnthropicKeys, getCursorKeys } from '@/lib/sync/provider-keys';
 
 type SyncStatus = 'up_to_date' | 'behind' | 'never_synced';
 type BackfillStatus = 'complete' | 'in_progress' | 'not_started';
@@ -42,8 +43,8 @@ async function handler() {
   }
 
   // Check which providers are configured
-  const anthropicConfigured = !!process.env.ANTHROPIC_ADMIN_KEY;
-  const cursorConfigured = !!process.env.CURSOR_ADMIN_KEY;
+  const anthropicConfigured = getAnthropicKeys().length > 0;
+  const cursorConfigured = getCursorKeys().length > 0;
 
   const providers: Record<string, unknown> = {};
   const crons: { path: string; schedule: string; type: string }[] = [];

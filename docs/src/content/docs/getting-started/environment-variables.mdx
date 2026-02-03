@@ -27,6 +27,7 @@ These variables are required for Abacus to function:
 | Variable | Description |
 |----------|-------------|
 | `ANTHROPIC_ADMIN_KEY` | Anthropic Admin API key (starts with `sk-admin-`) |
+| `ANTHROPIC_ADMIN_KEYS` | JSON array of keys for multiple organizations (see [Multi-Organization Keys](#multi-organization-keys)) |
 
 See [Claude Code setup](/abacus/providers/claude-code/) for details.
 
@@ -35,6 +36,7 @@ See [Claude Code setup](/abacus/providers/claude-code/) for details.
 | Variable | Description |
 |----------|-------------|
 | `CURSOR_ADMIN_KEY` | Cursor Admin API key |
+| `CURSOR_ADMIN_KEYS` | JSON array of keys for multiple teams (see [Multi-Organization Keys](#multi-organization-keys)) |
 
 See [Cursor setup](/abacus/providers/cursor/) for details.
 
@@ -63,4 +65,21 @@ See [GitHub Commits setup](/abacus/providers/github-commits/) for details.
 
 <Aside type="tip">
   In Vercel, you can paste multi-line values (like the GitHub private key) directly. The newlines will be preserved.
+</Aside>
+
+## Multi-Organization Keys
+
+For managing multiple Anthropic organizations or Cursor teams, use a JSON array:
+
+```bash
+ANTHROPIC_ADMIN_KEYS='[{"key":"sk-admin-xxx","name":"Engineering"},{"key":"sk-admin-yyy","name":"Research"}]'
+CURSOR_ADMIN_KEYS='[{"key":"cur_xxx","name":"Team Alpha"},{"key":"cur_yyy","name":"Team Beta"}]'
+```
+
+Each entry requires:
+- `key`: The admin API key
+- `name`: A label identifying the organization or team (used in reports)
+
+<Aside type="note">
+  When both single-key (`*_ADMIN_KEY`) and multi-key (`*_ADMIN_KEYS`) variables are set, the multi-key variable takes precedence.
 </Aside>

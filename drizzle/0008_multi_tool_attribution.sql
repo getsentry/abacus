@@ -12,9 +12,16 @@ CREATE TABLE IF NOT EXISTS commit_attributions (
   ai_model VARCHAR(128),
   confidence VARCHAR(20) DEFAULT 'detected',
   source VARCHAR(64),
-  created_at TIMESTAMP DEFAULT NOW(),
-  UNIQUE(commit_id, ai_tool)
+  created_at TIMESTAMP DEFAULT NOW()
 );
+
+-- Add unique constraint if not exists
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = 'idx_commit_attributions_unique') THEN
+    CREATE UNIQUE INDEX idx_commit_attributions_unique ON commit_attributions(commit_id, ai_tool);
+  END IF;
+END $$;
 
 CREATE INDEX IF NOT EXISTS idx_commit_attributions_commit ON commit_attributions(commit_id);
 CREATE INDEX IF NOT EXISTS idx_commit_attributions_tool ON commit_attributions(ai_tool);

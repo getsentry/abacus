@@ -4,6 +4,7 @@ import { db, syncState, usageRecords } from '../db';
 import { normalizeModelName } from '../utils';
 import { eq, min, and, sql } from 'drizzle-orm';
 import { getApiKeyNameToEmailMap } from './anthropic-mappings';
+import { getAnthropicKeys, NO_ANTHROPIC_KEYS_ERROR } from './provider-keys';
 
 /**
  * Claude Code Analytics API response types
@@ -229,11 +230,12 @@ async function syncClaudeCodeForDate(
   let page: string | undefined;
   let insertErrors = 0;
 
-  // Aggregate records by (date, email, rawModel) before inserting.
+  // Aggregate records by (date, email, rawModel, organizationId) before inserting.
   // Multiple API keys can belong to the same user, and the insertUsageRecord UPSERT
   // would overwrite instead of summing when it encounters duplicate (date, email, tool, raw_model).
   // Aggregating first ensures we don't lose data.
-  type AggregationKey = string; // Format: "date|email|rawModel"
+  // Note: organizationId is included in the key to keep records from different orgs separate.
+  type AggregationKey = string; // Format: "date|email|rawModel|organizationId"
   type AggregatedRecord = Omit<Parameters<typeof insertUsageRecord>[0], 'tool' | 'model'>;
   const aggregated = new Map<AggregationKey, AggregatedRecord>();
 
@@ -258,11 +260,13 @@ async function syncClaudeCodeForDate(
       }
 
       for (const record of data.data) {
-        // Extract email from actor
-        const email = record.actor.email_address
-          ?? (record.actor.type === 'api_actor' && record.actor.api_key_name
-            ? apiKeyNameToEmail.get(record.actor.api_key_name)
-            : null);
+        // Extract email from actor - user_actor has direct email, api_actor needs lookup
+        let email: string | undefined;
+        if (record.actor.email_address) {
+          email = record.actor.email_address;
+        } else if (record.actor.type === 'api_actor' && record.actor.api_key_name) {
+          email = apiKeyNameToEmail.get(record.actor.api_key_name);
+        }
 
         // Skip records without email attribution
         if (!email) {
@@ -276,7 +280,7 @@ async function syncClaudeCodeForDate(
         // Process each model in the breakdown
         for (const modelData of record.model_breakdown) {
           const rawModel = modelData.model || undefined;
-          const key: AggregationKey = `${recordDate}|${email}|${rawModel || 'unknown'}`;
+          const key: AggregationKey = `${recordDate}|${email}|${rawModel || 'unknown'}|${record.organization_id}`;
 
           const existing = aggregated.get(key);
           const costInDollars = (modelData.estimated_cost.amount || 0) / 100;
@@ -299,6 +303,8 @@ async function syncClaudeCodeForDate(
               cacheWriteTokens: modelData.tokens.cache_creation || 0,
               cacheReadTokens: modelData.tokens.cache_read || 0,
               cost: costInDollars,
+              organizationId: record.organization_id,
+              customerType: record.customer_type,
             });
           }
         }
@@ -321,6 +327,8 @@ async function syncClaudeCodeForDate(
           cacheReadTokens: record.cacheReadTokens,
           outputTokens: record.outputTokens,
           cost: record.cost,
+          organizationId: record.organizationId,
+          customerType: record.customerType,
         });
         result.recordsImported++;
       } catch (err) {
@@ -360,20 +368,35 @@ async function syncClaudeCodeForDate(
 
 /**
  * Sync Anthropic usage for a date range.
- * Iterates through each date and fetches data from Claude Code Analytics API.
+ * Iterates through each configured organization key and date,
+ * fetching data from Claude Code Analytics API.
  */
 export async function syncAnthropicUsage(
   startDate: string,
-  endDate: string
+  endDate: string,
+  options: { orgName?: string } = {}
 ): Promise<SyncResult> {
-  const adminKey = process.env.ANTHROPIC_ADMIN_KEY;
-  if (!adminKey) {
+  let keys = getAnthropicKeys();
+  if (keys.length === 0) {
     return {
       success: false,
       recordsImported: 0,
       recordsSkipped: 0,
-      errors: ['ANTHROPIC_ADMIN_KEY not configured']
+      errors: [NO_ANTHROPIC_KEYS_ERROR]
     };
+  }
+
+  // Filter to specific org if requested
+  if (options.orgName) {
+    keys = keys.filter(k => k.name === options.orgName);
+    if (keys.length === 0) {
+      return {
+        success: false,
+        recordsImported: 0,
+        recordsSkipped: 0,
+        errors: [`Organization '${options.orgName}' not found in configured keys`]
+      };
+    }
   }
 
   const result: SyncResult = {
@@ -394,22 +417,30 @@ export async function syncAnthropicUsage(
     current.setDate(current.getDate() + 1);
   }
 
-  // Fetch API key name -> email map once for all dates (avoids redundant API calls)
-  const apiKeyNameToEmail = await getApiKeyNameToEmailMap({ includeArchived: true });
+  let rateLimited = false;
 
-  // Sync each date
-  for (const date of dates) {
-    const dateResult = await syncClaudeCodeForDate(adminKey, date, apiKeyNameToEmail);
+  // Sync each organization
+  for (const { key: adminKey, name: orgName } of keys) {
+    if (rateLimited) break;
 
-    result.recordsImported += dateResult.recordsImported;
-    result.recordsSkipped += dateResult.recordsSkipped;
-    result.errors.push(...dateResult.errors);
+    // Fetch API key name -> email map once per org (avoids redundant API calls)
+    const apiKeyNameToEmail = await getApiKeyNameToEmailMap(adminKey, { includeArchived: true });
 
-    if (!dateResult.success) {
-      result.success = false;
-      // Stop on rate limit or error
-      if (dateResult.errors.some(e => e.includes('rate limited'))) {
-        break;
+    // Sync each date for this org
+    for (const date of dates) {
+      const dateResult = await syncClaudeCodeForDate(adminKey, date, apiKeyNameToEmail);
+
+      result.recordsImported += dateResult.recordsImported;
+      result.recordsSkipped += dateResult.recordsSkipped;
+      result.errors.push(...dateResult.errors.map(e => `[${orgName}] ${e}`));
+
+      if (!dateResult.success) {
+        result.success = false;
+        // Stop on rate limit
+        if (dateResult.errors.some(e => e.includes('rate limited'))) {
+          rateLimited = true;
+          break;
+        }
       }
     }
   }
@@ -425,13 +456,13 @@ export async function syncAnthropicUsage(
  * Safe to call frequently - returns early if already synced today.
  */
 export async function syncAnthropicCron(): Promise<SyncResult> {
-  const adminKey = process.env.ANTHROPIC_ADMIN_KEY;
-  if (!adminKey) {
+  const keys = getAnthropicKeys();
+  if (keys.length === 0) {
     return {
       success: false,
       recordsImported: 0,
       recordsSkipped: 0,
-      errors: ['ANTHROPIC_ADMIN_KEY not configured']
+      errors: [NO_ANTHROPIC_KEYS_ERROR]
     };
   }
 

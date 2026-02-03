@@ -17,7 +17,7 @@ DROP INDEX IF EXISTS idx_usage_unique;
 
 -- Step 4: Create new unique index using raw_model instead of model
 -- This allows proper deduplication based on the actual model string from providers
-CREATE UNIQUE INDEX idx_usage_unique ON usage_records (
+CREATE UNIQUE INDEX IF NOT EXISTS idx_usage_unique ON usage_records (
   date,
   COALESCE(email, ''),
   tool,
