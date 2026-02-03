@@ -22,8 +22,9 @@ describe('GET /api/cron/backfill-cursor', () => {
     expect(response.status).toBe(401);
   });
 
-  it('skips when CURSOR_ADMIN_KEY not configured', async () => {
+  it('skips when no Cursor keys configured', async () => {
     vi.stubEnv('CURSOR_ADMIN_KEY', '');
+    vi.stubEnv('CURSOR_ADMIN_KEYS', '');
 
     const response = await GET(
       new Request('http://localhost/api/cron/backfill-cursor', {

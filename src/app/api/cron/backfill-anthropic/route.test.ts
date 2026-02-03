@@ -22,8 +22,9 @@ describe('GET /api/cron/backfill-anthropic', () => {
     expect(response.status).toBe(401);
   });
 
-  it('skips when ANTHROPIC_ADMIN_KEY not configured', async () => {
+  it('skips when no Anthropic keys configured', async () => {
     vi.stubEnv('ANTHROPIC_ADMIN_KEY', '');
+    vi.stubEnv('ANTHROPIC_ADMIN_KEYS', '');
 
     const response = await GET(
       new Request('http://localhost/api/cron/backfill-anthropic', {

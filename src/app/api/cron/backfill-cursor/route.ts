@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { wrapRouteHandlerWithSentry } from '@sentry/nextjs';
 import { backfillCursorUsage, getCursorBackfillState } from '@/lib/sync/cursor';
+import { getCursorKeys, NO_CURSOR_KEYS_ERROR } from '@/lib/sync/provider-keys';
 
 // Target: backfill to the beginning of 2025
 const BACKFILL_TARGET_DATE = '2025-01-01';
@@ -23,12 +24,12 @@ async function handler(request: Request) {
   }
 
   // Check if provider is configured
-  if (!process.env.CURSOR_ADMIN_KEY) {
+  if (getCursorKeys().length === 0) {
     return NextResponse.json({
       success: true,
       service: 'cursor',
       skipped: true,
-      reason: 'CURSOR_ADMIN_KEY not configured'
+      reason: NO_CURSOR_KEYS_ERROR
     });
   }
 

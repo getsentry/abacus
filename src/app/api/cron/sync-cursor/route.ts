@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { wrapRouteHandlerWithSentry } from '@sentry/nextjs';
 import { runCursorSync, getCursorSyncState } from '@/lib/sync';
+import { getCursorKeys, NO_CURSOR_KEYS_ERROR } from '@/lib/sync/provider-keys';
 
 /**
  * Cursor Cron Sync - runs hourly
@@ -23,12 +24,12 @@ async function handler(request: Request) {
   }
 
   // Check if provider is configured
-  if (!process.env.CURSOR_ADMIN_KEY) {
+  if (getCursorKeys().length === 0) {
     return NextResponse.json({
       success: true,
       service: 'cursor',
       skipped: true,
-      reason: 'CURSOR_ADMIN_KEY not configured'
+      reason: NO_CURSOR_KEYS_ERROR
     });
   }
 

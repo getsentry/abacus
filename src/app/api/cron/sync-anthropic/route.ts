@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { wrapRouteHandlerWithSentry } from '@sentry/nextjs';
 import { runAnthropicSync, getAnthropicSyncState } from '@/lib/sync';
+import { getAnthropicKeys, NO_ANTHROPIC_KEYS_ERROR } from '@/lib/sync/provider-keys';
 
 /**
  * Anthropic Cron Sync - runs daily at 6 AM UTC
@@ -23,12 +24,12 @@ async function handler(request: Request) {
   }
 
   // Check if provider is configured
-  if (!process.env.ANTHROPIC_ADMIN_KEY) {
+  if (getAnthropicKeys().length === 0) {
     return NextResponse.json({
       success: true,
       service: 'anthropic',
       skipped: true,
-      reason: 'ANTHROPIC_ADMIN_KEY not configured'
+      reason: NO_ANTHROPIC_KEYS_ERROR
     });
   }
 
