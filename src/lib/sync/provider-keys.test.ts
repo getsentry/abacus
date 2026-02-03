@@ -25,70 +25,60 @@ describe('provider-keys', () => {
     it('returns single key with default name when ANTHROPIC_ADMIN_KEY set', () => {
       process.env.ANTHROPIC_ADMIN_KEY = 'sk-single-key';
 
+      expect(getAnthropicKeys()).toEqual([{ key: 'sk-single-key', name: 'default' }]);
+    });
+
+    it('parses single key from ANTHROPIC_ADMIN_KEYS', () => {
+      process.env.ANTHROPIC_ADMIN_KEYS = 'sk-key-1';
+
+      expect(getAnthropicKeys()).toEqual([{ key: 'sk-key-1', name: 'default' }]);
+    });
+
+    it('parses comma-separated keys from ANTHROPIC_ADMIN_KEYS', () => {
+      process.env.ANTHROPIC_ADMIN_KEYS = 'sk-key-1,sk-key-2,sk-key-3';
+
       expect(getAnthropicKeys()).toEqual([
-        { key: 'sk-single-key', name: 'default' },
+        { key: 'sk-key-1', name: 'KEY_1' },
+        { key: 'sk-key-2', name: 'KEY_2' },
+        { key: 'sk-key-3', name: 'KEY_3' },
       ]);
     });
 
-    it('parses ANTHROPIC_ADMIN_KEYS JSON array', () => {
-      process.env.ANTHROPIC_ADMIN_KEYS = JSON.stringify([
-        { key: 'sk-key-1', name: 'Org One' },
-        { key: 'sk-key-2', name: 'Org Two' },
-      ]);
+    it('trims whitespace from keys', () => {
+      process.env.ANTHROPIC_ADMIN_KEYS = ' sk-key-1 , sk-key-2 ';
 
       expect(getAnthropicKeys()).toEqual([
-        { key: 'sk-key-1', name: 'Org One' },
-        { key: 'sk-key-2', name: 'Org Two' },
+        { key: 'sk-key-1', name: 'KEY_1' },
+        { key: 'sk-key-2', name: 'KEY_2' },
+      ]);
+    });
+
+    it('ignores empty entries', () => {
+      process.env.ANTHROPIC_ADMIN_KEYS = 'sk-key-1,,sk-key-2,';
+
+      expect(getAnthropicKeys()).toEqual([
+        { key: 'sk-key-1', name: 'KEY_1' },
+        { key: 'sk-key-2', name: 'KEY_2' },
       ]);
     });
 
     it('prefers ANTHROPIC_ADMIN_KEYS over ANTHROPIC_ADMIN_KEY', () => {
       process.env.ANTHROPIC_ADMIN_KEY = 'sk-single-key';
-      process.env.ANTHROPIC_ADMIN_KEYS = JSON.stringify([
-        { key: 'sk-multi-key', name: 'Multi Org' },
-      ]);
+      process.env.ANTHROPIC_ADMIN_KEYS = 'sk-multi-key';
 
-      expect(getAnthropicKeys()).toEqual([
-        { key: 'sk-multi-key', name: 'Multi Org' },
-      ]);
+      expect(getAnthropicKeys()).toEqual([{ key: 'sk-multi-key', name: 'default' }]);
     });
 
-    it('falls back to single key when ANTHROPIC_ADMIN_KEYS is invalid JSON', () => {
-      process.env.ANTHROPIC_ADMIN_KEY = 'sk-single-key';
-      process.env.ANTHROPIC_ADMIN_KEYS = 'not-json';
+    it('returns empty array when ANTHROPIC_ADMIN_KEYS is empty string', () => {
+      process.env.ANTHROPIC_ADMIN_KEYS = '';
 
-      expect(getAnthropicKeys()).toEqual([
-        { key: 'sk-single-key', name: 'default' },
-      ]);
+      expect(getAnthropicKeys()).toEqual([]);
     });
 
-    it('falls back to single key when ANTHROPIC_ADMIN_KEYS is not an array', () => {
-      process.env.ANTHROPIC_ADMIN_KEY = 'sk-single-key';
-      process.env.ANTHROPIC_ADMIN_KEYS = JSON.stringify({ key: 'test' });
+    it('returns empty array when ANTHROPIC_ADMIN_KEYS is only whitespace/commas', () => {
+      process.env.ANTHROPIC_ADMIN_KEYS = ' , , ';
 
-      expect(getAnthropicKeys()).toEqual([
-        { key: 'sk-single-key', name: 'default' },
-      ]);
-    });
-
-    it('falls back to single key when ANTHROPIC_ADMIN_KEYS has invalid entries', () => {
-      process.env.ANTHROPIC_ADMIN_KEY = 'sk-single-key';
-      process.env.ANTHROPIC_ADMIN_KEYS = JSON.stringify([
-        { key: 'sk-valid' }, // missing name
-      ]);
-
-      expect(getAnthropicKeys()).toEqual([
-        { key: 'sk-single-key', name: 'default' },
-      ]);
-    });
-
-    it('falls back to single key when ANTHROPIC_ADMIN_KEYS is empty array', () => {
-      process.env.ANTHROPIC_ADMIN_KEY = 'sk-single-key';
-      process.env.ANTHROPIC_ADMIN_KEYS = '[]';
-
-      expect(getAnthropicKeys()).toEqual([
-        { key: 'sk-single-key', name: 'default' },
-      ]);
+      expect(getAnthropicKeys()).toEqual([]);
     });
   });
 
@@ -100,41 +90,23 @@ describe('provider-keys', () => {
     it('returns single key with default name when CURSOR_ADMIN_KEY set', () => {
       process.env.CURSOR_ADMIN_KEY = 'cursor-single-key';
 
-      expect(getCursorKeys()).toEqual([
-        { key: 'cursor-single-key', name: 'default' },
-      ]);
+      expect(getCursorKeys()).toEqual([{ key: 'cursor-single-key', name: 'default' }]);
     });
 
-    it('parses CURSOR_ADMIN_KEYS JSON array', () => {
-      process.env.CURSOR_ADMIN_KEYS = JSON.stringify([
-        { key: 'cursor-key-1', name: 'Team One' },
-        { key: 'cursor-key-2', name: 'Team Two' },
-      ]);
+    it('parses comma-separated keys from CURSOR_ADMIN_KEYS', () => {
+      process.env.CURSOR_ADMIN_KEYS = 'cursor-key-1,cursor-key-2';
 
       expect(getCursorKeys()).toEqual([
-        { key: 'cursor-key-1', name: 'Team One' },
-        { key: 'cursor-key-2', name: 'Team Two' },
+        { key: 'cursor-key-1', name: 'KEY_1' },
+        { key: 'cursor-key-2', name: 'KEY_2' },
       ]);
     });
 
     it('prefers CURSOR_ADMIN_KEYS over CURSOR_ADMIN_KEY', () => {
       process.env.CURSOR_ADMIN_KEY = 'cursor-single-key';
-      process.env.CURSOR_ADMIN_KEYS = JSON.stringify([
-        { key: 'cursor-multi-key', name: 'Multi Team' },
-      ]);
+      process.env.CURSOR_ADMIN_KEYS = 'cursor-multi-key';
 
-      expect(getCursorKeys()).toEqual([
-        { key: 'cursor-multi-key', name: 'Multi Team' },
-      ]);
-    });
-
-    it('falls back to single key when CURSOR_ADMIN_KEYS is invalid', () => {
-      process.env.CURSOR_ADMIN_KEY = 'cursor-single-key';
-      process.env.CURSOR_ADMIN_KEYS = 'invalid';
-
-      expect(getCursorKeys()).toEqual([
-        { key: 'cursor-single-key', name: 'default' },
-      ]);
+      expect(getCursorKeys()).toEqual([{ key: 'cursor-multi-key', name: 'default' }]);
     });
   });
 });
