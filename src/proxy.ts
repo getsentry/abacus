@@ -2,6 +2,10 @@ import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { getSessionCookie } from 'better-auth/cookies';
 
+// Auth bypass for local development (set AUTH_BYPASS_LOCAL=true in .env.local)
+const isAuthBypassed =
+  process.env.NODE_ENV !== 'production' && process.env.AUTH_BYPASS_LOCAL === 'true';
+
 /**
  * Next.js 16 Proxy (formerly Middleware)
  *
@@ -12,6 +16,11 @@ import { getSessionCookie } from 'better-auth/cookies';
  * @see https://nextjs.org/docs/app/api-reference/file-conventions/proxy
  */
 export function proxy(request: NextRequest) {
+  // Skip all auth checks when bypass is enabled
+  if (isAuthBypassed) {
+    return NextResponse.next();
+  }
+
   const { pathname } = request.nextUrl;
 
   // Public routes that don't require authentication
