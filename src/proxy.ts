@@ -3,7 +3,8 @@ import type { NextRequest } from 'next/server';
 import { getSessionCookie } from 'better-auth/cookies';
 
 // Auth bypass for local development (set AUTH_BYPASS_LOCAL=true in .env.local)
-const isAuthBypassed = process.env.AUTH_BYPASS_LOCAL === 'true';
+const isAuthBypassed =
+  process.env.NODE_ENV !== 'production' && process.env.AUTH_BYPASS_LOCAL === 'true';
 
 /**
  * Next.js 16 Proxy (formerly Middleware)
