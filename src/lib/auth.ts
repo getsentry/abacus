@@ -3,7 +3,8 @@ import { Pool } from '@neondatabase/serverless';
 import { headers } from 'next/headers';
 
 // Auth bypass for local development (set AUTH_BYPASS_LOCAL=true in .env.local)
-export const isAuthBypassed = process.env.AUTH_BYPASS_LOCAL === 'true';
+export const isAuthBypassed =
+  process.env.NODE_ENV !== 'production' && process.env.AUTH_BYPASS_LOCAL === 'true';
 
 // Mock session returned when auth is bypassed
 export const mockSession = {
