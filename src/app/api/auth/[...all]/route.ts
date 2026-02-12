@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth, isAuthBypassed, mockSession } from '@/lib/auth';
+import { auth } from '@/lib/auth';
+import { isAuthBypassed, createMockSession } from '@/lib/auth-bypass';
 import { toNextJsHandler } from 'better-auth/next-js';
 
 const { GET: betterAuthGET, POST: betterAuthPOST } = toNextJsHandler(auth);
@@ -8,7 +9,7 @@ const { GET: betterAuthGET, POST: betterAuthPOST } = toNextJsHandler(auth);
 export async function GET(request: NextRequest) {
   // When auth is bypassed, return mock session for get-session endpoint
   if (isAuthBypassed && request.nextUrl.pathname.includes('get-session')) {
-    return NextResponse.json(mockSession);
+    return NextResponse.json(createMockSession());
   }
 
   return betterAuthGET(request);

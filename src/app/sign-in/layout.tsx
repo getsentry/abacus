@@ -1,8 +1,5 @@
 import { redirect } from 'next/navigation';
-
-// Redirect to home if auth is bypassed (local development)
-const isAuthBypassed =
-  process.env.NODE_ENV !== 'production' && process.env.AUTH_BYPASS_LOCAL === 'true';
+import { isAuthBypassed } from '@/lib/auth-bypass';
 
 export default function SignInLayout({ children }: { children: React.ReactNode }) {
   if (isAuthBypassed) {
