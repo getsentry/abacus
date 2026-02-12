@@ -1,7 +1,8 @@
 import { betterAuth } from 'better-auth';
 import { Pool } from '@neondatabase/serverless';
 import { headers } from 'next/headers';
-import { isAuthBypassed, createMockSession } from '@/lib/auth-bypass';
+import { NextResponse } from 'next/server';
+import { isAuthBypassed } from '@/lib/auth-bypass';
 
 // Create database pool for better-auth
 const pool = new Pool({
@@ -64,21 +65,28 @@ export const auth = betterAuth({
   },
 });
 
-// Helper to get session in server components
+// Helper to get session in server components.
+// Returns the session object or null if not authenticated.
 export async function getSession() {
-  if (isAuthBypassed) {
-    return createMockSession();
-  }
-  return auth.api.getSession({
-    headers: await headers(),
-  });
+  if (isAuthBypassed) return null;
+  return auth.api.getSession({ headers: await headers() });
 }
 
-// Helper to require session (throws if not authenticated)
-export async function requireSession() {
+// Auth guard for API routes.
+// Returns null when authorized (session exists or auth bypass is active),
+// or a 401 Response when unauthorized.
+export async function checkAuth(): Promise<Response | null> {
+  if (isAuthBypassed) return null;
   const session = await getSession();
-  if (!session) {
-    throw new Error('Unauthorized');
-  }
+  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  return null;
+}
+
+// Helper to require session (throws if not authenticated).
+// When auth bypass is active, returns null since no real session exists.
+export async function requireSession() {
+  if (isAuthBypassed) return null;
+  const session = await getSession();
+  if (!session) throw new Error('Unauthorized');
   return session;
 }

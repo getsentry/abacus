@@ -1,18 +1,13 @@
 import { wrapRouteHandlerWithSentry } from '@sentry/nextjs';
 import { getModelTrends, getToolTrends } from '@/lib/queries';
-import { getSession } from '@/lib/auth';
+import { checkAuth } from '@/lib/auth';
 import { isValidDateString } from '@/lib/utils';
 import { convertToCsv, generateExportFilename } from '@/lib/csv';
 import { DEFAULT_DAYS } from '@/lib/constants';
 
 async function handler(request: Request) {
-  const session = await getSession();
-  if (!session) {
-    return new Response(JSON.stringify({ error: 'Unauthorized' }), {
-      status: 401,
-      headers: { 'Content-Type': 'application/json' },
-    });
-  }
+  const authError = await checkAuth();
+  if (authError) return authError;
 
   const { searchParams } = new URL(request.url);
   const startDate = searchParams.get('startDate');

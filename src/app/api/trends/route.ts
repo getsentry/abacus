@@ -1,16 +1,14 @@
 import { NextResponse } from 'next/server';
 import { wrapRouteHandlerWithSentry } from '@sentry/nextjs';
 import { getDailyUsage, getDataCompleteness } from '@/lib/queries';
-import { getSession } from '@/lib/auth';
+import { checkAuth } from '@/lib/auth';
 import { isValidDateString } from '@/lib/utils';
 import { applyProjections } from '@/lib/projection';
 import { today } from '@/lib/dateUtils';
 
 async function handler(request: Request) {
-  const session = await getSession();
-  if (!session) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
+  const authError = await checkAuth();
+  if (authError) return authError;
 
   const { searchParams } = new URL(request.url);
   const startDate = searchParams.get('startDate');

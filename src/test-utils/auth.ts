@@ -35,13 +35,14 @@ type UserOverrides = Partial<typeof testUser>;
  * Call in beforeEach or at the start of a test.
  */
 export async function mockAuthenticated(overrides?: UserOverrides) {
-  const { getSession, requireSession } = await import('@/lib/auth');
+  const { getSession, requireSession, checkAuth } = await import('@/lib/auth');
   const session = {
     user: { ...testUser, ...overrides },
     session: testSession,
   };
   vi.mocked(getSession).mockResolvedValue(session);
   vi.mocked(requireSession).mockResolvedValue(session);
+  vi.mocked(checkAuth).mockResolvedValue(null);
 }
 
 /**
@@ -49,7 +50,8 @@ export async function mockAuthenticated(overrides?: UserOverrides) {
  * This is the default state - call explicitly for clarity.
  */
 export async function mockUnauthenticated() {
-  const { getSession, requireSession } = await import('@/lib/auth');
+  const { getSession, requireSession, checkAuth } = await import('@/lib/auth');
   vi.mocked(getSession).mockResolvedValue(null);
   vi.mocked(requireSession).mockRejectedValue(new Error('Unauthorized'));
+  vi.mocked(checkAuth).mockResolvedValue(Response.json({ error: 'Unauthorized' }, { status: 401 }));
 }

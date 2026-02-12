@@ -9,17 +9,15 @@ import {
   getRepositoryDailyStats,
   getRepositoryDataRange,
 } from '@/lib/queries';
-import { getSession } from '@/lib/auth';
+import { checkAuth } from '@/lib/auth';
 import { isValidDateString } from '@/lib/utils';
 
 async function handler(
   request: Request,
   { params }: { params: Promise<{ slug: string[] }> }
 ) {
-  const session = await getSession();
-  if (!session) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
+  const authError = await checkAuth();
+  if (authError) return authError;
 
   const { slug } = await params;
 

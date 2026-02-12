@@ -1,16 +1,14 @@
 import { NextResponse } from 'next/server';
 import { wrapRouteHandlerWithSentry } from '@sentry/nextjs';
 import { runFullSync, getSyncState, syncMappings } from '@/lib/sync';
-import { getSession } from '@/lib/auth';
+import { checkAuth } from '@/lib/auth';
 import { isValidDateString } from '@/lib/utils';
 import { getAnthropicKeys, getCursorKeys } from '@/lib/sync/provider-keys';
 
 // Get sync status
 async function getHandler() {
-  const session = await getSession();
-  if (!session) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
+  const authError = await checkAuth();
+  if (authError) return authError;
 
   const state = await getSyncState('main');
   return NextResponse.json({
@@ -22,10 +20,8 @@ async function getHandler() {
 
 // Trigger manual sync
 async function postHandler(request: Request) {
-  const session = await getSession();
-  if (!session) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
+  const authError = await checkAuth();
+  if (authError) return authError;
 
   let body: { startDate?: string; endDate?: string; includeMappings?: boolean; mappingsOnly?: boolean };
   try {

@@ -217,6 +217,7 @@ afterAll(async () => {
 vi.mock('@/lib/auth', () => ({
   getSession: vi.fn().mockResolvedValue(null),
   requireSession: vi.fn().mockRejectedValue(new Error('Unauthorized')),
+  checkAuth: vi.fn().mockResolvedValue(Response.json({ error: 'Unauthorized' }, { status: 401 })),
 }));
 
 // =============================================================================
