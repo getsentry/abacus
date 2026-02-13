@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { wrapRouteHandlerWithSentry } from '@sentry/nextjs';
 import { getUserDetails, getUserDetailsExtended, getUserLifetimeStats, getUserCommitStats, resolveUserEmail } from '@/lib/queries';
-import { getSession } from '@/lib/auth';
+import { checkAuth } from '@/lib/auth';
 import { isValidDateString } from '@/lib/utils';
 import { getPreviousPeriodDates } from '@/lib/comparison';
 
@@ -9,10 +9,8 @@ async function handler(
   request: Request,
   { params }: { params: Promise<{ email: string }> }
 ) {
-  const session = await getSession();
-  if (!session) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
+  const authError = await checkAuth();
+  if (authError) return authError;
 
   const { email: usernameOrEmail } = await params;
   const { searchParams } = new URL(request.url);

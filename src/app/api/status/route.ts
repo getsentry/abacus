@@ -5,7 +5,7 @@ import { getCursorSyncState, getCursorBackfillState } from '@/lib/sync/cursor';
 import { getGitHubBackfillState } from '@/lib/sync/github';
 import { getUnmappedGitHubUsers } from '@/lib/sync/github-mappings';
 import { getUnattributedStats, getLifetimeStats, getUnmappedToolRecords } from '@/lib/queries';
-import { getSession } from '@/lib/auth';
+import { checkAuth } from '@/lib/auth';
 import { getAnthropicKeys, getCursorKeys } from '@/lib/sync/provider-keys';
 
 type SyncStatus = 'up_to_date' | 'behind' | 'never_synced';
@@ -37,10 +37,8 @@ function getBackfillStatus(oldestDate: string | null, isComplete: boolean): Back
 }
 
 async function handler() {
-  const session = await getSession();
-  if (!session) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
+  const authError = await checkAuth();
+  if (authError) return authError;
 
   // Check which providers are configured
   const anthropicConfigured = getAnthropicKeys().length > 0;
