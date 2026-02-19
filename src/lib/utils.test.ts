@@ -56,6 +56,14 @@ describe('normalizeModelName', () => {
     expect(normalizeModelName('3-5-haiku-20241022')).toBe('haiku-3.5');
   });
 
+  it('normalizes dateless model IDs', () => {
+    expect(normalizeModelName('claude-opus-4-6')).toBe('opus-4.6');
+    expect(normalizeModelName('claude-sonnet-4-5')).toBe('sonnet-4.5');
+    expect(normalizeModelName('claude-haiku-4-5')).toBe('haiku-4.5');
+    expect(normalizeModelName('claude-opus-4')).toBe('opus-4');
+    expect(normalizeModelName('claude-sonnet-4')).toBe('sonnet-4');
+  });
+
   it('returns original for unrecognized patterns', () => {
     expect(normalizeModelName('gpt-4')).toBe('gpt-4');
     expect(normalizeModelName('some-random-model')).toBe('some-random-model');

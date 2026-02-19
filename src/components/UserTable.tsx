@@ -96,7 +96,7 @@ export function UserTable({ users, days = DEFAULT_DAYS }: UserTableProps) {
                 </td>
                 <td className="py-2.5 sm:py-3 hidden md:table-cell w-24">
                   <span className="text-xs text-muted truncate block">
-                    {user.favoriteModel.replace('claude-', '').split('-').slice(0, 2).join('-')}
+                    {user.favoriteModel}
                   </span>
                 </td>
               </motion.tr>
