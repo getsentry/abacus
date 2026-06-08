@@ -4,6 +4,7 @@ import { eq } from 'drizzle-orm';
 import { checkAuth, getSession } from '@/lib/auth';
 import { db, openrouterKeys } from '@/lib/db';
 import {
+  OpenRouterError,
   createOpenRouterKey,
   deleteOpenRouterKey,
   listOpenRouterKeys,
@@ -25,6 +26,49 @@ function normalizeEmail(email: string | undefined | null): string | null {
 
 function normalizeName(value: unknown): string {
   return typeof value === 'string' ? value.trim() : '';
+}
+
+function extractOpenRouterErrorStatus(error: unknown): number | null {
+  if (error instanceof OpenRouterError) {
+    return error.statusCode;
+  }
+
+  if (error && typeof error === 'object' && 'statusCode' in error) {
+    const statusCode = (error as { statusCode?: unknown }).statusCode;
+    return typeof statusCode === 'number' ? statusCode : null;
+  }
+
+  return null;
+}
+
+function mapOpenRouterError(error: unknown): NextResponse<{ error: string }> {
+  const statusCode = extractOpenRouterErrorStatus(error);
+
+  if (statusCode === 429) {
+    return NextResponse.json({ error: 'OpenRouter rate limit exceeded. Please retry shortly.' }, { status: 503 });
+  }
+
+  if (typeof statusCode === 'number' && statusCode >= 500 && statusCode <= 599) {
+    return NextResponse.json({ error: 'OpenRouter service is temporarily unavailable.' }, { status: 502 });
+  }
+
+  if (error instanceof Error && error.message === 'OPENROUTER_MANAGEMENT_KEY is not set') {
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+
+  if (error instanceof Error) {
+    return NextResponse.json({ error: error.message || 'OpenRouter request failed.' }, { status: 502 });
+  }
+
+  return NextResponse.json({ error: 'OpenRouter request failed.' }, { status: 502 });
+}
+
+function normalizeListItem(item: { createdAt?: string | null; hash: string; name: string; disabled: boolean; label: string }) {
+  const { createdAt, ...rest } = item;
+  return {
+    ...rest,
+    created_at: createdAt ?? null,
+  };
 }
 
 async function getHandler(request: Request) {
@@ -53,8 +97,17 @@ async function getHandler(request: Request) {
   }
 
   const dbRowByHash = new Map(dbRows.map((row) => [row.hash, row]));
-  const listResponse = await listOpenRouterKeys({ includeDisabled: true });
-  const keys = (listResponse.data || []).filter((key) => dbRowByHash.has(key.hash));
+
+  let listResponse;
+  try {
+    listResponse = await listOpenRouterKeys({ includeDisabled: true });
+  } catch (error) {
+    return mapOpenRouterError(error);
+  }
+
+  const keys = listResponse.data
+    .map((item) => normalizeListItem(item))
+    .filter((key) => dbRowByHash.has(key.hash));
 
   if (adminView) {
     const grouped: Record<string, Array<(typeof keys)[number] & { name: string }>> = {};
@@ -104,18 +157,23 @@ async function postHandler(request: Request) {
     return NextResponse.json({ error: 'name is required' }, { status: 400 });
   }
 
-  const created = await createOpenRouterKey({
-    name: `${userEmail} - ${name}`,
-  });
+  let created: Awaited<ReturnType<typeof createOpenRouterKey>>;
+
+  try {
+    created = await createOpenRouterKey({
+      name: `${userEmail} - ${name}`,
+    });
+  } catch (error) {
+    return mapOpenRouterError(error);
+  }
 
   try {
     await db.insert(openrouterKeys).values({
       hash: created.data.hash,
       email: userEmail,
       name,
-      disabled: created.data.disabled,
     });
-  } catch (error) {
+  } catch {
     try {
       await deleteOpenRouterKey(created.data.hash);
     } catch (cleanupError) {
@@ -138,6 +196,7 @@ async function postHandler(request: Request) {
     hash: created.data.hash,
     name,
     disabled: created.data.disabled,
+    created_at: created.data.createdAt,
   });
 }
 
@@ -177,11 +236,14 @@ async function patchHandler(request: Request) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
-  const updated = await updateOpenRouterKey(hash, { disabled });
-  return NextResponse.json({
-    ...updated,
-    hash,
-  });
+  let updated: Awaited<ReturnType<typeof updateOpenRouterKey>>;
+  try {
+    updated = await updateOpenRouterKey(hash, { disabled });
+  } catch (error) {
+    return mapOpenRouterError(error);
+  }
+
+  return NextResponse.json(normalizeListItem(updated.data));
 }
 
 async function deleteHandler(request: Request) {
@@ -204,8 +266,17 @@ async function deleteHandler(request: Request) {
     return NextResponse.json({ error: 'hash is required' }, { status: 400 });
   }
 
-  await deleteOpenRouterKey(hash);
-  await db.delete(openrouterKeys).where(eq(openrouterKeys.hash, hash));
+  try {
+    await deleteOpenRouterKey(hash);
+  } catch (error) {
+    return mapOpenRouterError(error);
+  }
+
+  try {
+    await db.delete(openrouterKeys).where(eq(openrouterKeys.hash, hash));
+  } catch {
+    return NextResponse.json({ error: 'Failed to remove key mapping' }, { status: 500 });
+  }
 
   return NextResponse.json({ success: true });
 }

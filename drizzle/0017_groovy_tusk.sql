@@ -1,0 +1,1 @@
+ALTER TABLE "openrouter_keys" DROP COLUMN "disabled";

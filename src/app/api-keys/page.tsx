@@ -1,6 +1,6 @@
 'use client';
 
-import { FormEvent, useEffect, useMemo, useState } from 'react';
+import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import { AlertTriangle, Check, ClipboardCopy, Copy, KeyRound, Loader2, Plus, Shield } from 'lucide-react';
 import { AppHeader } from '@/components/AppHeader';
@@ -121,14 +121,14 @@ wire_api = "chat"`;
     throw new Error(message);
   };
 
-  async function loadMyKeys() {
+  const loadMyKeys = useCallback(async () => {
     const response = await fetch('/api/openrouter/keys');
     await withError(response, 'Failed to fetch keys');
     const data = await response.json();
     setKeys(Array.isArray(data) ? data : []);
-  }
+  }, []);
 
-  async function loadAdminKeys(): Promise<boolean> {
+  const loadAdminKeys = useCallback(async (): Promise<boolean> => {
     const response = await fetch('/api/openrouter/keys?admin=true');
 
     if (response.status === 403) {
@@ -144,9 +144,9 @@ wire_api = "chat"`;
 
     setGroupedKeys(data);
     return true;
-  }
+  }, []);
 
-  async function loadKeys() {
+  const loadKeys = useCallback(async () => {
     setLoading(true);
     setError(null);
     setGroupedKeys({});
@@ -166,38 +166,19 @@ wire_api = "chat"`;
     } finally {
       setLoading(false);
     }
-  }
+  }, [loadAdminKeys, loadMyKeys]);
 
   useEffect(() => {
     void loadKeys();
-  }, []);
-
-  function updateKeyInList(hash: string, disabled: boolean) {
-    setKeys((prev) =>
-      prev.map((item) => (item.hash === hash ? { ...item, disabled } : item)),
-    );
-    setGroupedKeys((prev) => {
-      const next = { ...prev };
-      for (const [email, items] of Object.entries(next)) {
-        const index = items.findIndex((item) => item.hash === hash);
-        if (index !== -1) {
-          const updated = [...items];
-          updated[index] = { ...updated[index], disabled };
-          next[email] = updated;
-          break;
-        }
-      }
-      return next;
-    });
-  }
-
+  }, [loadKeys]);
   function withPending(hash: string, task: () => Promise<void>) {
     return async () => {
       setPending((prev) => {
-      const next = new Set(prev);
-      next.add(hash);
-      return next;
-    });
+        const next = new Set(prev);
+        next.add(hash);
+        return next;
+      });
+
       try {
         await task();
       } finally {
@@ -211,42 +192,41 @@ wire_api = "chat"`;
   }
 
   async function handleToggle(key: OpenRouterKey) {
-    await withPending(key.hash, async () => {
-      const response = await fetch('/api/openrouter/keys', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ hash: key.hash, disabled: !key.disabled }),
-      });
+    try {
+      await withPending(key.hash, async () => {
+        const response = await fetch('/api/openrouter/keys', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ hash: key.hash, disabled: !key.disabled }),
+        });
 
-      await withError(response, 'Failed to update key');
-      updateKeyInList(key.hash, !key.disabled);
-    })();
+        await withError(response, 'Failed to update key');
+      })();
+      await loadKeys();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to update key');
+    }
   }
 
   async function handleDelete(hash: string) {
-    if (!window.confirm('Delete this key permanently?')) return;
+    if (!window.confirm('Delete this key permanently?')) {
+      return;
+    }
 
-    await withPending(hash, async () => {
-      const response = await fetch('/api/openrouter/keys', {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ hash }),
-      });
+    try {
+      await withPending(hash, async () => {
+        const response = await fetch('/api/openrouter/keys', {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ hash }),
+        });
 
-      await withError(response, 'Failed to delete key');
-
-      setKeys((prev) => prev.filter((item) => item.hash !== hash));
-      setGroupedKeys((prev) => {
-        const next: GroupedOpenRouterKeys = {};
-        for (const [email, list] of Object.entries(prev)) {
-          const filtered = list.filter((item) => item.hash !== hash);
-          if (filtered.length > 0) {
-            next[email] = filtered;
-          }
-        }
-        return next;
-      });
-    })();
+        await withError(response, 'Failed to delete key');
+      })();
+      await loadKeys();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to delete key');
+    }
   }
 
   async function handleCreate(event: FormEvent<HTMLFormElement>) {

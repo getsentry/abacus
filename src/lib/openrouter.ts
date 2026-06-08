@@ -1,4 +1,5 @@
 import { OpenRouter } from '@openrouter/sdk';
+import { OpenRouterError } from '@openrouter/sdk/models/errors';
 
 function getClient() {
   const apiKey = process.env.OPENROUTER_MANAGEMENT_KEY;
@@ -6,8 +7,23 @@ function getClient() {
     throw new Error('OPENROUTER_MANAGEMENT_KEY is not set');
   }
 
-  return new OpenRouter({ apiKey });
+  return new OpenRouter({
+    apiKey,
+    timeoutMs: 5000,
+    retryConfig: {
+      strategy: 'backoff',
+      backoff: {
+        initialInterval: 250,
+        maxInterval: 1000,
+        exponent: 2,
+        maxElapsedTime: 4000,
+      },
+      retryConnectionErrors: false,
+    },
+  });
 }
+
+export { OpenRouterError };
 
 export interface CreateOpenRouterKeyParams {
   name: string;
