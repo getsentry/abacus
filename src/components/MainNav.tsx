@@ -22,6 +22,7 @@ const navItems: NavItem[] = [
   { label: 'Commits', href: '/commits', matchPaths: ['/commits'] },
   { label: 'Tips', href: '/tips', matchPaths: ['/tips'] },
   { label: 'Status', href: '/status', matchPaths: ['/status'] },
+  { label: 'API Keys', href: '/api-keys', matchPaths: ['/api-keys'] },
 ];
 
 export function MainNav({ days }: MainNavProps) {
