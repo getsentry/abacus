@@ -35,6 +35,14 @@ export const identityMappings = pgTable('identity_mappings', {
   index('idx_identity_mappings_email').on(table.email),
 ]);
 
+export const openrouterKeys = pgTable('openrouter_keys', {
+  hash: varchar('hash', { length: 255 }).primaryKey(),
+  email: varchar('email', { length: 255 }).notNull(),
+  name: varchar('name', { length: 255 }).notNull(),
+  disabled: boolean('disabled').default(false),
+  createdAt: timestamp('created_at').defaultNow(),
+}, (table) => [index('idx_openrouter_keys_email').on(table.email)]);
+
 /**
  * Usage records - can be stored per-event (Cursor) or aggregated (Anthropic).
  *
@@ -159,6 +167,8 @@ export const commitAttributions = pgTable('commit_attributions', {
 // Type exports for use in queries
 export type IdentityMapping = typeof identityMappings.$inferSelect;
 export type NewIdentityMapping = typeof identityMappings.$inferInsert;
+export type OpenRouterKey = typeof openrouterKeys.$inferSelect;
+export type NewOpenRouterKey = typeof openrouterKeys.$inferInsert;
 export type UsageRecord = typeof usageRecords.$inferSelect;
 export type NewUsageRecord = typeof usageRecords.$inferInsert;
 export type SyncState = typeof syncState.$inferSelect;

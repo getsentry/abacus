@@ -26,6 +26,7 @@
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.0.2",
+    "@openrouter/sdk": "^0.12.79",
     "@sentry/nextjs": "^10.32.1",
     "@vercel/postgres": "^0.10.0",
     "better-auth": "^1.6.2",
