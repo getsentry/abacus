@@ -28,7 +28,7 @@
     "@neondatabase/serverless": "^1.0.2",
     "@sentry/nextjs": "^10.32.1",
     "@vercel/postgres": "^0.10.0",
-    "better-auth": "^1.4.10",
+    "better-auth": "^1.6.11",
     "dotenv": "^17.2.3",
     "drizzle-orm": "^0.45.1",
     "framer-motion": "^12.24.7",
