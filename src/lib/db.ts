@@ -1,3 +1,4 @@
+import './neon-local';
 import { drizzle } from 'drizzle-orm/vercel-postgres';
 import { sql as vercelSql } from '@vercel/postgres';
 import { sql } from 'drizzle-orm';

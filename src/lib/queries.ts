@@ -1,3 +1,4 @@
+import './neon-local';
 import { sql as vercelSql } from '@vercel/postgres';
 import { db, usageRecords, identityMappings, repositories, commits, commitAttributions } from './db';
 import { eq, and, count, sql } from 'drizzle-orm';

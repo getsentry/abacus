@@ -1,3 +1,4 @@
+import './neon-local';
 import { betterAuth } from 'better-auth';
 import { Pool } from '@neondatabase/serverless';
 import { headers } from 'next/headers';

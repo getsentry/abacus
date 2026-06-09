@@ -55,7 +55,10 @@
       "esbuild",
       "sharp",
       "simple-git-hooks"
-    ]
+    ],
+    "overrides": {
+      "@neondatabase/serverless": "0.9.5"
+    }
   },
   "devDependencies": {
     "@electric-sql/pglite": "^0.3.14",
