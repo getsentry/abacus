@@ -66,19 +66,27 @@ Run Abacus on your local machine for development.
   Add `http://localhost:3000/api/auth/callback/google` to your Google OAuth redirect URIs for local development.
 </Aside>
 
-## Local PostgreSQL with Docker
+## Local database with Neon branches
 
-If you don't have a remote PostgreSQL database, use Docker:
+Abacus talks to Postgres through Neon's serverless driver (`@vercel/postgres` /
+`@neondatabase/serverless`), so the simplest local database is a **Neon branch**
+of the project — a fast, isolated copy of production you can develop against.
 
 ```bash
-docker-compose up -d
+# Create a personal branch off the default (production) branch
+npx neonctl branches create --project-id <project-id> --name dev/<you>
+
+# Print a pooled connection string for that branch
+npx neonctl connection-string dev/<you> --project-id <project-id> --pooled
 ```
 
-This starts a local PostgreSQL instance. Use the connection string:
+Put the pooled connection string in `.env.local` as `POSTGRES_URL`, then run
+`pnpm db:migrate` to bring the branch schema up to date.
 
-```
-POSTGRES_URL=postgres://postgres:postgres@localhost:5434/abacus
-```
+<Aside type="note">
+  Preview deployments get their own Neon branch automatically via the Neon–Vercel
+  integration, so each PR runs against an isolated copy of the database.
+</Aside>
 
 ## Available Scripts
 
