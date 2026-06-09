@@ -57,6 +57,13 @@ For local development only:
 
 See [GitHub Commits setup](/abacus/providers/github-commits/) for details.
 
+### Google Directory (Offboarding)
+
+| Variable | Description |
+|----------|-------------|
+| `GOOGLE_SA_KEY_JSON` | Base64-encoded service account key JSON from GCP Console. Required for the nightly offboarding cron that auto-disables keys of suspended/deleted Workspace users. The service account must have domain-wide delegation with scope `https://www.googleapis.com/auth/admin.directory.user.readonly`. |
+| `GOOGLE_DIRECTORY_SUBJECT` | Email address of a Google Workspace admin to impersonate via domain-wide delegation. The service account acts as this user when querying the Directory API. |
+
 ## Optional Variables
 
 | Variable | Description |

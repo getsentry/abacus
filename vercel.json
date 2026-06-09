@@ -23,6 +23,10 @@
     {
       "path": "/api/cron/backfill-github",
       "schedule": "0 */6 * * *"
+    },
+    {
+      "path": "/api/cron/revoke-offboarded",
+      "schedule": "0 4 * * *"
     }
   ]
 }
