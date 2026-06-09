@@ -307,7 +307,7 @@ describe('GET /api/cron/revoke-offboarded', () => {
     mockEmailKeys([['hash-good', 'hash-bad', 'hash-good-2']]);
 
     vi.mocked(checkAccountStatus).mockResolvedValue('inactive');
-    vi.mocked(updateOpenRouterKey).mockImplementation(async (hash, _params) => {
+    vi.mocked(updateOpenRouterKey).mockImplementation(async (hash) => {
       if (hash === 'hash-bad') {
         throw new Error('openrouter 429');
       }
