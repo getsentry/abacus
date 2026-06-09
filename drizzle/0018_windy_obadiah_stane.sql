@@ -1,0 +1,1 @@
+ALTER TABLE "openrouter_keys" ADD COLUMN "revoked_at" timestamp;
