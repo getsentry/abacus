@@ -11,9 +11,13 @@ export default defineConfig({
     starlight({
       title: 'Abacus',
       description: 'Track and analyze AI coding tool usage across your team',
-      social: {
-        github: 'https://github.com/getsentry/abacus',
-      },
+      social: [
+        {
+          icon: 'github',
+          label: 'GitHub',
+          href: 'https://github.com/getsentry/abacus',
+        },
+      ],
       customCss: ['./src/styles/custom.css'],
       head: [
         {
@@ -31,24 +35,24 @@ export default defineConfig({
         { label: 'Welcome', link: '/' },
         {
           label: 'Getting Started',
-          autogenerate: { directory: 'getting-started' },
+          items: [{ autogenerate: { directory: 'getting-started' } }],
         },
         {
           label: 'Providers',
-          autogenerate: { directory: 'providers' },
+          items: [{ autogenerate: { directory: 'providers' } }],
         },
         {
           label: 'CLI Reference',
-          autogenerate: { directory: 'cli' },
+          items: [{ autogenerate: { directory: 'cli' } }],
         },
         {
           label: 'Deployment',
-          autogenerate: { directory: 'deployment' },
+          items: [{ autogenerate: { directory: 'deployment' } }],
         },
         {
           label: 'Development',
           collapsed: true,
-          autogenerate: { directory: 'development' },
+          items: [{ autogenerate: { directory: 'development' } }],
         },
       ],
       editLink: {
