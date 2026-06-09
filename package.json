@@ -34,6 +34,7 @@
     "drizzle-orm": "^0.45.2",
     "framer-motion": "^12.24.7",
     "geist": "^1.5.1",
+    "google-auth-library": "^10.7.0",
     "lucide-react": "^0.562.0",
     "next": "16.2.6",
     "papaparse": "^5.5.3",
