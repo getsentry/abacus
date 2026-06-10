@@ -20,6 +20,7 @@ pnpm cli sync
 # Sync specific provider
 pnpm cli sync anthropic --days 30
 pnpm cli sync cursor --days 7
+pnpm cli sync openrouter --days 30
 
 # Skip API key mapping sync (faster)
 pnpm cli sync --skip-mappings
@@ -35,6 +36,9 @@ pnpm cli backfill anthropic --from 2025-01-01 --to 2025-06-01
 
 # Cursor backfill
 pnpm cli backfill cursor --from 2025-01-01 --to 2025-06-01
+
+# OpenRouter backfill (always fetches full 30-day window — no date flags)
+pnpm cli backfill openrouter
 ```
 
 ### Backfill Management
@@ -44,6 +48,7 @@ Mark a backfill as complete (prevents cron from re-running):
 ```bash
 pnpm cli backfill:complete anthropic
 pnpm cli backfill:complete cursor
+pnpm cli backfill:complete openrouter
 ```
 
 Reset to allow re-backfilling:
@@ -51,6 +56,7 @@ Reset to allow re-backfilling:
 ```bash
 pnpm cli backfill:reset anthropic
 pnpm cli backfill:reset cursor
+pnpm cli backfill:reset openrouter
 ```
 
 ## Check Sync Status
@@ -60,6 +66,7 @@ View the current state of each provider:
 ```bash
 pnpm cli anthropic:status
 pnpm cli cursor:status
+pnpm cli openrouter:status
 ```
 
 Shows last sync time, records synced, and any errors.

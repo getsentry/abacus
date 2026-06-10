@@ -30,6 +30,7 @@ Abacus uses Vercel cron jobs to keep data current. These run automatically once 
 |----------|----------|---------|
 | `/api/cron/sync-anthropic` | Daily at 6 AM UTC | Sync recent Claude Code usage |
 | `/api/cron/sync-cursor` | Hourly | Sync recent Cursor usage |
+| `/api/cron/sync-openrouter` | Hourly | Sync recent OpenRouter usage |
 | `/api/cron/backfill-anthropic` | Every 6 hours | Backfill historical Claude Code data |
 | `/api/cron/backfill-cursor` | Every 6 hours | Backfill historical Cursor data |
 | `/api/cron/backfill-github` | Every 6 hours | Backfill GitHub commits (90 days) |
@@ -47,6 +48,10 @@ All cron endpoints require `CRON_SECRET`. Vercel automatically includes this in 
 # Generate a secure secret
 openssl rand -hex 32
 ```
+
+<Aside type="note">
+  To activate OpenRouter syncing, set `OPENROUTER_MANAGEMENT_KEY` in your Vercel project environment variables. This is a manual post-merge step — the cron will skip gracefully if the key is absent.
+</Aside>
 
 ### Manual Triggering
 

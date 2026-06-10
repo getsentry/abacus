@@ -1,0 +1,91 @@
+---
+title: OpenRouter
+description: Track OpenRouter usage by provisioned API key via the Management API
+sidebar:
+  order: 5
+---
+
+import { Steps, Aside } from '@astrojs/starlight/components';
+
+Abacus tracks OpenRouter usage by reading daily activity for each provisioned key via the [OpenRouter Management API](https://openrouter.ai/docs/api-reference/management). Usage is attributed to team members by matching provisioned-key hashes to email addresses stored in the `openrouter_keys` table.
+
+## Setup
+
+<Steps>
+
+1. Open [OpenRouter → Settings → Keys](https://openrouter.ai/settings/keys) and generate a **Management API key** (starts with `sk-or-v1-`).
+
+2. Set the environment variable:
+
+   ```bash
+   OPENROUTER_MANAGEMENT_KEY=sk-or-v1-...
+   ```
+
+3. Provision API keys for each team member via the OpenRouter API or dashboard. Abacus records each key's hash and associates it with a user email — see [provisioning documentation](/abacus/providers/openrouter/#key-provisioning).
+
+</Steps>
+
+## Sync Behavior
+
+| Setting | Value |
+|---------|-------|
+| Schedule | Hourly |
+| History window | Last 30 days (API limitation) |
+| Data | Input tokens, output tokens, cost (USD credits) |
+| Attribution | Provisioned-key hash → email mapping |
+| Cache tokens | Not available (OpenRouter API limitation) |
+| BYOK usage | Not tracked (only usage billed through OpenRouter) |
+
+<Aside type="note">
+  The OpenRouter Management API only exposes usage for the last 30 days. For historical data beyond this window, the data is simply unavailable — there is no extended archive. Run a one-time CLI backfill promptly after setup to capture the full available window.
+</Aside>
+
+## Manual Sync
+
+Sync the last N days of usage data:
+
+```bash
+pnpm cli sync openrouter --days 30
+```
+
+Check sync status:
+
+```bash
+pnpm cli openrouter:status
+```
+
+## Backfill Historical Data
+
+OpenRouter backfill always fetches the full available 30-day window — no date range flags are needed or supported (unlike Anthropic/Cursor):
+
+```bash
+pnpm cli backfill openrouter
+```
+
+Mark backfill as complete (prevents cron from re-running the full window):
+
+```bash
+pnpm cli backfill:complete openrouter
+```
+
+Reset to allow re-backfilling:
+
+```bash
+pnpm cli backfill:reset openrouter
+```
+
+## Key Provisioning
+
+Abacus attributes usage to team members via provisioned-key hash mapping. When a user is provisioned an OpenRouter API key:
+
+1. The key hash is stored in the `openrouter_keys` table alongside the user's email.
+2. During sync, daily activity per key is fetched from the Management API and matched by hash.
+3. Usage is recorded under the user's email in the aggregated reports.
+
+<Aside type="tip">
+  If a provisioned key is later revoked, Abacus retains the hash → email mapping and will continue to attribute any remaining historical data for that key correctly.
+</Aside>
+
+## Cost Semantics
+
+Costs are reported in **USD credits** as returned by the OpenRouter API. This reflects actual billed usage through OpenRouter's platform. Bring-your-own-key (BYOK) usage that bypasses OpenRouter billing is **not** tracked.
