@@ -8,6 +8,11 @@ allowed-tools: Read, Grep, Glob, Edit, Write, Bash
 
 Create schema changes with proper migrations.
 
+**Applying migrations is automatic** — the Vercel build runs `db:migrate` before
+`next build` (preview and production), so pending migrations apply on every
+deployment. Locally, run `pnpm db:migrate`. This skill is about *generating*
+migrations correctly, which is never automatic.
+
 ## CRITICAL: Never Write Migrations By Hand
 
 **ALWAYS use `drizzle-kit generate` to create migrations. NEVER write SQL migration files manually.**
@@ -54,18 +59,20 @@ Read the generated migration and verify:
 
 ### Step 4: Test Locally (Optional - Be Careful!)
 
-**WARNING**: Only test migrations locally if `POSTGRES_URL` points to a LOCAL database.
-If it points to production, skip this step - migrations will run automatically on Vercel deploy.
+**WARNING**: Only test migrations locally if `POSTGRES_URL` points to your own
+dev database (a personal Neon branch, e.g. `dev/<you>` — see
+`docs/src/content/docs/getting-started/local-development.mdx`). If it points to
+production, skip this step — migrations run automatically on Vercel deploy.
 
 To check your database URL:
 ```bash
-echo $POSTGRES_URL  # Should be localhost or local container
+grep POSTGRES_URL .env.local  # Should be your dev branch endpoint, not prod's
 ```
 
-If local database is configured:
+If a dev database is configured:
 ```bash
-pnpm build  # Runs migrations automatically
-pnpm cli stats  # Verify queries work
+pnpm db:migrate  # Apply pending migrations
+pnpm cli stats   # Verify queries work
 ```
 
 ### Step 5: Verify in PR

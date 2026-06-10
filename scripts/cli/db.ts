@@ -7,7 +7,10 @@ import * as fs from 'fs';
 export async function cmdDbMigrate() {
   console.log('🗃️  Running database migrations\n');
 
-  const connectionString = process.env.POSTGRES_URL;
+  // Prefer the direct (non-pooled) endpoint for DDL — Neon recommends running
+  // migrations outside PgBouncer. POSTGRES_URL_NON_POOLING is injected by the
+  // Neon Vercel integration; POSTGRES_URL remains the fallback (e.g. local dev).
+  const connectionString = process.env.POSTGRES_URL_NON_POOLING || process.env.POSTGRES_URL;
   if (!connectionString) {
     console.log('⚠️  POSTGRES_URL not set, skipping migrations');
     return;
