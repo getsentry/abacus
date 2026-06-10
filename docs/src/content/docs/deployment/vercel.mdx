@@ -30,7 +30,7 @@ Abacus uses Vercel cron jobs to keep data current. These run automatically once 
 |----------|----------|---------|
 | `/api/cron/sync-anthropic` | Daily at 6 AM UTC | Sync recent Claude Code usage |
 | `/api/cron/sync-cursor` | Hourly | Sync recent Cursor usage |
-| `/api/cron/sync-openrouter` | Hourly | Sync recent OpenRouter usage |
+| `/api/cron/sync-openrouter` | Daily (00:30 UTC) | Sync recent OpenRouter usage (the activity API only exposes completed UTC days) |
 | `/api/cron/backfill-anthropic` | Every 6 hours | Backfill historical Claude Code data |
 | `/api/cron/backfill-cursor` | Every 6 hours | Backfill historical Cursor data |
 | `/api/cron/backfill-github` | Every 6 hours | Backfill GitHub commits (90 days) |

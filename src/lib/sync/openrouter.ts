@@ -250,9 +250,11 @@ export async function syncOpenRouterUsage(startDate: string, endDate: string): P
 
 /**
  * Sync OpenRouter usage for the cron job.
- * Runs hourly. Syncs yesterday + today (UTC) to catch late-arriving data.
+ * Runs daily shortly after UTC midnight. The OpenRouter /activity endpoint
+ * only returns completed UTC days, so the most recent syncable day is
+ * yesterday. Syncs the last two completed days to catch late-arriving data.
  *
- * Safe to call frequently — returns early if already synced today.
+ * Safe to call more often — returns early if yesterday is already synced.
  */
 export async function syncOpenRouterCron(): Promise<SyncResult> {
   if (!process.env.OPENROUTER_MANAGEMENT_KEY) {
@@ -264,12 +266,15 @@ export async function syncOpenRouterCron(): Promise<SyncResult> {
     };
   }
 
-  const today = new Date();
-  const todayStr = today.toISOString().split('T')[0];
+  // The most recent completed UTC day is yesterday — today's activity is
+  // not exposed by the API until the UTC day rolls over.
+  const yesterday = new Date();
+  yesterday.setUTCDate(yesterday.getUTCDate() - 1);
+  const yesterdayStr = yesterday.toISOString().split('T')[0];
 
-  // Check if we've already synced today — skip to avoid redundant API calls
+  // Skip if the latest completed day is already synced
   const { lastSyncedDate } = await getOpenRouterSyncState();
-  if (lastSyncedDate === todayStr) {
+  if (lastSyncedDate && lastSyncedDate >= yesterdayStr) {
     return {
       success: true,
       recordsImported: 0,
@@ -279,17 +284,15 @@ export async function syncOpenRouterCron(): Promise<SyncResult> {
     };
   }
 
-  // Start from yesterday to catch any late-arriving data
-  const yesterday = new Date();
-  yesterday.setDate(yesterday.getDate() - 1);
-  const startDate = yesterday.toISOString().split('T')[0];
+  // Sync the last two completed days to catch late-arriving data
+  const dayBefore = new Date();
+  dayBefore.setUTCDate(dayBefore.getUTCDate() - 2);
+  const startDate = dayBefore.toISOString().split('T')[0];
 
-  // Sync yesterday through today (today's data will be partial)
-  const result = await syncOpenRouterUsage(startDate, todayStr);
+  const result = await syncOpenRouterUsage(startDate, yesterdayStr);
 
-  // Update sync state to today if successful
   if (result.success) {
-    await updateOpenRouterSyncState(todayStr);
+    await updateOpenRouterSyncState(yesterdayStr);
   }
 
   return result;

@@ -337,13 +337,15 @@ describe('OpenRouter Sync', () => {
       expect(result.errors).toContain(NO_OPENROUTER_KEY_ERROR);
     });
 
-    it('returns early (no sync) if already synced today', async () => {
-      const todayStr = new Date().toISOString().split('T')[0];
+    it('returns early (no sync) if the latest completed day is already synced', async () => {
+      const yesterday = new Date();
+      yesterday.setUTCDate(yesterday.getUTCDate() - 1);
+      const yesterdayStr = yesterday.toISOString().split('T')[0];
 
       await db.insert(syncState).values({
         id: 'openrouter',
         lastSyncAt: new Date(),
-        lastSyncedHourEnd: todayStr,
+        lastSyncedHourEnd: yesterdayStr,
       });
 
       const result = await syncOpenRouterCron();
@@ -353,15 +355,17 @@ describe('OpenRouter Sync', () => {
       expect(result.syncedRange).toBeUndefined();
     });
 
-    it('syncs yesterday and today when not synced yet today', async () => {
+    it('syncs the last two completed days when not synced yet', async () => {
       mockActivityEndpoint([]);
 
       const result = await syncOpenRouterCron();
 
       expect(result.success).toBe(true);
-      // State should be updated to today
+      // State should be updated to yesterday (latest completed UTC day)
+      const yesterday = new Date();
+      yesterday.setUTCDate(yesterday.getUTCDate() - 1);
       const state = await getOpenRouterSyncState();
-      expect(state.lastSyncedDate).toBe(new Date().toISOString().split('T')[0]);
+      expect(state.lastSyncedDate).toBe(yesterday.toISOString().split('T')[0]);
     });
   });
 

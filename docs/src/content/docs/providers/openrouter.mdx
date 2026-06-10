@@ -29,15 +29,16 @@ Abacus tracks OpenRouter usage by reading daily activity for each provisioned ke
 
 | Setting | Value |
 |---------|-------|
-| Schedule | Hourly |
+| Schedule | Daily at 00:30 UTC |
 | History window | Last 30 days (API limitation) |
+| Data freshness | Completed UTC days only — the current day appears after UTC midnight |
 | Data | Input tokens, output tokens, cost (USD credits) |
 | Attribution | Provisioned-key hash → email mapping |
 | Cache tokens | Not available (OpenRouter API limitation) |
 | BYOK usage | Not tracked (only usage billed through OpenRouter) |
 
 <Aside type="note">
-  The OpenRouter Management API only exposes usage for the last 30 days. For historical data beyond this window, the data is simply unavailable — there is no extended archive. Run a one-time CLI backfill promptly after setup to capture the full available window.
+  The OpenRouter Management API only exposes usage for the last 30 days, and only for **completed UTC days** — the current day's usage is visible on the OpenRouter dashboard immediately but does not appear in the activity API (or Abacus) until the UTC day rolls over. For historical data beyond the 30-day window, the data is simply unavailable — there is no extended archive. Run a one-time CLI backfill promptly after setup to capture the full available window.
 </Aside>
 
 ## Manual Sync

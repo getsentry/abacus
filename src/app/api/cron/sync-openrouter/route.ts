@@ -3,7 +3,10 @@ import { wrapRouteHandlerWithSentry } from '@sentry/nextjs';
 import { runOpenRouterSync, getOpenRouterSyncState } from '@/lib/sync';
 
 /**
- * OpenRouter Cron Sync - runs hourly
+ * OpenRouter Cron Sync - runs daily at 00:30 UTC.
+ *
+ * The OpenRouter /activity endpoint only returns completed UTC days,
+ * so running more often than daily yields no new data.
  *
  * Fetches daily usage per provisioned key via the OpenRouter Management API.
  * Each day's data is keyed by provisioned-key hash and mapped to user email
