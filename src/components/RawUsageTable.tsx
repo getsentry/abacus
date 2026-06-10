@@ -23,6 +23,7 @@ const TOOL_COLORS: Record<string, { bg: string; text: string }> = {
   windsurf: { bg: 'bg-emerald-500', text: 'text-emerald-400' },
   github_copilot: { bg: 'bg-sky-500', text: 'text-sky-400' },
   codex: { bg: 'bg-teal-500', text: 'text-teal-400' },
+  openrouter: { bg: 'bg-violet-500', text: 'text-violet-400' },
   default: { bg: 'bg-rose-500', text: 'text-rose-400' },
 };
 
@@ -37,6 +38,7 @@ function formatToolName(tool: string): string {
     windsurf: 'Windsurf',
     github_copilot: 'GitHub Copilot',
     codex: 'Codex',
+    openrouter: 'OpenRouter',
   };
   return names[tool] || tool.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
 }

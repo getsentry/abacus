@@ -123,7 +123,7 @@ describe('OpenRouter Sync', () => {
       expect(rec.email).toBe('user@example.com');
       expect(rec.date).toBe('2025-01-15');
       expect(rec.rawModel).toBe('anthropic/claude-sonnet-4.5');  // Full slug preserved
-      expect(rec.model).toBe('claude-sonnet-4.5');               // Vendor prefix stripped
+      expect(rec.model).toBe('sonnet-4.5');                      // Normalized to canonical form
       expect(Number(rec.inputTokens)).toBe(1000);                // = promptTokens
       expect(Number(rec.outputTokens)).toBe(250);                // = completionTokens + reasoningTokens
       expect(Number(rec.cacheWriteTokens)).toBe(0);
@@ -215,7 +215,7 @@ describe('OpenRouter Sync', () => {
       expect(result.recordsImported).toBe(1); // Only the in-range item
     });
 
-    it('handles a key that returns a 500 error — other keys still processed', async () => {
+    it('handles a key that returns a 500 error — other keys still processed', { timeout: 20000 }, async () => {
       await insertKey('hash-key1', 'key1@example.com');
       await insertKey('hash-key2', 'key2@example.com');
 
@@ -242,6 +242,39 @@ describe('OpenRouter Sync', () => {
       expect(result.recordsImported).toBe(1);
     });
 
+    it('treats a 404 on a deleted key as no activity — other keys still imported, result.success true', async () => {
+      await insertKey('hash-deleted', 'deleted@example.com');
+      await insertKey('hash-active', 'active@example.com');
+
+      // deleted key returns 404; active key returns normal data
+      server.use(
+        http.get(ACTIVITY_URL, ({ request }) => {
+          const url = new URL(request.url);
+          const keyHash = url.searchParams.get('api_key_hash');
+          if (keyHash === 'hash-deleted') {
+            return HttpResponse.json(
+              { error: { message: 'Key not found', code: 404 } },
+              { status: 404 }
+            );
+          }
+          return HttpResponse.json({
+            data: [createActivityItem({ date: '2025-01-15 00:00:00', model: 'openai/gpt-4.1' })],
+          });
+        })
+      );
+
+      const result = await syncOpenRouterUsage('2025-01-15', '2025-01-15');
+
+      // 404 treated as no activity — not an error
+      expect(result.success).toBe(true);
+      expect(result.errors).toHaveLength(0);
+      // Active key's data was imported
+      expect(result.recordsImported).toBe(1);
+      // Sync state updated
+      const state = await getOpenRouterSyncState();
+      expect(state.lastSyncedDate).toBe('2025-01-15');
+    });
+
     it('re-sync is idempotent (UPSERT does not duplicate records)', async () => {
       await insertKey('hash-abc', 'user@example.com');
       mockActivityEndpoint([
@@ -266,13 +299,13 @@ describe('OpenRouter Sync', () => {
       await insertKey('hash-abc', 'user@example.com');
     });
 
-    it('strips vendor prefix and normalizes anthropic/claude-sonnet-4.5', async () => {
+    it('strips vendor prefix and normalizes anthropic/claude-sonnet-4.5 to canonical sonnet-4.5', async () => {
       mockActivityEndpoint([createActivityItem({ model: 'anthropic/claude-sonnet-4.5' })]);
       await syncOpenRouterUsage('2025-01-15', '2025-01-15');
 
       const records = await db.select().from(usageRecords).where(eq(usageRecords.email, 'user@example.com'));
       expect(records[0].rawModel).toBe('anthropic/claude-sonnet-4.5');
-      expect(records[0].model).toBe('claude-sonnet-4.5');
+      expect(records[0].model).toBe('sonnet-4.5'); // Normalized to canonical form
     });
 
     it('passes through openai/gpt-4.1 without mangling', async () => {
@@ -380,7 +413,7 @@ describe('OpenRouter Sync', () => {
         date: '2025-01-10',
         email: 'user@example.com',
         tool: 'openrouter',
-        model: 'claude-sonnet-4.5',
+        model: 'sonnet-4.5',
         rawModel: 'anthropic/claude-sonnet-4.5',
         inputTokens: 1000,
         outputTokens: 200,

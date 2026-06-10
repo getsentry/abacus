@@ -171,6 +171,14 @@ export function normalizeModelName(model: string): string {
     }
   }
 
+  // "claude-sonnet-4.5" or "claude-opus-4.5" → "sonnet-4.5" or "opus-4.5" (decimal version, no date)
+  if (!match) {
+    match = normalized.match(/^claude-([a-z]+)-(\d+\.\d+)$/);
+    if (match) {
+      normalized = `${match[1]}-${match[2]}`;
+    }
+  }
+
   // "claude-opus-4" or "claude-sonnet-4" → "opus-4" or "sonnet-4" (no date)
   if (!match) {
     match = normalized.match(/^claude-([a-z]+)-(\d+)$/);

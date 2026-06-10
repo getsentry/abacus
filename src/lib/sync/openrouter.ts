@@ -4,6 +4,7 @@ import { normalizeModelName } from '../utils';
 import { db, syncState, usageRecords, openrouterKeys } from '../db';
 import { eq, min } from 'drizzle-orm';
 import { getOpenRouterActivity } from '../openrouter';
+import { NotFoundResponseError } from '@openrouter/sdk/models/errors';
 
 export const NO_OPENROUTER_KEY_ERROR = 'OPENROUTER_MANAGEMENT_KEY is not set';
 
@@ -189,6 +190,11 @@ export async function syncOpenRouterUsage(startDate: string, endDate: string): P
         }
       }
     } catch (err) {
+      // 404 = key deleted on OpenRouter side — treat as no activity, keep syncing
+      if (err instanceof NotFoundResponseError) {
+        console.warn(`[OpenRouter Sync] Key ${key.hash.slice(0, 10)}... not found (404) — skipping (key may have been deleted)`);
+        continue;
+      }
       // Per-key error: log, skip, continue the loop
       const msg = err instanceof Error ? err.message : String(err);
       console.error(`[OpenRouter Sync] Error fetching activity for key ${key.hash.slice(0, 10)}...: ${msg}`);
@@ -201,8 +207,9 @@ export async function syncOpenRouterUsage(startDate: string, endDate: string): P
   // Insert aggregated records
   for (const rec of aggregated.values()) {
     // Strip vendor prefix from model slug and normalize.
-    // e.g. "anthropic/claude-sonnet-4.5" → normalize("claude-sonnet-4.5") → "claude-sonnet-4.5"
-    // We pass the tail through normalizeModelName; non-Claude models pass through as-is.
+    // e.g. "anthropic/claude-sonnet-4.5" → normalize("claude-sonnet-4.5") → "sonnet-4.5"
+    // normalizeModelName handles claude-{family}-{decimal} → canonical form.
+    // Non-Claude models pass through as-is (e.g. "gpt-4.1", "gemini-2.5-pro").
     const tail = rec.rawModel.includes('/') ? rec.rawModel.split('/').slice(1).join('/') : rec.rawModel;
     const model = normalizeModelName(tail);
 

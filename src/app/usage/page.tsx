@@ -942,6 +942,7 @@ function UsagePageContent() {
                       {toolUserDataFinal.map((item, i) => {
                         const claudeHeight = maxUserValue > 0 ? (item.claudeCode / maxUserValue) * 100 : 0;
                         const cursorHeight = maxUserValue > 0 ? (item.cursor / maxUserValue) * 100 : 0;
+                        const openrouterHeight = maxUserValue > 0 ? ((item.openrouter || 0) / maxUserValue) * 100 : 0;
                         const userLabelEvery = Math.max(1, Math.ceil(toolUserDataFinal.length / maxLabels));
 
                         return (
@@ -961,7 +962,16 @@ function UsagePageContent() {
                                   initial={{ height: 0 }}
                                   animate={{ height: `${cursorHeight}%` }}
                                   transition={{ duration: 0.6, delay: Math.min(i * 0.02 + 0.02, 1) }}
-                                  className={`w-full rounded-b ${TOOL_CONFIGS.cursor.bgChart}`}
+                                  className={`w-full ${openrouterHeight === 0 ? 'rounded-b' : ''} ${TOOL_CONFIGS.cursor.bgChart}`}
+                                  style={{ minHeight: '2px' }}
+                                />
+                              )}
+                              {openrouterHeight > 0 && (
+                                <motion.div
+                                  initial={{ height: 0 }}
+                                  animate={{ height: `${openrouterHeight}%` }}
+                                  transition={{ duration: 0.6, delay: Math.min(i * 0.02 + 0.04, 1) }}
+                                  className={`w-full rounded-b ${TOOL_CONFIGS.openrouter.bgChart}`}
                                   style={{ minHeight: '2px' }}
                                 />
                               )}
@@ -977,6 +987,9 @@ function UsagePageContent() {
                               <div className="text-white/60 mb-1">{formatDate(item.date)}</div>
                               <div className={TOOL_CONFIGS.claude_code.text}>Claude Code: {item.claudeCode} users</div>
                               <div className={TOOL_CONFIGS.cursor.text}>Cursor: {item.cursor} users</div>
+                              {(item.openrouter || 0) > 0 && (
+                                <div className={TOOL_CONFIGS.openrouter.text}>OpenRouter: {item.openrouter} users</div>
+                              )}
                             </TooltipContent>
                           </div>
                         );

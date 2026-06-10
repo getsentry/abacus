@@ -49,6 +49,9 @@ function getToolBreakdownFromUser(user: UserPivotData): ToolSplitData[] {
   if (user.cursorTokens > 0) {
     tools.push({ tool: 'cursor', value: Number(user.cursorTokens) });
   }
+  if (user.openrouterTokens > 0) {
+    tools.push({ tool: 'openrouter', value: Number(user.openrouterTokens) });
+  }
   return tools.sort((a, b) => b.value - a.value);
 }
 
@@ -59,6 +62,7 @@ const columns: { key: ColumnKey; label: string; align: 'left' | 'right'; format?
   { key: 'split', label: 'Tools', align: 'left', sortable: false },
   { key: 'claudeCodeTokens', label: 'Claude Code', align: 'right', format: formatTokens },
   { key: 'cursorTokens', label: 'Cursor', align: 'right', format: formatTokens },
+  { key: 'openrouterTokens', label: 'OpenRouter', align: 'right', format: formatTokens },
   { key: 'daysActive', label: 'Days Active', align: 'right', format: (v) => v.toString() },
   { key: 'avgTokensPerDay', label: 'Avg/Day', align: 'right', format: formatTokens },
   { key: 'lastActive', label: 'Last Active', align: 'right' },

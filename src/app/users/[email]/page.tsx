@@ -469,7 +469,7 @@ function UserDetailContent() {
               const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
               const byDayOfWeek = data.dailyUsage.reduce((acc, d) => {
                 const dayIndex = new Date(d.date).getDay();
-                acc[dayIndex] = (acc[dayIndex] || 0) + Number(d.claudeCode) + Number(d.cursor);
+                acc[dayIndex] = (acc[dayIndex] || 0) + Number(d.claudeCode) + Number(d.cursor) + Number(d.openrouter || 0);
                 return acc;
               }, {} as Record<number, number>);
 
