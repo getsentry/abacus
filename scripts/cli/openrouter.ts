@@ -1,4 +1,50 @@
 import { getOpenRouterSyncState, getOpenRouterBackfillState } from '../../src/lib/sync/openrouter';
+import { createOpenRouterKey, deleteOpenRouterKey } from '../../src/lib/openrouter';
+import { db, openrouterKeys } from '../../src/lib/db';
+
+export async function cmdOpenRouterCreateKey(email: string | undefined, name: string | undefined) {
+  const normalizedEmail = email?.trim().toLowerCase();
+  const normalizedName = name?.trim();
+
+  if (!normalizedEmail || !normalizedEmail.includes('@') || !normalizedName) {
+    console.error('Usage: pnpm cli openrouter:create-key <email> <name>');
+    console.error('Example: pnpm cli openrouter:create-key jane@sentry.io "Claude Code"');
+    process.exitCode = 1;
+    return;
+  }
+
+  console.log(`🔑 Creating OpenRouter key "${normalizedName}" for ${normalizedEmail}...`);
+
+  // Same flow as POST /api/openrouter/keys: create on OpenRouter first,
+  // then store the hash → email mapping; clean up the key if the insert fails.
+  const created = await createOpenRouterKey({
+    name: `${normalizedEmail} - ${normalizedName}`,
+  });
+
+  try {
+    await db.insert(openrouterKeys).values({
+      hash: created.data.hash,
+      email: normalizedEmail,
+      name: normalizedName,
+    });
+  } catch (error) {
+    try {
+      await deleteOpenRouterKey(created.data.hash);
+    } catch (cleanupError) {
+      console.error('Failed to cleanup OpenRouter key after DB insert failure', {
+        hash: created.data.hash,
+        cleanupError,
+      });
+    }
+    throw error;
+  }
+
+  console.log('\n✓ Key created and mapped\n');
+  console.log(`  Email: ${normalizedEmail}`);
+  console.log(`  Name:  ${normalizedName}`);
+  console.log(`  Hash:  ${created.data.hash}`);
+  console.log(`\n  Key (shown ONCE, share it securely):\n\n  ${created.key}\n`);
+}
 
 export async function cmdOpenRouterStatus() {
   console.log('🔄 OpenRouter Sync Status\n');

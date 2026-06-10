@@ -33,7 +33,7 @@ import { cmdDbMigrate } from './db';
 import { cmdStats } from './stats';
 import { cmdAnthropicStatus } from './anthropic';
 import { cmdCursorStatus, cmdImportCursorCsv } from './cursor';
-import { cmdOpenRouterStatus } from './openrouter';
+import { cmdOpenRouterStatus, cmdOpenRouterCreateKey } from './openrouter';
 import { cmdGitHubStatus, cmdGitHubSync, cmdGitHubCommits, cmdGitHubUsers, cmdGitHubUsersMap, cmdGitHubUsersSync, cmdGitHubCleanupMerges } from './github';
 import { cmdMappings, cmdMappingsSync, cmdMappingsFix } from './mappings';
 import { cmdSync, cmdBackfill, cmdGitHubBackfill, cmdBackfillComplete, cmdBackfillReset, cmdGaps, cmdBackfillOrgIds } from './sync';
@@ -68,6 +68,8 @@ Commands:
   anthropic:status      Show Anthropic sync state
   cursor:status         Show Cursor sync state
   openrouter:status     Show OpenRouter sync state
+  openrouter:create-key <email> <name>
+                        Create an OpenRouter API key for a user and store the mapping
   github:status         Show GitHub commits sync state
   github:sync [repo] [options]
                         Sync GitHub commits (filters to default branch, skips merge commits)
@@ -119,6 +121,10 @@ async function main() {
       case 'cursor:status':
         await cmdCursorStatus();
         break;
+      case 'openrouter:create-key':
+        await cmdOpenRouterCreateKey(args[1], args[2]);
+        break;
+
       case 'openrouter:status':
         await cmdOpenRouterStatus();
         break;
