@@ -104,3 +104,23 @@ export async function deleteOpenRouterKey(hash: string): Promise<DeleteOpenRoute
 
   return client.apiKeys.delete({ hash });
 }
+
+export type OpenRouterActivityItem = {
+  date: string;           // YYYY-MM-DD HH:MM:SS (UTC) — parse the date part only
+  model: string;          // slug e.g. "openai/gpt-4.1"
+  modelPermaslug: string;
+  providerName: string;
+  endpointId: string;
+  promptTokens: number;
+  completionTokens: number;
+  reasoningTokens: number;
+  requests: number;
+  usage: number;          // USD dollars (OpenRouter credits)
+  byokUsageInference: number; // USD (external/BYOK credits — excluded from cost)
+};
+
+export async function getOpenRouterActivity(params: { apiKeyHash?: string }): Promise<OpenRouterActivityItem[]> {
+  const client = getClient();
+  const response = await client.analytics.getUserActivity({ apiKeyHash: params.apiKeyHash });
+  return response.data as OpenRouterActivityItem[];
+}
