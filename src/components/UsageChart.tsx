@@ -35,13 +35,14 @@ export function UsageChart({ data, days }: UsageChartProps) {
 
   // Calculate totals per data point for trend line
   const totalValues = useMemo(
-    () => chartData.map(d => Number(d.claudeCode) + Number(d.cursor)),
+    () => chartData.map(d => Number(d.claudeCode) + Number(d.cursor) + Number(d.openrouter || 0)),
     [chartData]
   );
 
   const maxValue = Math.max(...totalValues, 1);
   const claudeCodeTotal = chartData.reduce((sum, d) => sum + Number(d.claudeCode), 0);
   const cursorTotal = chartData.reduce((sum, d) => sum + Number(d.cursor), 0);
+  const openrouterTotal = chartData.reduce((sum, d) => sum + Number(d.openrouter || 0), 0);
   // Don't show projected legend for weekly data since projections don't aggregate meaningfully
   const showProjectedLegend = !isWeekly && hasProjectedData(chartData);
 
@@ -79,6 +80,7 @@ export function UsageChart({ data, days }: UsageChartProps) {
               items={[
                 { key: 'claude_code', label: TOOL_CONFIGS.claude_code.name, value: formatTokens(claudeCodeTotal), textColor: TOOL_CONFIGS.claude_code.text },
                 { key: 'cursor', label: TOOL_CONFIGS.cursor.name, value: formatTokens(cursorTotal), textColor: TOOL_CONFIGS.cursor.text },
+                ...(openrouterTotal > 0 ? [{ key: 'openrouter', label: TOOL_CONFIGS.openrouter.name, value: formatTokens(openrouterTotal), textColor: TOOL_CONFIGS.openrouter.text }] : []),
               ]}
             />
             {showProjectedLegend && (
@@ -103,16 +105,21 @@ export function UsageChart({ data, days }: UsageChartProps) {
           // For estimated: projectedX is 0, X is the historical average (all estimated)
           const claudeTotal = Number(item.claudeCode);
           const cursorTotal = Number(item.cursor);
+          const openrouterItemTotal = Number(item.openrouter || 0);
           const claudeActual = !isWeekly && item.projectedClaudeCode !== undefined ? item.projectedClaudeCode : claudeTotal;
           const cursorActual = !isWeekly && item.projectedCursor !== undefined ? item.projectedCursor : cursorTotal;
+          const openrouterActual = !isWeekly && item.projectedOpenrouter !== undefined ? item.projectedOpenrouter : openrouterItemTotal;
           const claudeProjectedPortion = claudeTotal - claudeActual;
           const cursorProjectedPortion = cursorTotal - cursorActual;
+          const openrouterProjectedPortion = openrouterItemTotal - openrouterActual;
 
           // Heights as percentages of max
           const claudeActualHeight = (claudeActual / maxValue) * 100;
           const claudeProjectedHeight = (claudeProjectedPortion / maxValue) * 100;
           const cursorActualHeight = (cursorActual / maxValue) * 100;
           const cursorProjectedHeight = (cursorProjectedPortion / maxValue) * 100;
+          const openrouterActualHeight = (openrouterActual / maxValue) * 100;
+          const openrouterProjectedHeight = (openrouterProjectedPortion / maxValue) * 100;
 
           return (
             <div key={item.date} className="group relative flex-1 flex flex-col justify-end min-w-[3px]" style={{ height: '100%' }}>
@@ -138,7 +145,7 @@ export function UsageChart({ data, days }: UsageChartProps) {
                     style={{ minHeight: '2px' }}
                   />
                 )}
-                {/* Cursor - on bottom (projected portion above actual) */}
+                {/* Cursor - middle */}
                 {cursorProjectedHeight > 0 && (
                   <motion.div
                     initial={{ height: 0 }}
@@ -155,7 +162,28 @@ export function UsageChart({ data, days }: UsageChartProps) {
                     initial={{ height: 0 }}
                     animate={{ height: `${cursorActualHeight}%` }}
                     transition={{ duration: 0.6, delay: Math.min(i * 0.02 + 0.03, 1) }}
-                    className={`w-full rounded-b ${TOOL_CONFIGS.cursor.bgChart}`}
+                    className={`w-full ${openrouterActualHeight === 0 && openrouterProjectedHeight === 0 ? 'rounded-b' : ''} ${TOOL_CONFIGS.cursor.bgChart}`}
+                    style={{ minHeight: '2px' }}
+                  />
+                )}
+                {/* OpenRouter - on bottom */}
+                {openrouterProjectedHeight > 0 && (
+                  <motion.div
+                    initial={{ height: 0 }}
+                    animate={{ height: `${openrouterProjectedHeight}%` }}
+                    transition={{ duration: 0.6, delay: Math.min(i * 0.02 + 0.04, 1) }}
+                    className="w-full relative overflow-hidden bg-white/10"
+                    style={{ minHeight: '2px' }}
+                  >
+                    <div className="absolute inset-0 bg-stripes" />
+                  </motion.div>
+                )}
+                {openrouterActualHeight > 0 && (
+                  <motion.div
+                    initial={{ height: 0 }}
+                    animate={{ height: `${openrouterActualHeight}%` }}
+                    transition={{ duration: 0.6, delay: Math.min(i * 0.02 + 0.05, 1) }}
+                    className={`w-full rounded-b ${TOOL_CONFIGS.openrouter.bgChart}`}
                     style={{ minHeight: '2px' }}
                   />
                 )}
@@ -181,10 +209,15 @@ export function UsageChart({ data, days }: UsageChartProps) {
                   <div className={TOOL_CONFIGS.cursor.text}>
                     {TOOL_CONFIGS.cursor.name}: {formatTokens(cursorActual)}
                   </div>
+                  {openrouterActual > 0 && (
+                    <div className={TOOL_CONFIGS.openrouter.text}>
+                      {TOOL_CONFIGS.openrouter.name}: {formatTokens(openrouterActual)}
+                    </div>
+                  )}
                 </div>
 
                 {/* Projected values section - only show if there are projections */}
-                {(claudeProjectedPortion > 0 || cursorProjectedPortion > 0) && (
+                {(claudeProjectedPortion > 0 || cursorProjectedPortion > 0 || openrouterProjectedPortion > 0) && (
                   <div className="mb-1 mt-2 pt-2 border-t border-white/10">
                     <div className="text-white/40 text-xs uppercase tracking-wider mb-1">Projected</div>
                     {claudeProjectedPortion > 0 && (
@@ -197,11 +230,16 @@ export function UsageChart({ data, days }: UsageChartProps) {
                         {TOOL_CONFIGS.cursor.name}: +{formatTokens(cursorProjectedPortion)}
                       </div>
                     )}
+                    {openrouterProjectedPortion > 0 && (
+                      <div className="text-white/50">
+                        {TOOL_CONFIGS.openrouter.name}: +{formatTokens(openrouterProjectedPortion)}
+                      </div>
+                    )}
                   </div>
                 )}
 
                 {/* Estimated from average indicator */}
-                {(item.projectedClaudeCode === 0 || item.projectedCursor === 0) && (
+                {(item.projectedClaudeCode === 0 || item.projectedCursor === 0 || item.projectedOpenrouter === 0) && (
                   <div className="text-white/40 text-xs mt-2 pt-2 border-t border-white/10">
                     Estimated from historical average
                   </div>

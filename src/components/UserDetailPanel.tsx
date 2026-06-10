@@ -19,12 +19,13 @@ interface UserDetails {
     totalCost: number;
     claudeCodeTokens: number;
     cursorTokens: number;
+    openrouterTokens: number;
     lastActive: string;
     firstActive: string;
     daysActive?: number;
   };
   modelBreakdown: { model: string; tokens: number; cost: number; tool: string }[];
-  dailyUsage: { date: string; claudeCode: number; cursor: number }[];
+  dailyUsage: { date: string; claudeCode: number; cursor: number; openrouter?: number }[];
   previousPeriod?: {
     totalTokens: number;
     totalCost: number;
@@ -242,14 +243,14 @@ export function UserDetailPanel({ email, onClose }: UserDetailPanelProps) {
                     const displayData = isWeekly
                       ? aggregateToWeekly(details.dailyUsage)
                       : details.dailyUsage;
-                    const maxDaily = Math.max(...displayData.map(dd => Number(dd.claudeCode) + Number(dd.cursor)), 1);
+                    const maxDaily = Math.max(...displayData.map(dd => Number(dd.claudeCode) + Number(dd.cursor) + Number(dd.openrouter || 0)), 1);
 
                     return (
                       <Card padding="md">
                         <SectionLabel margin="md">{isWeekly ? 'Weekly Activity' : 'Daily Activity'}</SectionLabel>
                         <div className="flex h-16 items-end gap-0.5">
                           {displayData.map((d) => {
-                            const total = Number(d.claudeCode) + Number(d.cursor);
+                            const total = Number(d.claudeCode) + Number(d.cursor) + Number(d.openrouter || 0);
                             const height = (total / maxDaily) * 100;
                             return (
                               <div

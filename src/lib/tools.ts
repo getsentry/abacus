@@ -58,6 +58,13 @@ export const TOOL_CONFIGS: Record<string, ToolConfig> = {
   github_copilot: COPILOT_CONFIG,
   // OpenAI Codex
   codex: CODEX_CONFIG,
+  openrouter: {
+    name: 'OpenRouter',
+    bg: 'bg-violet-500',
+    bgChart: 'bg-violet-500/80',
+    text: 'text-violet-400',
+    gradient: 'from-violet-500/80 to-violet-400/60',
+  },
 };
 
 /** Config for non-AI/human commits */

@@ -26,8 +26,10 @@ interface Stats {
   activeUsers: number;
   claudeCodeTokens: number;
   cursorTokens: number;
+  openrouterTokens: number;
   claudeCodeUsers: number;
   cursorUsers: number;
+  openrouterUsers: number;
   unattributed?: {
     totalTokens: number;
     totalCost: number;
@@ -38,8 +40,10 @@ interface Stats {
     activeUsers: number;
     claudeCodeTokens: number;
     cursorTokens: number;
+    openrouterTokens: number;
     claudeCodeUsers: number;
     cursorUsers: number;
+    openrouterUsers: number;
   };
 }
 
@@ -58,6 +62,7 @@ interface UserSummary {
   totalCost: number;
   claudeCodeTokens: number;
   cursorTokens: number;
+  openrouterTokens: number;
   favoriteModel: string;
   lastActive: string;
 }
@@ -66,11 +71,13 @@ interface DailyUsage {
   date: string;
   claudeCode: number;
   cursor: number;
+  openrouter?: number;
   cost: number;
   // Projection fields
   isIncomplete?: boolean;
   projectedClaudeCode?: number;
   projectedCursor?: number;
+  projectedOpenrouter?: number;
 }
 
 interface ModelData {
@@ -276,6 +283,13 @@ function DashboardContent() {
                       tokenPercentage: (stats.cursorTokens / stats.totalTokens) * 100,
                       users: stats.cursorUsers,
                       userPercentage: stats.activeUsers > 0 ? (stats.cursorUsers / stats.activeUsers) * 100 : 0,
+                    }] : []),
+                    ...(stats.openrouterTokens > 0 || stats.openrouterUsers > 0 ? [{
+                      tool: 'openrouter',
+                      tokens: stats.openrouterTokens,
+                      tokenPercentage: (stats.openrouterTokens / stats.totalTokens) * 100,
+                      users: stats.openrouterUsers,
+                      userPercentage: stats.activeUsers > 0 ? (stats.openrouterUsers / stats.activeUsers) * 100 : 0,
                     }] : []),
                   ].sort((a, b) => b.tokens - a.tokens)}
                   totalTokens={stats.totalTokens}

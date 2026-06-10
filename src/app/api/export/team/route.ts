@@ -55,6 +55,7 @@ async function handler(request: Request) {
     { key: 'totalCost' as const, label: 'total_cost' },
     { key: 'claudeCodeTokens' as const, label: 'claude_code_tokens' },
     { key: 'cursorTokens' as const, label: 'cursor_tokens' },
+    { key: 'openrouterTokens' as const, label: 'openrouter_tokens' },
     { key: 'inputTokens' as const, label: 'input_tokens' },
     { key: 'outputTokens' as const, label: 'output_tokens' },
     { key: 'cacheReadTokens' as const, label: 'cache_read_tokens' },

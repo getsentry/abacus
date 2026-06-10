@@ -80,6 +80,7 @@ interface UserDetails {
     totalCost: number;
     claudeCodeTokens: number;
     cursorTokens: number;
+    openrouterTokens: number;
     lastActive: string;
     firstActive: string;
     daysActive: number;
@@ -110,6 +111,7 @@ interface UserDetails {
     date: string;
     claudeCode: number;
     cursor: number;
+    openrouter: number;
     cost: number;
   }[];
   previousPeriod?: {

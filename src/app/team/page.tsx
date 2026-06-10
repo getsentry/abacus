@@ -24,6 +24,7 @@ interface UserPivotData {
   totalCost: number;
   claudeCodeTokens: number;
   cursorTokens: number;
+  openrouterTokens: number;
   inputTokens: number;
   outputTokens: number;
   cacheReadTokens: number;
@@ -170,8 +171,9 @@ function TeamPageContent() {
       totalCost: acc.totalCost + Number(u.totalCost),
       claudeCodeTokens: acc.claudeCodeTokens + Number(u.claudeCodeTokens),
       cursorTokens: acc.cursorTokens + Number(u.cursorTokens),
+      openrouterTokens: acc.openrouterTokens + Number(u.openrouterTokens),
     }),
-    { totalTokens: 0, totalCost: 0, claudeCodeTokens: 0, cursorTokens: 0 }
+    { totalTokens: 0, totalCost: 0, claudeCodeTokens: 0, cursorTokens: 0, openrouterTokens: 0 }
   );
 
   return (
@@ -318,6 +320,8 @@ function TeamPageContent() {
                                 <span className="text-amber-400/80">{col.format!(user[col.key] as number)}</span>
                               ) : col.key === 'cursorTokens' ? (
                                 <span className="text-cyan-400/80">{col.format!(user[col.key] as number)}</span>
+                              ) : col.key === 'openrouterTokens' ? (
+                                <span className="text-violet-400/80">{col.format!(user[col.key] as number)}</span>
                               ) : col.format ? (
                                 <span className="text-white/70">{col.format(user[col.key as SortKey] as number)}</span>
                               ) : (

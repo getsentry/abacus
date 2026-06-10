@@ -14,8 +14,10 @@ export interface UsageStats {
   activeUsers: number;
   claudeCodeTokens: number;
   cursorTokens: number;
+  openrouterTokens: number;
   claudeCodeUsers: number;
   cursorUsers: number;
+  openrouterUsers: number;
 }
 
 export interface UserSummary {
@@ -24,6 +26,7 @@ export interface UserSummary {
   totalCost: number;
   claudeCodeTokens: number;
   cursorTokens: number;
+  openrouterTokens: number;
   favoriteModel: string;
   lastActive: string;
 }
@@ -39,16 +42,19 @@ export interface DailyUsage {
   date: string;
   claudeCode: number;
   cursor: number;
+  openrouter?: number;
   cost: number;
   // Projection support fields (optional, added by applyProjections)
   isIncomplete?: boolean;
   projectedClaudeCode?: number;  // Original actual value before projection
   projectedCursor?: number;
+  projectedOpenrouter?: number;
 }
 
 export interface DataCompleteness {
   claudeCode: { lastDataDate: string | null };
   cursor: { lastDataDate: string | null };
+  openrouter?: { lastDataDate: string | null };
 }
 
 export async function getOverallStats(startDate?: string, endDate?: string): Promise<UsageStats> {
@@ -74,22 +80,25 @@ export async function getOverallStats(startDate?: string, endDate?: string): Pro
       COALESCE(SUM(cache_read_tokens), 0)::bigint as "totalCacheReadTokens",
       COUNT(DISTINCT email)::int as "activeUsers",
       COALESCE(SUM(CASE WHEN tool = 'claude_code' THEN input_tokens + cache_write_tokens + cache_read_tokens + output_tokens ELSE 0 END), 0)::bigint as "claudeCodeTokens",
-      COALESCE(SUM(CASE WHEN tool = 'cursor' THEN input_tokens + cache_write_tokens + cache_read_tokens + output_tokens ELSE 0 END), 0)::bigint as "cursorTokens"
+      COALESCE(SUM(CASE WHEN tool = 'cursor' THEN input_tokens + cache_write_tokens + cache_read_tokens + output_tokens ELSE 0 END), 0)::bigint as "cursorTokens",
+      COALESCE(SUM(CASE WHEN tool = 'openrouter' THEN input_tokens + cache_write_tokens + cache_read_tokens + output_tokens ELSE 0 END), 0)::bigint as "openrouterTokens"
     FROM ${usageRecords}
     WHERE date >= ${effectiveStartDate} AND date <= ${effectiveEndDate}
   `);
 
   // User counts per tool need separate subqueries since COUNT DISTINCT with CASE doesn't work
-  const userCountsResult = await db.execute<{ claudeCodeUsers: number; cursorUsers: number }>(sql`
+  const userCountsResult = await db.execute<{ claudeCodeUsers: number; cursorUsers: number; openrouterUsers: number }>(sql`
     SELECT
       (SELECT COUNT(DISTINCT email) FROM ${usageRecords} WHERE tool = 'claude_code' AND date >= ${effectiveStartDate} AND date <= ${effectiveEndDate})::int as "claudeCodeUsers",
-      (SELECT COUNT(DISTINCT email) FROM ${usageRecords} WHERE tool = 'cursor' AND date >= ${effectiveStartDate} AND date <= ${effectiveEndDate})::int as "cursorUsers"
+      (SELECT COUNT(DISTINCT email) FROM ${usageRecords} WHERE tool = 'cursor' AND date >= ${effectiveStartDate} AND date <= ${effectiveEndDate})::int as "cursorUsers",
+      (SELECT COUNT(DISTINCT email) FROM ${usageRecords} WHERE tool = 'openrouter' AND date >= ${effectiveStartDate} AND date <= ${effectiveEndDate})::int as "openrouterUsers"
   `);
 
   return {
     ...result.rows[0],
     claudeCodeUsers: Number(userCountsResult.rows[0].claudeCodeUsers),
     cursorUsers: Number(userCountsResult.rows[0].cursorUsers),
+    openrouterUsers: Number(userCountsResult.rows[0].openrouterUsers),
   } as UsageStats;
 }
 
@@ -100,8 +109,10 @@ export interface UsageStatsWithComparison extends UsageStats {
     activeUsers: number;
     claudeCodeTokens: number;
     cursorTokens: number;
+    openrouterTokens: number;
     claudeCodeUsers: number;
     cursorUsers: number;
+    openrouterUsers: number;
   };
 }
 
@@ -128,6 +139,8 @@ export async function getOverallStatsWithComparison(
         THEN input_tokens + cache_write_tokens + cache_read_tokens + output_tokens ELSE 0 END), 0)::bigint as "claudeCodeTokens",
       COALESCE(SUM(CASE WHEN date >= ${startDate} AND date <= ${endDate} AND tool = 'cursor'
         THEN input_tokens + cache_write_tokens + cache_read_tokens + output_tokens ELSE 0 END), 0)::bigint as "cursorTokens",
+      COALESCE(SUM(CASE WHEN date >= ${startDate} AND date <= ${endDate} AND tool = 'openrouter'
+        THEN input_tokens + cache_write_tokens + cache_read_tokens + output_tokens ELSE 0 END), 0)::bigint as "openrouterTokens",
       -- Previous period
       COALESCE(SUM(CASE WHEN date >= ${prevStartDate} AND date <= ${prevEndDate}
         THEN input_tokens + cache_write_tokens + cache_read_tokens + output_tokens ELSE 0 END), 0)::bigint as "prevTotalTokens",
@@ -136,7 +149,9 @@ export async function getOverallStatsWithComparison(
       COALESCE(SUM(CASE WHEN date >= ${prevStartDate} AND date <= ${prevEndDate} AND tool = 'claude_code'
         THEN input_tokens + cache_write_tokens + cache_read_tokens + output_tokens ELSE 0 END), 0)::bigint as "prevClaudeCodeTokens",
       COALESCE(SUM(CASE WHEN date >= ${prevStartDate} AND date <= ${prevEndDate} AND tool = 'cursor'
-        THEN input_tokens + cache_write_tokens + cache_read_tokens + output_tokens ELSE 0 END), 0)::bigint as "prevCursorTokens"
+        THEN input_tokens + cache_write_tokens + cache_read_tokens + output_tokens ELSE 0 END), 0)::bigint as "prevCursorTokens",
+      COALESCE(SUM(CASE WHEN date >= ${prevStartDate} AND date <= ${prevEndDate} AND tool = 'openrouter'
+        THEN input_tokens + cache_write_tokens + cache_read_tokens + output_tokens ELSE 0 END), 0)::bigint as "prevOpenrouterTokens"
     FROM usage_records
     WHERE date >= ${prevStartDate} AND date <= ${endDate}
   `;
@@ -149,8 +164,10 @@ export async function getOverallStatsWithComparison(
       (SELECT COUNT(DISTINCT email) FROM usage_records WHERE date >= ${prevStartDate} AND date <= ${prevEndDate})::int as "prevActiveUsers",
       (SELECT COUNT(DISTINCT email) FROM usage_records WHERE tool = 'claude_code' AND date >= ${startDate} AND date <= ${endDate})::int as "claudeCodeUsers",
       (SELECT COUNT(DISTINCT email) FROM usage_records WHERE tool = 'cursor' AND date >= ${startDate} AND date <= ${endDate})::int as "cursorUsers",
+      (SELECT COUNT(DISTINCT email) FROM usage_records WHERE tool = 'openrouter' AND date >= ${startDate} AND date <= ${endDate})::int as "openrouterUsers",
       (SELECT COUNT(DISTINCT email) FROM usage_records WHERE tool = 'claude_code' AND date >= ${prevStartDate} AND date <= ${prevEndDate})::int as "prevClaudeCodeUsers",
-      (SELECT COUNT(DISTINCT email) FROM usage_records WHERE tool = 'cursor' AND date >= ${prevStartDate} AND date <= ${prevEndDate})::int as "prevCursorUsers"
+      (SELECT COUNT(DISTINCT email) FROM usage_records WHERE tool = 'cursor' AND date >= ${prevStartDate} AND date <= ${prevEndDate})::int as "prevCursorUsers",
+      (SELECT COUNT(DISTINCT email) FROM usage_records WHERE tool = 'openrouter' AND date >= ${prevStartDate} AND date <= ${prevEndDate})::int as "prevOpenrouterUsers"
   `;
 
   const row = result.rows[0];
@@ -165,16 +182,20 @@ export async function getOverallStatsWithComparison(
     activeUsers: Number(userRow.activeUsers),
     claudeCodeTokens: Number(row.claudeCodeTokens),
     cursorTokens: Number(row.cursorTokens),
+    openrouterTokens: Number(row.openrouterTokens),
     claudeCodeUsers: Number(userRow.claudeCodeUsers),
     cursorUsers: Number(userRow.cursorUsers),
+    openrouterUsers: Number(userRow.openrouterUsers),
     previousPeriod: {
       totalTokens: Number(row.prevTotalTokens),
       totalCost: Number(row.prevTotalCost),
       activeUsers: Number(userRow.prevActiveUsers),
       claudeCodeTokens: Number(row.prevClaudeCodeTokens),
       cursorTokens: Number(row.prevCursorTokens),
+      openrouterTokens: Number(row.prevOpenrouterTokens),
       claudeCodeUsers: Number(userRow.prevClaudeCodeUsers),
       cursorUsers: Number(userRow.prevCursorUsers),
+      openrouterUsers: Number(userRow.prevOpenrouterUsers),
     },
   };
 }
@@ -223,6 +244,7 @@ export async function getUserSummaries(
             SUM(cost)::float as "totalCost",
             SUM(CASE WHEN tool = 'claude_code' THEN input_tokens + cache_write_tokens + cache_read_tokens + output_tokens ELSE 0 END)::bigint as "claudeCodeTokens",
             SUM(CASE WHEN tool = 'cursor' THEN input_tokens + cache_write_tokens + cache_read_tokens + output_tokens ELSE 0 END)::bigint as "cursorTokens",
+            SUM(CASE WHEN tool = 'openrouter' THEN input_tokens + cache_write_tokens + cache_read_tokens + output_tokens ELSE 0 END)::bigint as "openrouterTokens",
             MAX(date)::text as "lastActive"
           FROM usage_records
           WHERE email LIKE ${searchPattern} AND email IS NOT NULL
@@ -261,6 +283,7 @@ export async function getUserSummaries(
             SUM(cost)::float as "totalCost",
             SUM(CASE WHEN tool = 'claude_code' THEN input_tokens + cache_write_tokens + cache_read_tokens + output_tokens ELSE 0 END)::bigint as "claudeCodeTokens",
             SUM(CASE WHEN tool = 'cursor' THEN input_tokens + cache_write_tokens + cache_read_tokens + output_tokens ELSE 0 END)::bigint as "cursorTokens",
+            SUM(CASE WHEN tool = 'openrouter' THEN input_tokens + cache_write_tokens + cache_read_tokens + output_tokens ELSE 0 END)::bigint as "openrouterTokens",
             MAX(date)::text as "lastActive"
           FROM usage_records
           WHERE email IS NOT NULL
@@ -304,6 +327,7 @@ export async function getUserDetails(email: string) {
       SUM(cost)::float as "totalCost",
       SUM(CASE WHEN tool = 'claude_code' THEN input_tokens + cache_write_tokens + cache_read_tokens + output_tokens ELSE 0 END)::bigint as "claudeCodeTokens",
       SUM(CASE WHEN tool = 'cursor' THEN input_tokens + cache_write_tokens + cache_read_tokens + output_tokens ELSE 0 END)::bigint as "cursorTokens",
+      SUM(CASE WHEN tool = 'openrouter' THEN input_tokens + cache_write_tokens + cache_read_tokens + output_tokens ELSE 0 END)::bigint as "openrouterTokens",
       MAX(date)::text as "lastActive",
       MIN(date)::text as "firstActive"
     FROM usage_records
@@ -326,7 +350,8 @@ export async function getUserDetails(email: string) {
     SELECT
       date::text,
       SUM(CASE WHEN tool = 'claude_code' THEN input_tokens + cache_write_tokens + cache_read_tokens + output_tokens ELSE 0 END)::bigint as "claudeCode",
-      SUM(CASE WHEN tool = 'cursor' THEN input_tokens + cache_write_tokens + cache_read_tokens + output_tokens ELSE 0 END)::bigint as cursor
+      SUM(CASE WHEN tool = 'cursor' THEN input_tokens + cache_write_tokens + cache_read_tokens + output_tokens ELSE 0 END)::bigint as cursor,
+      SUM(CASE WHEN tool = 'openrouter' THEN input_tokens + cache_write_tokens + cache_read_tokens + output_tokens ELSE 0 END)::bigint as openrouter
     FROM usage_records
     WHERE email = ${email}
     GROUP BY date
@@ -348,6 +373,7 @@ export interface UserDetailsExtended {
     totalCost: number;
     claudeCodeTokens: number;
     cursorTokens: number;
+    openrouterTokens: number;
     inputTokens: number;
     outputTokens: number;
     cacheReadTokens: number;
@@ -367,6 +393,7 @@ export interface UserDetailsExtended {
     date: string;
     claudeCode: number;
     cursor: number;
+    openrouter: number;
     inputTokens: number;
     outputTokens: number;
     cost: number;
@@ -385,6 +412,7 @@ export async function getUserDetailsExtended(
       SUM(cost)::float as "totalCost",
       SUM(CASE WHEN tool = 'claude_code' THEN input_tokens + cache_write_tokens + cache_read_tokens + output_tokens ELSE 0 END)::bigint as "claudeCodeTokens",
       SUM(CASE WHEN tool = 'cursor' THEN input_tokens + cache_write_tokens + cache_read_tokens + output_tokens ELSE 0 END)::bigint as "cursorTokens",
+      SUM(CASE WHEN tool = 'openrouter' THEN input_tokens + cache_write_tokens + cache_read_tokens + output_tokens ELSE 0 END)::bigint as "openrouterTokens",
       SUM(input_tokens)::bigint as "inputTokens",
       SUM(output_tokens)::bigint as "outputTokens",
       SUM(cache_read_tokens)::bigint as "cacheReadTokens",
@@ -424,6 +452,7 @@ export async function getUserDetailsExtended(
       ds.date::text,
       COALESCE(SUM(CASE WHEN r.tool = 'claude_code' THEN r.input_tokens + r.cache_write_tokens + r.cache_read_tokens + r.output_tokens ELSE 0 END), 0)::bigint as "claudeCode",
       COALESCE(SUM(CASE WHEN r.tool = 'cursor' THEN r.input_tokens + r.cache_write_tokens + r.cache_read_tokens + r.output_tokens ELSE 0 END), 0)::bigint as cursor,
+      COALESCE(SUM(CASE WHEN r.tool = 'openrouter' THEN r.input_tokens + r.cache_write_tokens + r.cache_read_tokens + r.output_tokens ELSE 0 END), 0)::bigint as openrouter,
       COALESCE(SUM(r.input_tokens), 0)::bigint as "inputTokens",
       COALESCE(SUM(r.output_tokens), 0)::bigint as "outputTokens",
       COALESCE(SUM(r.cost), 0)::float as cost
@@ -482,6 +511,7 @@ export async function getDailyUsage(startDate: string, endDate: string): Promise
       ds.date::text,
       COALESCE(SUM(CASE WHEN r.tool = 'claude_code' THEN r.input_tokens + r.cache_write_tokens + r.cache_read_tokens + r.output_tokens ELSE 0 END), 0)::bigint as "claudeCode",
       COALESCE(SUM(CASE WHEN r.tool = 'cursor' THEN r.input_tokens + r.cache_write_tokens + r.cache_read_tokens + r.output_tokens ELSE 0 END), 0)::bigint as cursor,
+      COALESCE(SUM(CASE WHEN r.tool = 'openrouter' THEN r.input_tokens + r.cache_write_tokens + r.cache_read_tokens + r.output_tokens ELSE 0 END), 0)::bigint as openrouter,
       COALESCE(SUM(r.cost), 0)::float as cost
     FROM date_series ds
     LEFT JOIN usage_records r ON r.date = ds.date
@@ -500,13 +530,15 @@ export async function getDataCompleteness(): Promise<DataCompleteness> {
   const result = await vercelSql`
     SELECT
       MAX(CASE WHEN tool = 'claude_code' THEN date END)::text as "claudeCodeLastDate",
-      MAX(CASE WHEN tool = 'cursor' THEN date END)::text as "cursorLastDate"
+      MAX(CASE WHEN tool = 'cursor' THEN date END)::text as "cursorLastDate",
+      MAX(CASE WHEN tool = 'openrouter' THEN date END)::text as "openrouterLastDate"
     FROM usage_records
   `;
 
   return {
     claudeCode: { lastDataDate: result.rows[0]?.claudeCodeLastDate || null },
     cursor: { lastDataDate: result.rows[0]?.cursorLastDate || null },
+    openrouter: { lastDataDate: result.rows[0]?.openrouterLastDate || null },
   };
 }
 
@@ -631,6 +663,7 @@ export interface UserPivotData {
   totalCost: number;
   claudeCodeTokens: number;
   cursorTokens: number;
+  openrouterTokens: number;
   inputTokens: number;
   outputTokens: number;
   cacheReadTokens: number;
@@ -662,7 +695,7 @@ export async function getAllUsersPivot(
   const effectiveEndDate = endDate || '9999-12-31';
 
   const validSortColumns = [
-    'email', 'totalTokens', 'totalCost', 'claudeCodeTokens', 'cursorTokens',
+    'email', 'totalTokens', 'totalCost', 'claudeCodeTokens', 'cursorTokens', 'openrouterTokens',
     'inputTokens', 'outputTokens', 'firstActive', 'lastActive',
     'daysActive', 'avgTokensPerDay'
   ];
@@ -678,6 +711,7 @@ export async function getAllUsersPivot(
           SUM(r.cost)::float as "totalCost",
           SUM(CASE WHEN r.tool = 'claude_code' THEN r.input_tokens + r.cache_write_tokens + r.cache_read_tokens + r.output_tokens ELSE 0 END)::bigint as "claudeCodeTokens",
           SUM(CASE WHEN r.tool = 'cursor' THEN r.input_tokens + r.cache_write_tokens + r.cache_read_tokens + r.output_tokens ELSE 0 END)::bigint as "cursorTokens",
+          SUM(CASE WHEN r.tool = 'openrouter' THEN r.input_tokens + r.cache_write_tokens + r.cache_read_tokens + r.output_tokens ELSE 0 END)::bigint as "openrouterTokens",
           SUM(r.input_tokens)::bigint as "inputTokens",
           SUM(r.output_tokens)::bigint as "outputTokens",
           SUM(r.cache_read_tokens)::bigint as "cacheReadTokens",
@@ -706,6 +740,7 @@ export async function getAllUsersPivot(
           SUM(r.cost)::float as "totalCost",
           SUM(CASE WHEN r.tool = 'claude_code' THEN r.input_tokens + r.cache_write_tokens + r.cache_read_tokens + r.output_tokens ELSE 0 END)::bigint as "claudeCodeTokens",
           SUM(CASE WHEN r.tool = 'cursor' THEN r.input_tokens + r.cache_write_tokens + r.cache_read_tokens + r.output_tokens ELSE 0 END)::bigint as "cursorTokens",
+          SUM(CASE WHEN r.tool = 'openrouter' THEN r.input_tokens + r.cache_write_tokens + r.cache_read_tokens + r.output_tokens ELSE 0 END)::bigint as "openrouterTokens",
           SUM(r.input_tokens)::bigint as "inputTokens",
           SUM(r.output_tokens)::bigint as "outputTokens",
           SUM(r.cache_read_tokens)::bigint as "cacheReadTokens",

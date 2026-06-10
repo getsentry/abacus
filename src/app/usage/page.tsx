@@ -57,8 +57,10 @@ interface Stats {
   activeUsers: number;
   claudeCodeTokens: number;
   cursorTokens: number;
+  openrouterTokens: number;
   claudeCodeUsers: number;
   cursorUsers: number;
+  openrouterUsers: number;
   previousPeriod?: {
     totalTokens: number;
     totalCost: number;
@@ -232,7 +234,7 @@ function UsagePageContent() {
 
   // Calculate totals for trend line
   const toolTotalValues = useMemo(
-    () => toolDataFinal.map(d => Number(d.claudeCode) + Number(d.cursor)),
+    () => toolDataFinal.map(d => Number(d.claudeCode) + Number(d.cursor) + Number(d.openrouter || 0)),
     [toolDataFinal]
   );
 
@@ -299,17 +301,19 @@ function UsagePageContent() {
     if (!toolTrends.length) return [];
 
     // Group by date, get users per tool
-    const dateMap = new Map<string, { claudeCode: number; cursor: number }>();
+    const dateMap = new Map<string, { claudeCode: number; cursor: number; openrouter: number }>();
 
     for (const item of toolTrends) {
       if (!dateMap.has(item.date)) {
-        dateMap.set(item.date, { claudeCode: 0, cursor: 0 });
+        dateMap.set(item.date, { claudeCode: 0, cursor: 0, openrouter: 0 });
       }
       const dayData = dateMap.get(item.date)!;
       if (item.tool === 'claude_code') {
         dayData.claudeCode = Number(item.users);
       } else if (item.tool === 'cursor') {
         dayData.cursor = Number(item.users);
+      } else if (item.tool === 'openrouter') {
+        dayData.openrouter = Number(item.users);
       }
     }
 
@@ -329,7 +333,7 @@ function UsagePageContent() {
   // Max value for user chart
   const maxUserValue = useMemo(() => {
     if (!toolUserDataFinal.length) return 1;
-    return Math.max(...toolUserDataFinal.map(d => d.claudeCode + d.cursor), 1);
+    return Math.max(...toolUserDataFinal.map(d => d.claudeCode + d.cursor + (d.openrouter || 0)), 1);
   }, [toolUserDataFinal]);
 
   // Determine label frequency
@@ -461,6 +465,7 @@ function UsagePageContent() {
                         items={[
                           { key: 'claude_code', label: TOOL_CONFIGS.claude_code.name, value: formatTokens(toolDataFinal.reduce((s, d) => s + Number(d.claudeCode), 0)), textColor: TOOL_CONFIGS.claude_code.text },
                           { key: 'cursor', label: TOOL_CONFIGS.cursor.name, value: formatTokens(toolDataFinal.reduce((s, d) => s + Number(d.cursor), 0)), textColor: TOOL_CONFIGS.cursor.text },
+                          ...(toolDataFinal.some(d => Number(d.openrouter || 0) > 0) ? [{ key: 'openrouter', label: TOOL_CONFIGS.openrouter.name, value: formatTokens(toolDataFinal.reduce((s, d) => s + Number(d.openrouter || 0), 0)), textColor: TOOL_CONFIGS.openrouter.text }] : []),
                         ]}
                       />
                       {showToolProjectedLegend && (
@@ -515,16 +520,21 @@ function UsagePageContent() {
                         // Skip projections for weekly data since aggregation doesn't preserve them meaningfully
                         const claudeTotal = Number(item.claudeCode);
                         const cursorTotal = Number(item.cursor);
+                        const openrouterItemTotal = Number(item.openrouter || 0);
                         const claudeActual = !isWeekly && item.projectedClaudeCode !== undefined ? item.projectedClaudeCode : claudeTotal;
                         const cursorActual = !isWeekly && item.projectedCursor !== undefined ? item.projectedCursor : cursorTotal;
+                        const openrouterActual = !isWeekly && item.projectedOpenrouter !== undefined ? item.projectedOpenrouter : openrouterItemTotal;
                         const claudeProjectedPortion = claudeTotal - claudeActual;
                         const cursorProjectedPortion = cursorTotal - cursorActual;
+                        const openrouterProjectedPortion = openrouterItemTotal - openrouterActual;
 
                         // Heights as percentages of max
                         const claudeActualHeight = (claudeActual / maxToolValue) * 100;
                         const claudeProjectedHeight = (claudeProjectedPortion / maxToolValue) * 100;
                         const cursorActualHeight = (cursorActual / maxToolValue) * 100;
                         const cursorProjectedHeight = (cursorProjectedPortion / maxToolValue) * 100;
+                        const openrouterActualHeight = (openrouterActual / maxToolValue) * 100;
+                        const openrouterProjectedHeight = (openrouterProjectedPortion / maxToolValue) * 100;
 
                         return (
                           <div key={item.date} className="group relative flex-1 flex flex-col justify-end min-w-[3px]" style={{ height: '100%' }}>
@@ -550,7 +560,7 @@ function UsagePageContent() {
                                   style={{ minHeight: '2px' }}
                                 />
                               )}
-                              {/* Cursor - on bottom (projected portion above actual) */}
+                              {/* Cursor - middle */}
                               {cursorProjectedHeight > 0 && (
                                 <motion.div
                                   initial={{ height: 0 }}
@@ -567,7 +577,28 @@ function UsagePageContent() {
                                   initial={{ height: 0 }}
                                   animate={{ height: `${cursorActualHeight}%` }}
                                   transition={{ duration: 0.6, delay: Math.min(i * 0.02 + 0.03, 1) }}
-                                  className={`w-full rounded-b ${TOOL_CONFIGS.cursor.bgChart}`}
+                                  className={`w-full ${openrouterActualHeight === 0 && openrouterProjectedHeight === 0 ? 'rounded-b' : ''} ${TOOL_CONFIGS.cursor.bgChart}`}
+                                  style={{ minHeight: '2px' }}
+                                />
+                              )}
+                              {/* OpenRouter - on bottom */}
+                              {openrouterProjectedHeight > 0 && (
+                                <motion.div
+                                  initial={{ height: 0 }}
+                                  animate={{ height: `${openrouterProjectedHeight}%` }}
+                                  transition={{ duration: 0.6, delay: Math.min(i * 0.02 + 0.04, 1) }}
+                                  className="w-full relative overflow-hidden bg-white/10"
+                                  style={{ minHeight: '2px' }}
+                                >
+                                  <div className="absolute inset-0 bg-stripes" />
+                                </motion.div>
+                              )}
+                              {openrouterActualHeight > 0 && (
+                                <motion.div
+                                  initial={{ height: 0 }}
+                                  animate={{ height: `${openrouterActualHeight}%` }}
+                                  transition={{ duration: 0.6, delay: Math.min(i * 0.02 + 0.05, 1) }}
+                                  className={`w-full rounded-b ${TOOL_CONFIGS.openrouter.bgChart}`}
                                   style={{ minHeight: '2px' }}
                                 />
                               )}
@@ -591,10 +622,15 @@ function UsagePageContent() {
                                 <div className={TOOL_CONFIGS.cursor.text}>
                                   {TOOL_CONFIGS.cursor.name}: {formatTokens(cursorActual)}
                                 </div>
+                                {openrouterActual > 0 && (
+                                  <div className={TOOL_CONFIGS.openrouter.text}>
+                                    {TOOL_CONFIGS.openrouter.name}: {formatTokens(openrouterActual)}
+                                  </div>
+                                )}
                               </div>
 
                               {/* Projected values section - only show if there are projections */}
-                              {(claudeProjectedPortion > 0 || cursorProjectedPortion > 0) && (
+                              {(claudeProjectedPortion > 0 || cursorProjectedPortion > 0 || openrouterProjectedPortion > 0) && (
                                 <div className="mb-1 mt-2 pt-2 border-t border-white/10">
                                   <div className="text-white/40 text-xs uppercase tracking-wider mb-1">Projected</div>
                                   {claudeProjectedPortion > 0 && (
@@ -607,11 +643,16 @@ function UsagePageContent() {
                                       {TOOL_CONFIGS.cursor.name}: +{formatTokens(cursorProjectedPortion)}
                                     </div>
                                   )}
+                                  {openrouterProjectedPortion > 0 && (
+                                    <div className="text-white/50">
+                                      {TOOL_CONFIGS.openrouter.name}: +{formatTokens(openrouterProjectedPortion)}
+                                    </div>
+                                  )}
                                 </div>
                               )}
 
                               {/* Estimated from average indicator */}
-                              {(item.projectedClaudeCode === 0 || item.projectedCursor === 0) && (
+                              {(item.projectedClaudeCode === 0 || item.projectedCursor === 0 || item.projectedOpenrouter === 0) && (
                                 <div className="text-white/40 text-xs mt-2 pt-2 border-t border-white/10">
                                   Estimated from historical average
                                 </div>
@@ -773,8 +814,12 @@ function UsagePageContent() {
                         const cursorCost = toolTrends
                           .filter(t => t.tool === 'cursor')
                           .reduce((sum, t) => sum + Number(t.cost), 0);
+                        const openrouterCost = toolTrends
+                          .filter(t => t.tool === 'openrouter')
+                          .reduce((sum, t) => sum + Number(t.cost), 0);
                         const claudePct = stats.totalTokens > 0 ? Math.round((stats.claudeCodeTokens / stats.totalTokens) * 100) : 0;
                         const cursorPct = stats.totalTokens > 0 ? Math.round((stats.cursorTokens / stats.totalTokens) * 100) : 0;
+                        const openrouterPct = stats.totalTokens > 0 ? Math.round((stats.openrouterTokens / stats.totalTokens) * 100) : 0;
                         return (
                           <>
                             <tr className="border-b border-white/5 hover:bg-white/[0.02] transition-colors">
@@ -825,6 +870,32 @@ function UsagePageContent() {
                                 </div>
                               </td>
                             </tr>
+                            {stats.openrouterTokens > 0 && (
+                              <tr className="border-b border-white/5 hover:bg-white/[0.02] transition-colors">
+                                <td className="px-6 py-3">
+                                  <span className={`font-mono text-sm ${TOOL_CONFIGS.openrouter.text}`}>OpenRouter</span>
+                                </td>
+                                <td className="px-6 py-3 text-right">
+                                  <span className="font-mono text-sm text-white/70">{formatTokens(stats.openrouterTokens)}</span>
+                                </td>
+                                <td className="px-6 py-3 text-right">
+                                  <span className="font-mono text-sm text-white/70">{formatCurrency(openrouterCost)}</span>
+                                </td>
+                                <td className="px-6 py-3 text-right">
+                                  <span className="font-mono text-sm text-white/50">{openrouterPct}%</span>
+                                </td>
+                                <td className="px-6 py-3">
+                                  <div className="h-2 rounded-full bg-white/5 overflow-hidden">
+                                    <motion.div
+                                      initial={{ width: 0 }}
+                                      animate={{ width: `${openrouterPct}%` }}
+                                      transition={{ duration: 0.6, delay: 0.1 }}
+                                      className={`h-full rounded-full ${TOOL_CONFIGS.openrouter.bg}`}
+                                    />
+                                  </div>
+                                </td>
+                              </tr>
+                            )}
                           </>
                         );
                       })()
@@ -856,6 +927,14 @@ function UsagePageContent() {
                         Cursor: {stats.cursorUsers} users
                       </span>
                     </div>
+                    {stats.openrouterUsers > 0 && (
+                      <div className="flex items-center gap-1.5">
+                        <div className={`w-2 h-2 rounded-sm ${TOOL_CONFIGS.openrouter.bg}`} />
+                        <span className={`font-mono text-xs ${TOOL_CONFIGS.openrouter.text}`}>
+                          OpenRouter: {stats.openrouterUsers} users
+                        </span>
+                      </div>
+                    )}
                   </div>
 
                   <div className="relative" style={{ height: '150px' }}>
@@ -975,6 +1054,31 @@ function UsagePageContent() {
                                 animate={{ width: `${stats.activeUsers > 0 ? (stats.cursorUsers / stats.activeUsers) * 100 : 0}%` }}
                                 transition={{ duration: 0.6, delay: 0.05 }}
                                 className={`h-full rounded-full ${TOOL_CONFIGS.cursor.bg}`}
+                              />
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                      {stats.openrouterUsers > 0 && (
+                        <tr className="border-b border-white/5 hover:bg-white/[0.02] transition-colors">
+                          <td className="px-6 py-3">
+                            <span className={`font-mono text-sm ${TOOL_CONFIGS.openrouter.text}`}>OpenRouter</span>
+                          </td>
+                          <td className="px-6 py-3 text-right">
+                            <span className="font-mono text-sm text-white">{stats.openrouterUsers}</span>
+                          </td>
+                          <td className="px-6 py-3 text-right">
+                            <span className="font-mono text-sm text-white/70">
+                              {formatTokens(Math.round(stats.openrouterTokens / stats.openrouterUsers))}
+                            </span>
+                          </td>
+                          <td className="px-6 py-3">
+                            <div className="h-2 rounded-full bg-white/5 overflow-hidden">
+                              <motion.div
+                                initial={{ width: 0 }}
+                                animate={{ width: `${stats.activeUsers > 0 ? (stats.openrouterUsers / stats.activeUsers) * 100 : 0}%` }}
+                                transition={{ duration: 0.6, delay: 0.1 }}
+                                className={`h-full rounded-full ${TOOL_CONFIGS.openrouter.bg}`}
                               />
                             </div>
                           </td>

@@ -16,6 +16,7 @@ interface UserSummary {
   totalCost: number;
   claudeCodeTokens: number;
   cursorTokens: number;
+  openrouterTokens: number;
   favoriteModel: string;
   lastActive: string;
 }
@@ -28,6 +29,9 @@ function getToolBreakdownFromSummary(user: UserSummary) {
   }
   if (user.cursorTokens > 0) {
     tools.push({ tool: 'cursor', value: Number(user.cursorTokens) });
+  }
+  if (user.openrouterTokens > 0) {
+    tools.push({ tool: 'openrouter', value: Number(user.openrouterTokens) });
   }
   return tools.sort((a, b) => b.value - a.value);
 }

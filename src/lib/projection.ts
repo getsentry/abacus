@@ -9,13 +9,14 @@
 import type { DailyUsage, DataCompleteness } from './queries';
 
 // Tool configuration for projection
-type ToolKey = 'claudeCode' | 'cursor';
-type ProjectedKey = 'projectedClaudeCode' | 'projectedCursor';
-type CompletenessKey = 'claudeCode' | 'cursor';
+type ToolKey = 'claudeCode' | 'cursor' | 'openrouter';
+type ProjectedKey = 'projectedClaudeCode' | 'projectedCursor' | 'projectedOpenrouter';
+type CompletenessKey = 'claudeCode' | 'cursor' | 'openrouter';
 
 const TOOLS: { key: ToolKey; projectedKey: ProjectedKey; completenessKey: CompletenessKey }[] = [
   { key: 'claudeCode', projectedKey: 'projectedClaudeCode', completenessKey: 'claudeCode' },
   { key: 'cursor', projectedKey: 'projectedCursor', completenessKey: 'cursor' },
+  { key: 'openrouter', projectedKey: 'projectedOpenrouter', completenessKey: 'openrouter' },
 ];
 
 /**
@@ -31,10 +32,10 @@ function calculateHistoricalAverages(
   todayStr: string,
   targetDayOfWeek?: number
 ): Record<ToolKey, number> {
-  const averages: Record<ToolKey, number> = { claudeCode: 0, cursor: 0 };
+  const averages: Record<ToolKey, number> = { claudeCode: 0, cursor: 0, openrouter: 0 };
 
   for (const tool of TOOLS) {
-    const lastDataDate = completeness[tool.completenessKey].lastDataDate;
+    const lastDataDate = completeness[tool.completenessKey]?.lastDataDate;
     if (!lastDataDate) continue;
 
     // Filter to complete days with non-zero data for this tool
@@ -99,11 +100,13 @@ export function applyProjections(
     const isToday = dayData.date === todayStr;
 
     // Check which tools have incomplete data for this day
-    const toolIncomplete: Record<ToolKey, boolean> = { claudeCode: false, cursor: false };
+    const toolIncomplete: Record<ToolKey, boolean> = { claudeCode: false, cursor: false, openrouter: false };
     let anyIncomplete = isToday; // Today is always incomplete
 
     for (const tool of TOOLS) {
-      const lastDataDate = completeness[tool.completenessKey].lastDataDate;
+      const completenessEntry = completeness[tool.completenessKey];
+      if (!completenessEntry) continue; // Tool not tracked, skip
+      const lastDataDate = completenessEntry.lastDataDate;
       const incomplete = !lastDataDate || dayData.date > lastDataDate;
       toolIncomplete[tool.key] = incomplete;
       if (incomplete) anyIncomplete = true;
@@ -170,7 +173,7 @@ export function hasIncompleteData(data: DailyUsage[]): boolean {
  * Projected means we extrapolated from partial data; incomplete means we just marked it.
  */
 export function hasProjectedData(data: DailyUsage[]): boolean {
-  return data.some(d => d.projectedClaudeCode !== undefined || d.projectedCursor !== undefined);
+  return data.some(d => d.projectedClaudeCode !== undefined || d.projectedCursor !== undefined || d.projectedOpenrouter !== undefined);
 }
 
 /**
@@ -178,7 +181,7 @@ export function hasProjectedData(data: DailyUsage[]): boolean {
  * This is when projectedValue === 0, meaning we had no data and used the historical average.
  */
 export function hasEstimatedData(data: DailyUsage[]): boolean {
-  return data.some(d => d.projectedClaudeCode === 0 || d.projectedCursor === 0);
+  return data.some(d => d.projectedClaudeCode === 0 || d.projectedCursor === 0 || d.projectedOpenrouter === 0);
 }
 
 /**
@@ -188,6 +191,7 @@ export function hasEstimatedData(data: DailyUsage[]): boolean {
 export function hasExtrapolatedData(data: DailyUsage[]): boolean {
   return data.some(d =>
     (d.projectedClaudeCode !== undefined && d.projectedClaudeCode > 0) ||
-    (d.projectedCursor !== undefined && d.projectedCursor > 0)
+    (d.projectedCursor !== undefined && d.projectedCursor > 0) ||
+    (d.projectedOpenrouter !== undefined && d.projectedOpenrouter > 0)
   );
 }
