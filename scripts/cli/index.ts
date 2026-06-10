@@ -33,6 +33,7 @@ import { cmdDbMigrate } from './db';
 import { cmdStats } from './stats';
 import { cmdAnthropicStatus } from './anthropic';
 import { cmdCursorStatus, cmdImportCursorCsv } from './cursor';
+import { cmdOpenRouterStatus } from './openrouter';
 import { cmdGitHubStatus, cmdGitHubSync, cmdGitHubCommits, cmdGitHubUsers, cmdGitHubUsersMap, cmdGitHubUsersSync, cmdGitHubCleanupMerges } from './github';
 import { cmdMappings, cmdMappingsSync, cmdMappingsFix } from './mappings';
 import { cmdSync, cmdBackfill, cmdGitHubBackfill, cmdBackfillComplete, cmdBackfillReset, cmdGaps, cmdBackfillOrgIds } from './sync';
@@ -48,13 +49,13 @@ Usage:
 Commands:
   db:migrate            Run pending database migrations
   sync [tool] [--days N] [--from DATE] [--to DATE] [--org NAME] [--skip-mappings]
-                        Sync recent usage data (tool: anthropic|cursor, default: both)
+                        Sync recent usage data (tool: anthropic|cursor|openrouter, default: all configured)
                         Use --from/--to for precise date range (YYYY-MM-DD)
-                        Use --org to filter to specific org/team by name
-  backfill <tool> --from YYYY-MM-DD
-                        Backfill historical data backwards to the specified date
+                        Use --org to filter to specific org/team by name (not used for openrouter)
+  backfill <tool> [--from YYYY-MM-DD]
+                        Backfill historical data (anthropic|cursor: --from required; openrouter: fills full 30-day window)
   backfill:complete <tool>
-                        Mark backfill as complete for a tool (anthropic|cursor|github)
+                        Mark backfill as complete for a tool (anthropic|cursor|github|openrouter)
   backfill:reset <tool> Reset backfill status for a tool (allows re-backfilling)
   migrate:backfill-org-ids <tool> [--org NAME]
                         Backfill organization_id for legacy records.
@@ -66,6 +67,7 @@ Commands:
   mappings:fix          Interactive fix for unmapped API keys
   anthropic:status      Show Anthropic sync state
   cursor:status         Show Cursor sync state
+  openrouter:status     Show OpenRouter sync state
   github:status         Show GitHub commits sync state
   github:sync [repo] [options]
                         Sync GitHub commits (filters to default branch, skips merge commits)
@@ -116,6 +118,9 @@ async function main() {
         break;
       case 'cursor:status':
         await cmdCursorStatus();
+        break;
+      case 'openrouter:status':
+        await cmdOpenRouterStatus();
         break;
       case 'github:status':
         await cmdGitHubStatus();
@@ -178,62 +183,65 @@ async function main() {
         const toDate = toIdx >= 0 ? args[toIdx + 1] : undefined;
         const orgName = orgIdx >= 0 ? args[orgIdx + 1] : undefined;
         const skipMappings = args.includes('--skip-mappings');
-        // Parse tool filter: sync [anthropic|cursor] --days N
+        // Parse tool filter: sync [anthropic|cursor|openrouter] --days N
         const toolArg = args[1];
-        let tools: ('anthropic' | 'cursor')[] = ['anthropic', 'cursor'];
+        let tools: ('anthropic' | 'cursor' | 'openrouter')[] | undefined;
         if (toolArg === 'anthropic') {
           tools = ['anthropic'];
         } else if (toolArg === 'cursor') {
           tools = ['cursor'];
+        } else if (toolArg === 'openrouter') {
+          tools = ['openrouter'];
         }
         await cmdSync({ days, fromDate, toDate, tools, skipMappings, orgName });
         break;
       }
       case 'backfill': {
-        const tool = args[1] as 'anthropic' | 'cursor' | 'github';
-        if (!tool || !['anthropic', 'cursor', 'github'].includes(tool)) {
-          console.error('Error: Please specify tool (anthropic, cursor, or github)');
-          console.error('Usage: npm run cli backfill <tool> --from YYYY-MM-DD');
+        const tool = args[1] as 'anthropic' | 'cursor' | 'github' | 'openrouter';
+        if (!tool || !['anthropic', 'cursor', 'github', 'openrouter'].includes(tool)) {
+          console.error('Error: Please specify tool (anthropic, cursor, github, or openrouter)');
+          console.error('Usage: pnpm cli backfill <tool> [--from YYYY-MM-DD]');
           break;
         }
         const fromIdx = args.indexOf('--from');
-        if (fromIdx < 0) {
-          console.error('Error: Please specify --from date');
-          console.error('Usage: npm run cli backfill <tool> --from YYYY-MM-DD');
-          break;
+        const fromDate = fromIdx >= 0 ? args[fromIdx + 1] : undefined;
+
+        // --from validation (only required for anthropic/cursor/github)
+        if (tool !== 'openrouter') {
+          if (!fromDate) {
+            console.error('Error: Please specify --from date');
+            console.error('Usage: pnpm cli backfill <tool> --from YYYY-MM-DD');
+            break;
+          }
+          const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+          if (!dateRegex.test(fromDate)) {
+            console.error('Error: --from date must be in YYYY-MM-DD format');
+            break;
+          }
         }
-        const fromDate = args[fromIdx + 1];
-        if (!fromDate) {
-          console.error('Error: Missing --from date value');
-          break;
-        }
-        const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
-        if (!dateRegex.test(fromDate)) {
-          console.error('Error: --from date must be in YYYY-MM-DD format');
-          break;
-        }
+
         if (tool === 'github') {
-          await cmdGitHubBackfill(fromDate);
+          await cmdGitHubBackfill(fromDate!);
         } else {
           await cmdBackfill(tool, fromDate);
         }
         break;
       }
       case 'backfill:complete': {
-        const tool = args[1] as 'anthropic' | 'cursor' | 'github';
-        if (!tool || !['anthropic', 'cursor', 'github'].includes(tool)) {
-          console.error('Error: Please specify tool (anthropic, cursor, or github)');
-          console.error('Usage: npm run cli backfill:complete <tool>');
+        const tool = args[1] as 'anthropic' | 'cursor' | 'github' | 'openrouter';
+        if (!tool || !['anthropic', 'cursor', 'github', 'openrouter'].includes(tool)) {
+          console.error('Error: Please specify tool (anthropic, cursor, github, or openrouter)');
+          console.error('Usage: pnpm cli backfill:complete <tool>');
           break;
         }
         await cmdBackfillComplete(tool);
         break;
       }
       case 'backfill:reset': {
-        const tool = args[1] as 'anthropic' | 'cursor' | 'github';
-        if (!tool || !['anthropic', 'cursor', 'github'].includes(tool)) {
-          console.error('Error: Please specify tool (anthropic, cursor, or github)');
-          console.error('Usage: npm run cli backfill:reset <tool>');
+        const tool = args[1] as 'anthropic' | 'cursor' | 'github' | 'openrouter';
+        if (!tool || !['anthropic', 'cursor', 'github', 'openrouter'].includes(tool)) {
+          console.error('Error: Please specify tool (anthropic, cursor, github, or openrouter)');
+          console.error('Usage: pnpm cli backfill:reset <tool>');
           break;
         }
         await cmdBackfillReset(tool);

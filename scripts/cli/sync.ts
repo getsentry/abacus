@@ -2,6 +2,7 @@ import { sql } from '@vercel/postgres';
 import { syncAnthropicUsage, backfillAnthropicUsage, resetAnthropicBackfillComplete } from '../../src/lib/sync/anthropic';
 import { syncCursorUsage, backfillCursorUsage, resetCursorBackfillComplete } from '../../src/lib/sync/cursor';
 import { backfillGitHubUsage, resetGitHubBackfillComplete } from '../../src/lib/sync/github';
+import { syncOpenRouterUsage, backfillOpenRouterUsage, resetOpenRouterBackfillComplete } from '../../src/lib/sync/openrouter';
 import { syncApiKeyMappingsSmart } from '../../src/lib/sync/anthropic-mappings';
 import { getAnthropicKeys, getCursorKeys } from '../../src/lib/sync/provider-keys';
 
@@ -9,13 +10,13 @@ interface SyncOptions {
   days?: number;
   fromDate?: string;
   toDate?: string;
-  tools?: ('anthropic' | 'cursor')[];
+  tools?: ('anthropic' | 'cursor' | 'openrouter')[];
   skipMappings?: boolean;
   orgName?: string;  // Filter to specific org/team by name
 }
 
 export async function cmdSync(options: SyncOptions = {}) {
-  const { days = 7, fromDate, toDate, tools = ['anthropic', 'cursor'], skipMappings = false, orgName } = options;
+  const { days = 7, fromDate, toDate, tools = ['anthropic', 'cursor', 'openrouter'], skipMappings = false, orgName } = options;
 
   // Use explicit dates if provided, otherwise calculate from days
   const endDate = toDate || new Date().toISOString().split('T')[0];
@@ -31,11 +32,15 @@ export async function cmdSync(options: SyncOptions = {}) {
       console.log('⚠️  Skipping Cursor: CURSOR_ADMIN_KEY not configured');
       return false;
     }
+    if (tool === 'openrouter' && !process.env.OPENROUTER_MANAGEMENT_KEY) {
+      console.log('⚠️  Skipping OpenRouter: OPENROUTER_MANAGEMENT_KEY not configured');
+      return false;
+    }
     return true;
   });
 
   if (configuredTools.length === 0) {
-    console.log('\n❌ No providers configured. Set ANTHROPIC_ADMIN_KEY and/or CURSOR_ADMIN_KEY.');
+    console.log('\n❌ No providers configured. Set ANTHROPIC_ADMIN_KEY, CURSOR_ADMIN_KEY, and/or OPENROUTER_MANAGEMENT_KEY.');
     return;
   }
 
@@ -71,10 +76,46 @@ export async function cmdSync(options: SyncOptions = {}) {
     }
   }
 
+  if (configuredTools.includes('openrouter')) {
+    if (configuredTools.includes('anthropic') || configuredTools.includes('cursor')) console.log('');
+    console.log('Syncing OpenRouter usage...');
+    const openrouterResult = await syncOpenRouterUsage(startDate, endDate);
+    console.log(`  Imported: ${openrouterResult.recordsImported}, Skipped: ${openrouterResult.recordsSkipped}`);
+    if (openrouterResult.errors.length > 0) {
+      console.log(`  Errors: ${openrouterResult.errors.slice(0, 3).join(', ')}`);
+    }
+  }
+
   console.log('\n✓ Sync complete!');
 }
 
-export async function cmdBackfill(tool: 'anthropic' | 'cursor', fromDate: string) {
+export async function cmdBackfill(tool: 'anthropic' | 'cursor' | 'openrouter', fromDate?: string) {
+  // OpenRouter backfill takes no --from date (full 30-day window always)
+  if (tool === 'openrouter') {
+    if (fromDate) {
+      console.log('⚠️  --from is ignored for OpenRouter: always fills the full 30-day API window');
+    }
+    if (!process.env.OPENROUTER_MANAGEMENT_KEY) {
+      console.error('❌ OPENROUTER_MANAGEMENT_KEY not configured');
+      return;
+    }
+    console.log('📥 Backfilling OpenRouter usage (full 30-day window)\n');
+    const result = await backfillOpenRouterUsage();
+    console.log('\n✓ Backfill complete');
+    console.log(`  Imported: ${result.recordsImported}, Skipped: ${result.recordsSkipped}`);
+    if (result.errors.length > 0) {
+      console.log(`  Errors: ${result.errors.slice(0, 5).join(', ')}`);
+    }
+    return;
+  }
+
+  // anthropic / cursor require --from
+  if (!fromDate) {
+    console.error('Error: Please specify --from date');
+    console.error('Usage: pnpm cli backfill <tool> --from YYYY-MM-DD');
+    return;
+  }
+
   // Check if provider is configured
   if (tool === 'anthropic' && !process.env.ANTHROPIC_ADMIN_KEY && !process.env.ANTHROPIC_ADMIN_KEYS) {
     console.error('❌ ANTHROPIC_ADMIN_KEY or ANTHROPIC_ADMIN_KEYS not configured');
@@ -142,7 +183,7 @@ export async function cmdGitHubBackfill(fromDate: string) {
   }
 }
 
-export async function cmdBackfillComplete(tool: 'anthropic' | 'cursor' | 'github') {
+export async function cmdBackfillComplete(tool: 'anthropic' | 'cursor' | 'github' | 'openrouter') {
   console.log(`Marking ${tool} backfill as complete...`);
   await sql`
     INSERT INTO sync_state (id, last_sync_at, backfill_complete)
@@ -154,12 +195,14 @@ export async function cmdBackfillComplete(tool: 'anthropic' | 'cursor' | 'github
   console.log(`✓ ${tool} backfill marked as complete`);
 }
 
-export async function cmdBackfillReset(tool: 'anthropic' | 'cursor' | 'github') {
+export async function cmdBackfillReset(tool: 'anthropic' | 'cursor' | 'github' | 'openrouter') {
   console.log(`Resetting ${tool} backfill status...`);
   if (tool === 'anthropic') {
     await resetAnthropicBackfillComplete();
   } else if (tool === 'cursor') {
     await resetCursorBackfillComplete();
+  } else if (tool === 'openrouter') {
+    await resetOpenRouterBackfillComplete();
   } else {
     await resetGitHubBackfillComplete();
   }

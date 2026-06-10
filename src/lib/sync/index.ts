@@ -1,5 +1,6 @@
 import { syncAnthropicUsage, syncAnthropicCron, backfillAnthropicUsage, getAnthropicSyncState, resetAnthropicBackfillComplete, SyncResult as AnthropicResult } from './anthropic';
 import { syncCursorCron, syncCursorUsage, backfillCursorUsage, getCursorSyncState, resetCursorBackfillComplete, SyncResult as CursorResult } from './cursor';
+import { syncOpenRouterUsage, syncOpenRouterCron, backfillOpenRouterUsage, getOpenRouterSyncState, resetOpenRouterBackfillComplete, SyncResult as OpenRouterResult } from './openrouter';
 import { syncAnthropicApiKeyMappings, syncApiKeyMappingsSmart, MappingResult } from './anthropic-mappings';
 import {
   syncGitHubRepo,
@@ -30,6 +31,7 @@ import { sql } from '@vercel/postgres';
 export interface FullSyncResult {
   anthropic: AnthropicResult;
   cursor: CursorResult;
+  openrouter?: OpenRouterResult;
   mappings?: MappingResult;
 }
 
@@ -82,6 +84,15 @@ export async function runCursorSync(): Promise<CursorResult> {
 }
 
 /**
+ * Run OpenRouter cron sync.
+ * Only syncs if not already synced today.
+ * Returns an error result (not a throw) if OPENROUTER_MANAGEMENT_KEY is missing.
+ */
+export async function runOpenRouterSync(): Promise<OpenRouterResult> {
+  return syncOpenRouterCron();
+}
+
+/**
  * Run full sync for both services.
  * For backwards compatibility and manual syncs via CLI.
  */
@@ -102,9 +113,11 @@ export async function runFullSync(
 
   // Run usage syncs in parallel
   // Note: For manual syncs, use date-based sync
-  const [anthropicResult, cursorResult] = await Promise.all([
+  // OpenRouter: missing key returns an error SyncResult, not a throw — safe in Promise.all
+  const [anthropicResult, cursorResult, openrouterResult] = await Promise.all([
     syncAnthropicUsage(start, end),
-    syncCursorUsage(start, end)
+    syncCursorUsage(start, end),
+    syncOpenRouterUsage(start, end),
   ]);
 
   // Update sync state
@@ -113,6 +126,7 @@ export async function runFullSync(
   return {
     anthropic: anthropicResult,
     cursor: cursorResult,
+    openrouter: openrouterResult,
     mappings: mappingsResult
   };
 }
@@ -138,6 +152,11 @@ export {
   backfillCursorUsage,
   getCursorSyncState,
   resetCursorBackfillComplete,
+  syncOpenRouterUsage,
+  syncOpenRouterCron,
+  backfillOpenRouterUsage,
+  getOpenRouterSyncState,
+  resetOpenRouterBackfillComplete,
   syncAnthropicApiKeyMappings,
   // GitHub exports
   syncGitHubRepo,
