@@ -26,6 +26,7 @@ export function proxy(request: NextRequest) {
     '/api/cron', // Cron jobs use CRON_SECRET for auth
     '/api/webhooks', // Webhooks use their own signature verification
     '/sign-in', // Sign-in page
+    '/.well-known/vercel/flags', // Flags Explorer discovery (secured via FLAGS_SECRET)
   ];
 
   // Check if path starts with any public path

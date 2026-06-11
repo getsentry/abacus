@@ -78,6 +78,8 @@ See [GitHub Commits setup](/abacus/providers/github-commits/) for details.
 | Variable | Description |
 |----------|-------------|
 | `NEXT_PUBLIC_SENTRY_DSN` | Sentry DSN for error tracking |
+| `FLAGS` | Vercel Flags SDK keys. Provisioned automatically when you create your first flag in the Vercel dashboard (Project → Flags). Backs the `api-keys-page` flag that gates the `/api-keys` page. Without it the page is visible in development and hidden in production/preview. |
+| `FLAGS_SECRET` | Enables flag overrides via the Vercel Toolbar's Flags Explorer. 32 random bytes, base64-encoded. |
 
 ## Local Development
 

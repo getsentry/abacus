@@ -25,6 +25,7 @@
     "db:studio": "drizzle-kit studio"
   },
   "dependencies": {
+    "@flags-sdk/vercel": "^1.4.0",
     "@neondatabase/serverless": "^1.0.2",
     "@openrouter/sdk": "^0.12.79",
     "@sentry/nextjs": "^10.32.1",
@@ -32,6 +33,7 @@
     "better-auth": "^1.6.2",
     "dotenv": "^17.2.3",
     "drizzle-orm": "^0.45.2",
+    "flags": "^4.1.0",
     "framer-motion": "^12.24.7",
     "geist": "^1.5.1",
     "google-auth-library": "^10.7.0",

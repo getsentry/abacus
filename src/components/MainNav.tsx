@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { AbacusLogo } from '@/components/AbacusLogo';
+import { useFeatureFlags } from '@/app/providers';
 
 interface NavItem {
   label: string;
@@ -15,18 +16,21 @@ interface MainNavProps {
   days: number;
 }
 
-const navItems: NavItem[] = [
+const baseNavItems: NavItem[] = [
   { label: 'Overview', href: '/', matchPaths: ['/'] },
   { label: 'Team', href: '/team', matchPaths: ['/team', '/users'] },
   { label: 'Usage', href: '/usage', matchPaths: ['/usage'] },
   { label: 'Commits', href: '/commits', matchPaths: ['/commits'] },
   { label: 'Tips', href: '/tips', matchPaths: ['/tips'] },
   { label: 'Status', href: '/status', matchPaths: ['/status'] },
-  { label: 'API Keys', href: '/api-keys', matchPaths: ['/api-keys'] },
 ];
+
+const apiKeysNavItem: NavItem = { label: 'API Keys', href: '/api-keys', matchPaths: ['/api-keys'] };
 
 export function MainNav({ days }: MainNavProps) {
   const pathname = usePathname();
+  const { apiKeysPage } = useFeatureFlags();
+  const navItems = apiKeysPage ? [...baseNavItems, apiKeysNavItem] : baseNavItems;
 
   const isActive = (item: NavItem) => {
     if (item.href === '/') {
