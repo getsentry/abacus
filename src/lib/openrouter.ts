@@ -1,9 +1,11 @@
 import { OpenRouter } from '@openrouter/sdk';
 import { OpenRouterError } from '@openrouter/sdk/models/errors';
-import { getOpenRouterWorkspaceKey } from './openrouter-workspaces';
 
-function getClient(workspace: string) {
-  const apiKey = getOpenRouterWorkspaceKey(workspace);
+function getClient() {
+  const apiKey = process.env.OPENROUTER_MANAGEMENT_KEY;
+  if (!apiKey) {
+    throw new Error('OPENROUTER_MANAGEMENT_KEY is not set');
+  }
 
   return new OpenRouter({
     apiKey,
@@ -25,6 +27,8 @@ export { OpenRouterError };
 
 export interface CreateOpenRouterKeyParams {
   name: string;
+  /** OpenRouter workspace UUID to create the key in. Omit for the account default workspace. */
+  workspaceId?: string;
   limit?: number | null;
   limitReset?: 'daily' | 'weekly' | 'monthly' | null;
   includeByokInLimit?: boolean;
@@ -35,6 +39,8 @@ export interface CreateOpenRouterKeyParams {
 export interface ListOpenRouterKeysOptions {
   offset?: number | null;
   includeDisabled?: boolean;
+  /** Filter by workspace UUID. Omit to list keys in the account default workspace. */
+  workspaceId?: string;
 }
 
 export interface UpdateOpenRouterKeyParams {
@@ -50,15 +56,13 @@ export type ListOpenRouterKeysResult = Awaited<ReturnType<InstanceType<typeof Op
 export type UpdateOpenRouterKeyResult = Awaited<ReturnType<InstanceType<typeof OpenRouter>['apiKeys']['update']>>;
 export type DeleteOpenRouterKeyResult = Awaited<ReturnType<InstanceType<typeof OpenRouter>['apiKeys']['delete']>>;
 
-export async function createOpenRouterKey(
-  workspace: string,
-  params: CreateOpenRouterKeyParams
-): Promise<CreateOpenRouterKeyResult> {
-  const client = getClient(workspace);
+export async function createOpenRouterKey(params: CreateOpenRouterKeyParams): Promise<CreateOpenRouterKeyResult> {
+  const client = getClient();
 
   return client.apiKeys.create({
     requestBody: {
       name: params.name,
+      workspaceId: params.workspaceId,
       limit: params.limit,
       limitReset: params.limitReset,
       includeByokInLimit: params.includeByokInLimit,
@@ -68,21 +72,21 @@ export async function createOpenRouterKey(
   });
 }
 
-export async function listOpenRouterKeys(
-  workspace: string,
-  options?: ListOpenRouterKeysOptions
-): Promise<ListOpenRouterKeysResult> {
-  const client = getClient(workspace);
+export async function listOpenRouterKeys(options?: ListOpenRouterKeysOptions): Promise<ListOpenRouterKeysResult> {
+  const client = getClient();
 
   return client.apiKeys.list(options);
 }
 
+/**
+ * Update a key by hash. The management key is account-global, so this works
+ * for keys in any workspace (verified live — no workspace context needed).
+ */
 export async function updateOpenRouterKey(
-  workspace: string,
   hash: string,
   params: UpdateOpenRouterKeyParams
 ): Promise<UpdateOpenRouterKeyResult> {
-  const client = getClient(workspace);
+  const client = getClient();
 
   return client.apiKeys.update({
     hash,
@@ -96,13 +100,25 @@ export async function updateOpenRouterKey(
   });
 }
 
-export async function deleteOpenRouterKey(
-  workspace: string,
-  hash: string
-): Promise<DeleteOpenRouterKeyResult> {
-  const client = getClient(workspace);
+export async function deleteOpenRouterKey(hash: string): Promise<DeleteOpenRouterKeyResult> {
+  const client = getClient();
 
   return client.apiKeys.delete({ hash });
+}
+
+export type OpenRouterWorkspaceInfo = {
+  id: string;
+  name: string;
+};
+
+/**
+ * List all workspaces on the OpenRouter account.
+ * Management keys are account-global and see every workspace.
+ */
+export async function listOpenRouterWorkspaces(): Promise<OpenRouterWorkspaceInfo[]> {
+  const client = getClient();
+  const response = await client.workspaces.list();
+  return response.result.data.map((ws) => ({ id: ws.id, name: ws.name }));
 }
 
 export type OpenRouterActivityItem = {
@@ -119,11 +135,12 @@ export type OpenRouterActivityItem = {
   byokUsageInference: number; // USD (external/BYOK credits — excluded from cost)
 };
 
-export async function getOpenRouterActivity(
-  workspace: string,
-  params: { apiKeyHash?: string }
-): Promise<OpenRouterActivityItem[]> {
-  const client = getClient(workspace);
+/**
+ * Fetch daily activity for a key by hash. Works for keys in any workspace —
+ * the activity endpoint is account-global (verified live).
+ */
+export async function getOpenRouterActivity(params: { apiKeyHash?: string }): Promise<OpenRouterActivityItem[]> {
+  const client = getClient();
   const response = await client.analytics.getUserActivity({ apiKeyHash: params.apiKeyHash });
   return response.data as OpenRouterActivityItem[];
 }

@@ -1,7 +1,6 @@
 import { getOpenRouterSyncState, getOpenRouterBackfillState } from '../../src/lib/sync/openrouter';
 import { createOpenRouterKey, deleteOpenRouterKey } from '../../src/lib/openrouter';
-import { getOpenRouterWorkspaces } from '../../src/lib/openrouter-workspaces';
-import { db, openrouterKeys } from '../../src/lib/db';
+import { db, openrouterKeys, openrouterWorkspaces } from '../../src/lib/db';
 
 export async function cmdOpenRouterCreateKey(
   email: string | undefined,
@@ -18,42 +17,44 @@ export async function cmdOpenRouterCreateKey(
     return;
   }
 
-  const workspaces = getOpenRouterWorkspaces();
+  // Resolve target workspace from the admin-enabled set (openrouter_workspaces table).
+  // None enabled -> account default workspace. One enabled -> auto-select.
+  // Multiple -> --workspace required (matched by name).
+  const enabled = await db.select().from(openrouterWorkspaces);
 
-  let workspace: string;
+  let workspaceId: string | null = null;
+  let workspaceName = 'default';
   if (workspaceFlag) {
-    // Validate the provided workspace name
-    const match = workspaces.find((w) => w.name === workspaceFlag);
+    const match = enabled.find((w) => w.name === workspaceFlag);
     if (!match) {
-      const validNames = workspaces.map((w) => w.name).join(', ') || 'none';
+      const validNames = enabled.map((w) => w.name).join(', ') || 'none';
       console.error(`Error: Unknown workspace "${workspaceFlag}". Valid workspaces: ${validNames}`);
       process.exitCode = 1;
       return;
     }
-    workspace = match.name;
-  } else if (workspaces.length === 1) {
-    // Exactly one workspace — use it as the default
-    workspace = workspaces[0].name;
-  } else if (workspaces.length === 0) {
-    console.error('Error: No OpenRouter workspaces configured.');
-    process.exitCode = 1;
-    return;
-  } else {
-    // Two or more workspaces — --workspace is required
-    const validNames = workspaces.map((w) => w.name).join(', ');
-    console.error(`Error: --workspace is required when multiple workspaces are configured.`);
+    workspaceId = match.id;
+    workspaceName = match.name;
+  } else if (enabled.length === 1) {
+    // Exactly one enabled workspace — use it as the default
+    workspaceId = enabled[0].id;
+    workspaceName = enabled[0].name;
+  } else if (enabled.length > 1) {
+    // Two or more enabled workspaces — --workspace is required
+    const validNames = enabled.map((w) => w.name).join(', ');
+    console.error(`Error: --workspace is required when multiple workspaces are enabled.`);
     console.error(`Valid workspaces: ${validNames}`);
     console.error('Usage: pnpm cli openrouter:create-key <email> <name> --workspace <workspace>');
     process.exitCode = 1;
     return;
   }
 
-  console.log(`🔑 Creating OpenRouter key "${normalizedName}" for ${normalizedEmail} in workspace "${workspace}"...`);
+  console.log(`🔑 Creating OpenRouter key "${normalizedName}" for ${normalizedEmail} in workspace "${workspaceName}"...`);
 
   // Same flow as POST /api/openrouter/keys: create on OpenRouter first,
   // then store the hash → email mapping; clean up the key if the insert fails.
-  const created = await createOpenRouterKey(workspace, {
+  const created = await createOpenRouterKey({
     name: `${normalizedEmail} - ${normalizedName}`,
+    ...(workspaceId ? { workspaceId } : {}),
   });
 
   try {
@@ -61,11 +62,11 @@ export async function cmdOpenRouterCreateKey(
       hash: created.data.hash,
       email: normalizedEmail,
       name: normalizedName,
-      workspace,
+      workspaceId,
     });
   } catch (error) {
     try {
-      await deleteOpenRouterKey(workspace, created.data.hash);
+      await deleteOpenRouterKey(created.data.hash);
     } catch (cleanupError) {
       console.error('Failed to cleanup OpenRouter key after DB insert failure', {
         hash: created.data.hash,
@@ -78,7 +79,7 @@ export async function cmdOpenRouterCreateKey(
   console.log('\n✓ Key created and mapped\n');
   console.log(`  Email:     ${normalizedEmail}`);
   console.log(`  Name:      ${normalizedName}`);
-  console.log(`  Workspace: ${workspace}`);
+  console.log(`  Workspace: ${workspaceName}`);
   console.log(`  Hash:      ${created.data.hash}`);
   console.log(`\n  Key (shown ONCE, share it securely):\n\n  ${created.key}\n`);
 }

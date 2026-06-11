@@ -5,9 +5,8 @@ import { db, syncState, usageRecords, openrouterKeys } from '../db';
 import { eq, min } from 'drizzle-orm';
 import { getOpenRouterActivity } from '../openrouter';
 import { NotFoundResponseError } from '@openrouter/sdk/models/errors';
-import { getOpenRouterWorkspaces, NO_OPENROUTER_WORKSPACES_ERROR } from '../openrouter-workspaces';
 
-export const NO_OPENROUTER_KEY_ERROR = NO_OPENROUTER_WORKSPACES_ERROR;
+export const NO_OPENROUTER_KEY_ERROR = 'OPENROUTER_MANAGEMENT_KEY is not set';
 
 const SYNC_STATE_ID = 'openrouter';
 
@@ -114,8 +113,7 @@ export async function resetOpenRouterBackfillComplete(): Promise<void> {
  * Manual CLI calls should avoid overlapping dates.
  */
 export async function syncOpenRouterUsage(startDate: string, endDate: string): Promise<SyncResult> {
-  const workspaces = getOpenRouterWorkspaces();
-  if (workspaces.length === 0) {
+  if (!process.env.OPENROUTER_MANAGEMENT_KEY) {
     return {
       success: false,
       recordsImported: 0,
@@ -135,7 +133,7 @@ export async function syncOpenRouterUsage(startDate: string, endDate: string): P
   // Load all openrouter_keys rows, including revoked ones.
   // Revoked keys can have pre-revocation usage within the 30-day window.
   const keys = await db
-    .select({ hash: openrouterKeys.hash, email: openrouterKeys.email, workspace: openrouterKeys.workspace })
+    .select({ hash: openrouterKeys.hash, email: openrouterKeys.email, workspaceId: openrouterKeys.workspaceId })
     .from(openrouterKeys);
 
   if (keys.length === 0) {
@@ -143,13 +141,13 @@ export async function syncOpenRouterUsage(startDate: string, endDate: string): P
     return result;
   }
 
-  // Aggregate in memory per (email, workspace, date, rawModel, endpointId) before inserting.
+  // Aggregate in memory per (email, workspaceId, date, rawModel, endpointId) before inserting.
   // A user with multiple keys in the same workspace, or across workspaces, must not be merged
   // across workspace boundaries — different workspaces produce separate organizationId rows.
-  type AggKey = string; // Format: "email|workspace|date|rawModel|endpointId"
+  type AggKey = string; // Format: "email|workspaceId|date|rawModel|endpointId"
   type AggValue = {
     email: string;
-    workspace: string;
+    workspaceId: string | null;
     date: string;
     rawModel: string;
     endpointId: string;
@@ -162,7 +160,8 @@ export async function syncOpenRouterUsage(startDate: string, endDate: string): P
 
   for (const key of keys) {
     try {
-      const items = await getOpenRouterActivity(key.workspace, { apiKeyHash: key.hash });
+      // Activity is fetched by key hash — account-global, no workspace context needed
+      const items = await getOpenRouterActivity({ apiKeyHash: key.hash });
 
       for (const item of items) {
         // The API returns date as "YYYY-MM-DD HH:MM:SS" — extract the date part
@@ -172,7 +171,7 @@ export async function syncOpenRouterUsage(startDate: string, endDate: string): P
         if (itemDate < startDate || itemDate > endDate) continue;
 
         const rawModel = item.model; // Full slug e.g. "anthropic/claude-sonnet-4.5"
-        const aggKey: AggKey = `${key.email}|${key.workspace}|${itemDate}|${rawModel}|${item.endpointId}`;
+        const aggKey: AggKey = `${key.email}|${key.workspaceId ?? ''}|${itemDate}|${rawModel}|${item.endpointId}`;
 
         const existing = aggregated.get(aggKey);
         if (existing) {
@@ -183,7 +182,7 @@ export async function syncOpenRouterUsage(startDate: string, endDate: string): P
         } else {
           aggregated.set(aggKey, {
             email: key.email,
-            workspace: key.workspace,
+            workspaceId: key.workspaceId,
             date: itemDate,
             rawModel,
             endpointId: item.endpointId,
@@ -235,7 +234,9 @@ export async function syncOpenRouterUsage(startDate: string, endDate: string): P
         // and mixing OpenRouter credits with external billing would corrupt cost reporting.
         cost: rec.usage,
         toolRecordId: rec.endpointId,
-        organizationId: rec.workspace, // Workspace name — ties each row to its OpenRouter workspace
+        // Workspace UUID — ties each row to its OpenRouter workspace.
+        // NULL/undefined for keys in the account default workspace.
+        organizationId: rec.workspaceId ?? undefined,
       });
       result.recordsImported++;
     } catch (err) {
@@ -263,7 +264,7 @@ export async function syncOpenRouterUsage(startDate: string, endDate: string): P
  * Safe to call more often — returns early if yesterday is already synced.
  */
 export async function syncOpenRouterCron(): Promise<SyncResult> {
-  if (getOpenRouterWorkspaces().length === 0) {
+  if (!process.env.OPENROUTER_MANAGEMENT_KEY) {
     return {
       success: false,
       recordsImported: 0,
@@ -311,7 +312,7 @@ export async function syncOpenRouterCron(): Promise<SyncResult> {
  * no deeper history to retrieve; subsequent cron runs keep the window current.
  */
 export async function backfillOpenRouterUsage(): Promise<SyncResult> {
-  if (getOpenRouterWorkspaces().length === 0) {
+  if (!process.env.OPENROUTER_MANAGEMENT_KEY) {
     return {
       success: false,
       recordsImported: 0,

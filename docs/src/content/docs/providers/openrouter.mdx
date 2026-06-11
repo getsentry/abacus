@@ -13,23 +13,17 @@ Abacus tracks OpenRouter usage by reading daily activity for each provisioned ke
 
 <Steps>
 
-1. Open [OpenRouter → Settings → Keys](https://openrouter.ai/settings/keys) and generate a **Management API key** (starts with `sk-or-v1-`) for each workspace you want to track.
+1. Open [OpenRouter → Settings → Management Keys](https://openrouter.ai/settings/management-keys) and generate a **Management API key** (starts with `sk-or-v1-`). Management keys are account-global — one key covers every workspace on the account.
 
-2. Set the environment variable. Use the single-key form for one workspace, or the JSON map for multiple:
+2. Set the environment variable:
 
-   **Single workspace:**
    ```bash
    OPENROUTER_MANAGEMENT_KEY=sk-or-v1-...
    ```
 
-   **Multiple workspaces:**
-   ```bash
-   OPENROUTER_MANAGEMENT_KEYS='{"Coding Agents":"sk-or-v1-...","Tools":"sk-or-v1-..."}'
-   ```
-
-   See [Multi-Workspace Configuration](#multi-workspace-configuration) for details.
-
 3. Provision API keys for each team member via the OpenRouter API or dashboard. Abacus records each key's hash and associates it with a user email — see [provisioning documentation](/abacus/providers/openrouter/#key-provisioning).
+
+4. (Optional) If your OpenRouter account uses multiple [workspaces](https://openrouter.ai/docs/guides/features/workspaces), enable the ones users may create keys in — see [Workspaces](#workspaces).
 
 </Steps>
 
@@ -83,44 +77,23 @@ Reset to allow re-backfilling:
 pnpm cli backfill:reset openrouter
 ```
 
-## Multi-Workspace Configuration
+## Workspaces
 
-Abacus supports tracking usage across multiple OpenRouter workspaces. Each workspace maps to one management key; the workspace name is a display label used for segmentation in reports and the UI.
+OpenRouter [workspaces](https://openrouter.ai/docs/guides/features/workspaces) let you segment API keys (e.g. "Coding Agents" vs "Tools"). The management key is account-global, so no extra configuration is needed to track usage across workspaces — but admins control which workspaces users may create keys in.
 
-### Environment Variable
+### Enabling Workspaces for Key Creation
 
-Set `OPENROUTER_MANAGEMENT_KEYS` as a JSON object mapping workspace names to management keys:
+Admins (members of `ADMIN_EMAILS`) see a **Workspaces** section on the `/api-keys` page listing every workspace on the OpenRouter account. Toggling a workspace on exposes it to users:
 
-```bash
-# In .env/.env.local — single-quote the JSON to avoid shell interpretation:
-OPENROUTER_MANAGEMENT_KEYS='{"Coding Agents":"sk-or-v1-...","Tools":"sk-or-v1-..."}'
-```
+- **No workspaces enabled** — keys are created in the account's default workspace; no selector is shown.
+- **One workspace enabled** — keys are created there automatically; no selector is shown.
+- **Two or more enabled** — users pick the workspace from a dropdown when creating a key, and key tables show a workspace column.
 
-In the **Vercel environment variable UI**, paste the raw JSON without surrounding shell quotes:
+The enabled set is stored in the `openrouter_workspaces` table (workspace ID plus a cached display name) — nothing needs to change in the environment when workspaces are added or renamed on OpenRouter.
 
-```
-{"Coding Agents":"sk-or-v1-...","Tools":"sk-or-v1-..."}
-```
+### Usage Attribution
 
-### Single-Key Fallback
-
-The original `OPENROUTER_MANAGEMENT_KEY` variable is still fully supported. When set alone it creates a single workspace named `default`. When both variables are present, `OPENROUTER_MANAGEMENT_KEYS` takes precedence.
-
-### Migration Note for Existing Deployments
-
-<Aside type="caution">
-  Migration 0019 backfilled all existing key rows and usage records to workspace `'Coding Agents'`. If your deployment previously used `OPENROUTER_MANAGEMENT_KEY`, you must switch to the multi-workspace form with the same workspace name:
-
-  ```bash
-  OPENROUTER_MANAGEMENT_KEYS='{"Coding Agents":"sk-or-v1-..."}'
-  ```
-
-  Keeping `OPENROUTER_MANAGEMENT_KEY` alone will result in a `default` workspace that does not match the backfilled `Coding Agents` records, causing errors when operating on those rows.
-</Aside>
-
-### UI Behavior
-
-The workspace selector and workspace column in the key management UI are only shown when two or more workspaces are configured. With a single workspace the interface is identical to the previous single-key experience.
+Each key row stores the OpenRouter workspace ID it was created in. Synced usage records carry that workspace ID in `organization_id` (NULL for default-workspace keys), enabling per-workspace breakdowns later.
 
 ## Key Provisioning
 

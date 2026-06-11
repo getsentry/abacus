@@ -65,13 +65,14 @@ async function handleEmail(email: string): Promise<JobSummary> {
   summary.inactive += 1;
 
   const keys = await db
-    .select({ hash: openrouterKeys.hash, workspace: openrouterKeys.workspace })
+    .select({ hash: openrouterKeys.hash })
     .from(openrouterKeys)
     .where(and(eq(openrouterKeys.email, email), isNull(openrouterKeys.revokedAt)));
 
-  for (const { hash, workspace } of keys) {
+  for (const { hash } of keys) {
     try {
-      await updateOpenRouterKey(workspace, hash, { disabled: true });
+      // Disable by hash works account-wide; no workspace context needed
+      await updateOpenRouterKey(hash, { disabled: true });
       await db
         .update(openrouterKeys)
         .set({ revokedAt: new Date() })

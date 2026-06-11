@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { wrapRouteHandlerWithSentry } from '@sentry/nextjs';
 import { eq } from 'drizzle-orm';
 import { checkAuth, getSession } from '@/lib/auth';
-import { db, openrouterKeys } from '@/lib/db';
+import { db, openrouterKeys, openrouterWorkspaces } from '@/lib/db';
 import {
   OpenRouterError,
   createOpenRouterKey,
@@ -10,11 +10,8 @@ import {
   listOpenRouterKeys,
   updateOpenRouterKey,
 } from '@/lib/openrouter';
-import {
-  getOpenRouterWorkspaces,
-  getOpenRouterWorkspaceNames,
-  NO_OPENROUTER_WORKSPACES_ERROR,
-} from '@/lib/openrouter-workspaces';
+
+const NO_OPENROUTER_KEY_ERROR = 'OPENROUTER_MANAGEMENT_KEY is not set';
 
 function isAdmin(email: string): boolean {
   return (process.env.ADMIN_EMAILS || '')
@@ -57,7 +54,7 @@ function mapOpenRouterError(error: unknown): NextResponse<{ error: string }> {
     return NextResponse.json({ error: 'OpenRouter service is temporarily unavailable.' }, { status: 502 });
   }
 
-  if (error instanceof Error && error.message === NO_OPENROUTER_WORKSPACES_ERROR) {
+  if (error instanceof Error && error.message === NO_OPENROUTER_KEY_ERROR) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
@@ -118,29 +115,38 @@ async function getHandler(request: Request) {
 
   const dbRowByHash = new Map(dbRows.map((row) => [row.hash, row]));
 
-  const workspaces = getOpenRouterWorkspaces();
-  if (!workspaces.length) {
-    return mapOpenRouterError(new Error(NO_OPENROUTER_WORKSPACES_ERROR));
+  // Keys live in different OpenRouter workspaces; list() only returns one
+  // workspace per call (no filter = account default workspace). Iterate the
+  // default workspace plus every workspace referenced by our DB rows.
+  const workspaceIds = new Set<string | null>([null]);
+  for (const row of dbRows) {
+    workspaceIds.add(row.workspaceId);
   }
 
-  // Collect keys from all workspaces; one failure must not abort the others
-  const allItems: Array<ReturnType<typeof normalizeListItem> & { workspace: string }> = [];
+  const enabledWorkspaces = await db.select().from(openrouterWorkspaces);
+  const workspaceNameById = new Map(enabledWorkspaces.map((ws) => [ws.id, ws.name]));
+
+  // Collect keys from all relevant workspaces; one failure must not abort the others
+  const allItems: Array<ReturnType<typeof normalizeListItem> & { workspace: string | null }> = [];
   let lastError: unknown = null;
   let successCount = 0;
   const workspaceErrors: Array<{ workspace: string; message: string }> = [];
 
-  for (const ws of workspaces) {
+  for (const wsId of workspaceIds) {
     try {
-      const listResponse = await listOpenRouterKeys(ws.name, { includeDisabled: true });
+      const listResponse = await listOpenRouterKeys({
+        includeDisabled: true,
+        ...(wsId ? { workspaceId: wsId } : {}),
+      });
+      const workspaceName = wsId ? workspaceNameById.get(wsId) ?? wsId : null;
       for (const item of listResponse.data) {
-        allItems.push({ ...normalizeListItem(item), workspace: ws.name });
+        allItems.push({ ...normalizeListItem(item), workspace: workspaceName });
       }
       successCount++;
     } catch (error) {
       lastError = error;
-      const message =
-        error instanceof Error ? error.message : 'Unknown error';
-      workspaceErrors.push({ workspace: ws.name, message });
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      workspaceErrors.push({ workspace: wsId ? workspaceNameById.get(wsId) ?? wsId : 'default', message });
     }
   }
 
@@ -202,27 +208,30 @@ async function postHandler(request: Request) {
     return NextResponse.json({ error: 'name is required' }, { status: 400 });
   }
 
-  const workspaces = getOpenRouterWorkspaces();
-  if (!workspaces.length) {
-    return mapOpenRouterError(new Error(NO_OPENROUTER_WORKSPACES_ERROR));
-  }
+  // Resolve the target workspace from the admin-enabled set.
+  // No enabled workspaces -> keys go to the account default workspace.
+  // Exactly one enabled -> auto-select it. Multiple -> workspaceId required.
+  const enabledWorkspaces = await db.select().from(openrouterWorkspaces);
+  let workspaceId: string | null = null;
+  let workspaceName: string | null = null;
 
-  const workspaceNames = workspaces.map((w) => w.name);
-  let workspace: string;
-
-  if (body.workspace) {
-    if (!workspaceNames.includes(body.workspace)) {
+  if (body.workspaceId) {
+    const match = enabledWorkspaces.find((ws) => ws.id === body.workspaceId);
+    if (!match) {
+      const valid = enabledWorkspaces.map((ws) => ws.name).join(', ') || 'none';
       return NextResponse.json(
-        { error: `Invalid workspace "${body.workspace}". Valid workspaces: ${workspaceNames.join(', ')}` },
+        { error: `Invalid workspace. Valid workspaces: ${valid}` },
         { status: 400 }
       );
     }
-    workspace = body.workspace;
-  } else if (workspaces.length === 1) {
-    workspace = workspaces[0].name;
-  } else {
+    workspaceId = match.id;
+    workspaceName = match.name;
+  } else if (enabledWorkspaces.length === 1) {
+    workspaceId = enabledWorkspaces[0].id;
+    workspaceName = enabledWorkspaces[0].name;
+  } else if (enabledWorkspaces.length > 1) {
     return NextResponse.json(
-      { error: `workspace is required. Valid workspaces: ${workspaceNames.join(', ')}` },
+      { error: `workspaceId is required. Valid workspaces: ${enabledWorkspaces.map((ws) => ws.name).join(', ')}` },
       { status: 400 }
     );
   }
@@ -230,8 +239,9 @@ async function postHandler(request: Request) {
   let created: Awaited<ReturnType<typeof createOpenRouterKey>>;
 
   try {
-    created = await createOpenRouterKey(workspace, {
+    created = await createOpenRouterKey({
       name: `${userEmail} - ${name}`,
+      ...(workspaceId ? { workspaceId } : {}),
     });
   } catch (error) {
     return mapOpenRouterError(error);
@@ -242,11 +252,11 @@ async function postHandler(request: Request) {
       hash: created.data.hash,
       email: userEmail,
       name,
-      workspace,
+      workspaceId,
     });
   } catch {
     try {
-      await deleteOpenRouterKey(workspace, created.data.hash);
+      await deleteOpenRouterKey(created.data.hash);
     } catch (cleanupError) {
       console.error('Failed to cleanup OpenRouter key after DB insert failure', {
         hash: created.data.hash,
@@ -266,7 +276,7 @@ async function postHandler(request: Request) {
     key: created.key,
     hash: created.data.hash,
     name,
-    workspace,
+    workspace: workspaceName,
     disabled: created.data.disabled,
     created_at: created.data.createdAt,
   });
@@ -310,7 +320,8 @@ async function patchHandler(request: Request) {
 
   let updated: Awaited<ReturnType<typeof updateOpenRouterKey>>;
   try {
-    updated = await updateOpenRouterKey(row.workspace, hash, { disabled });
+    // Update by hash works account-wide; no workspace context needed
+    updated = await updateOpenRouterKey(hash, { disabled });
   } catch (error) {
     return mapOpenRouterError(error);
   }
@@ -344,7 +355,8 @@ async function deleteHandler(request: Request) {
   }
 
   try {
-    await deleteOpenRouterKey(row.workspace, hash);
+    // Delete by hash works account-wide; no workspace context needed
+    await deleteOpenRouterKey(hash);
   } catch (error) {
     return mapOpenRouterError(error);
   }

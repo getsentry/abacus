@@ -33,9 +33,8 @@ describe('GET /api/cron/sync-openrouter', () => {
     expect(response.status).toBe(401);
   });
 
-  it('skips when neither OPENROUTER_MANAGEMENT_KEY nor OPENROUTER_MANAGEMENT_KEYS is set', async () => {
+  it('skips when OPENROUTER_MANAGEMENT_KEY is not set', async () => {
     vi.stubEnv('OPENROUTER_MANAGEMENT_KEY', '');
-    vi.stubEnv('OPENROUTER_MANAGEMENT_KEYS', '');
 
     const { GET } = await import('./route');
     const response = await GET(
@@ -48,32 +47,10 @@ describe('GET /api/cron/sync-openrouter', () => {
     const data = await response.json();
     expect(data.skipped).toBe(true);
     expect(data.reason).toContain('OPENROUTER_MANAGEMENT_KEY');
-    expect(data.reason).toContain('OPENROUTER_MANAGEMENT_KEYS');
   });
 
-  it('runs sync with plural-only config (OPENROUTER_MANAGEMENT_KEYS set, singular unset)', async () => {
-    vi.stubEnv('OPENROUTER_MANAGEMENT_KEY', '');
-    vi.stubEnv(
-      'OPENROUTER_MANAGEMENT_KEYS',
-      JSON.stringify({ 'Coding Agents': 'sk-or-alpha', Tools: 'sk-or-beta' })
-    );
-
-    const { GET } = await import('./route');
-    const response = await GET(
-      new Request('http://localhost/api/cron/sync-openrouter', {
-        headers: { Authorization: 'Bearer test-secret' },
-      })
-    );
-
-    expect(response.status).toBe(200);
-    const data = await response.json();
-    expect(data.skipped).toBeUndefined();
-    expect(data.service).toBe('openrouter');
-  });
-
-  it('runs sync with singular-only config (OPENROUTER_MANAGEMENT_KEY set)', async () => {
+  it('runs sync when OPENROUTER_MANAGEMENT_KEY is set', async () => {
     vi.stubEnv('OPENROUTER_MANAGEMENT_KEY', 'sk-or-single');
-    vi.stubEnv('OPENROUTER_MANAGEMENT_KEYS', '');
 
     const { GET } = await import('./route');
     const response = await GET(

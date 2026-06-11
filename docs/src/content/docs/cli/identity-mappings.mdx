@@ -79,8 +79,8 @@ pnpm cli openrouter:create-key jane@example.com "Tooling" --workspace "Tools"
 |-------------------|-------------|
 | `<email>` | Team member's email address |
 | `<name>` | Display name for the API key on OpenRouter |
-| `--workspace <name>` | Workspace to provision the key in. Optional when exactly one workspace is configured; required when two or more are configured. |
+| `--workspace <name>` | Workspace to provision the key in. Optional when zero or one workspaces are enabled (defaults to the enabled or account-default workspace); required when two or more are enabled. |
 
 <Aside type="note">
-  `--workspace` must match a workspace name defined in `OPENROUTER_MANAGEMENT_KEYS` exactly (case-sensitive). Run `pnpm cli openrouter:status` to see configured workspace names.
+  `--workspace` must match the name of an admin-enabled workspace exactly (case-sensitive). Admins manage the enabled set on the `/api-keys` page — see [OpenRouter workspaces](/abacus/providers/openrouter/#workspaces).
 </Aside>

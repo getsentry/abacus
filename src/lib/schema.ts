@@ -39,10 +39,22 @@ export const openrouterKeys = pgTable('openrouter_keys', {
   hash: varchar('hash', { length: 255 }).primaryKey(),
   email: varchar('email', { length: 255 }).notNull(),
   name: varchar('name', { length: 255 }).notNull(),
-  workspace: varchar('workspace', { length: 255 }).notNull(),
+  // OpenRouter workspace UUID the key was created in (NULL = account default workspace)
+  workspaceId: varchar('workspace_id', { length: 64 }),
   createdAt: timestamp('created_at').defaultNow(),
   revokedAt: timestamp('revoked_at'),
 }, (table) => [index('idx_openrouter_keys_email').on(table.email)]);
+
+/**
+ * OpenRouter workspaces that admins have exposed for key creation.
+ * Presence of a row = users may create keys in that workspace.
+ * `name` is a display-name cache of the live OpenRouter workspace name.
+ */
+export const openrouterWorkspaces = pgTable('openrouter_workspaces', {
+  id: varchar('id', { length: 64 }).primaryKey(),
+  name: varchar('name', { length: 255 }).notNull(),
+  createdAt: timestamp('created_at').defaultNow(),
+});
 
 /**
  * Usage records - can be stored per-event (Cursor) or aggregated (Anthropic).

@@ -5,7 +5,6 @@ import { backfillGitHubUsage, resetGitHubBackfillComplete } from '../../src/lib/
 import { syncOpenRouterUsage, backfillOpenRouterUsage, resetOpenRouterBackfillComplete } from '../../src/lib/sync/openrouter';
 import { syncApiKeyMappingsSmart } from '../../src/lib/sync/anthropic-mappings';
 import { getAnthropicKeys, getCursorKeys } from '../../src/lib/sync/provider-keys';
-import { getOpenRouterWorkspaces } from '../../src/lib/openrouter-workspaces';
 
 interface SyncOptions {
   days?: number;
@@ -33,8 +32,8 @@ export async function cmdSync(options: SyncOptions = {}) {
       console.log('⚠️  Skipping Cursor: CURSOR_ADMIN_KEY not configured');
       return false;
     }
-    if (tool === 'openrouter' && getOpenRouterWorkspaces().length === 0) {
-      console.log('⚠️  Skipping OpenRouter: OPENROUTER_MANAGEMENT_KEY or OPENROUTER_MANAGEMENT_KEYS not configured');
+    if (tool === 'openrouter' && !process.env.OPENROUTER_MANAGEMENT_KEY) {
+      console.log('⚠️  Skipping OpenRouter: OPENROUTER_MANAGEMENT_KEY not configured');
       return false;
     }
     return true;
@@ -96,8 +95,8 @@ export async function cmdBackfill(tool: 'anthropic' | 'cursor' | 'openrouter', f
     if (fromDate) {
       console.log('⚠️  --from is ignored for OpenRouter: always fills the full 30-day API window');
     }
-    if (getOpenRouterWorkspaces().length === 0) {
-      console.error('❌ OPENROUTER_MANAGEMENT_KEY or OPENROUTER_MANAGEMENT_KEYS not configured');
+    if (!process.env.OPENROUTER_MANAGEMENT_KEY) {
+      console.error('❌ OPENROUTER_MANAGEMENT_KEY not configured');
       return;
     }
     console.log('📥 Backfilling OpenRouter usage (full 30-day window)\n');

@@ -70,7 +70,7 @@ Commands:
   openrouter:status     Show OpenRouter sync state
   openrouter:create-key <email> <name> [--workspace <workspace>]
                         Create an OpenRouter API key for a user and store the mapping
-                        --workspace is optional when exactly 1 workspace is configured, required when 2+
+                        --workspace matches an admin-enabled workspace name; optional when 0–1 are enabled, required when 2+
   github:status         Show GitHub commits sync state
   github:sync [repo] [options]
                         Sync GitHub commits (filters to default branch, skips merge commits)

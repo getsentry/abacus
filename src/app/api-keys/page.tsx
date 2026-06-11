@@ -100,9 +100,12 @@ export default function ApiKeysPage() {
 
   const [revealedKey, setRevealedKey] = useState<string | null>(null);
   const [showModal, setShowModal] = useState(false);
-  const [workspaces, setWorkspaces] = useState<string[]>([]);
+  const [workspaces, setWorkspaces] = useState<Array<{ id: string; name: string }>>([]);
   const [selectedWorkspace, setSelectedWorkspace] = useState<string>('');
   const [workspaceErrors, setWorkspaceErrors] = useState<WorkspaceError[]>([]);
+  const [adminWorkspaces, setAdminWorkspaces] = useState<Array<{ id: string; name: string; enabled: boolean }>>([]);
+  const [adminWorkspacesError, setAdminWorkspacesError] = useState<string | null>(null);
+  const [savingWorkspaces, setSavingWorkspaces] = useState(false);
 
   const { copy, copied } = useClipboard();
 
@@ -147,13 +150,58 @@ wire_api = "chat"`;
       const response = await fetch('/api/openrouter/workspaces');
       if (!response.ok) return;
       const data = await response.json();
-      const names: string[] = Array.isArray(data?.workspaces) ? data.workspaces : [];
-      setWorkspaces(names);
-      setSelectedWorkspace((prev) => prev || (names[0] ?? ''));
+      const items: Array<{ id: string; name: string }> = Array.isArray(data?.workspaces) ? data.workspaces : [];
+      setWorkspaces(items);
+      setSelectedWorkspace((prev) => prev || (items[0]?.id ?? ''));
     } catch {
       // non-critical; page works without workspace selector
     }
   }, []);
+
+  const loadAdminWorkspaces = useCallback(async () => {
+    try {
+      const response = await fetch('/api/openrouter/workspaces?admin=true');
+      if (response.status === 403) return;
+      if (!response.ok) {
+        const payload = await response.json().catch(() => null);
+        setAdminWorkspacesError(
+          payload && typeof payload === 'object' && 'error' in payload
+            ? String((payload as { error: string }).error)
+            : 'Failed to load OpenRouter workspaces'
+        );
+        return;
+      }
+      const data = await response.json();
+      setAdminWorkspaces(Array.isArray(data?.workspaces) ? data.workspaces : []);
+      setAdminWorkspacesError(null);
+    } catch {
+      setAdminWorkspacesError('Failed to load OpenRouter workspaces');
+    }
+  }, []);
+
+  const toggleWorkspace = useCallback(
+    async (id: string) => {
+      const next = adminWorkspaces.map((ws) => (ws.id === id ? { ...ws, enabled: !ws.enabled } : ws));
+      setSavingWorkspaces(true);
+      try {
+        const response = await fetch('/api/openrouter/workspaces', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ids: next.filter((ws) => ws.enabled).map((ws) => ws.id) }),
+        });
+        await withError(response, 'Failed to update workspaces');
+        setAdminWorkspaces(next);
+        setAdminWorkspacesError(null);
+        await loadWorkspaces();
+      } catch (err) {
+        setAdminWorkspacesError(err instanceof Error ? err.message : 'Failed to update workspaces');
+      } finally {
+        setSavingWorkspaces(false);
+      }
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [adminWorkspaces, loadWorkspaces]
+  );
 
   const loadMyKeys = useCallback(async () => {
     const response = await fetch('/api/openrouter/keys');
@@ -215,7 +263,8 @@ wire_api = "chat"`;
   useEffect(() => {
     void loadKeys();
     void loadWorkspaces();
-  }, [loadKeys, loadWorkspaces]);
+    void loadAdminWorkspaces();
+  }, [loadKeys, loadWorkspaces, loadAdminWorkspaces]);
   function withPending(hash: string, task: () => Promise<void>) {
     return async () => {
       setPending((prev) => {
@@ -286,7 +335,7 @@ wire_api = "chat"`;
       const response = await fetch('/api/openrouter/keys', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(workspaces.length >= 2 ? { name: trimmed, workspace: selectedWorkspace } : { name: trimmed }),
+        body: JSON.stringify(workspaces.length >= 2 ? { name: trimmed, workspaceId: selectedWorkspace } : { name: trimmed }),
       });
 
       await withError(response, 'Failed to create key');
@@ -498,8 +547,8 @@ wire_api = "chat"`;
                       className="bg-[#0a0a0c] border border-white/10 rounded px-3 py-2 text-sm font-mono text-white/70 focus:outline-none focus:border-white/30 flex-shrink-0"
                     >
                       {workspaces.map((ws) => (
-                        <option key={ws} value={ws} className="bg-[#0a0a0c]">
-                          {ws}
+                        <option key={ws.id} value={ws.id} className="bg-[#0a0a0c]">
+                          {ws.name}
                         </option>
                       ))}
                     </select>
@@ -582,6 +631,38 @@ wire_api = "chat"`;
                 </div>
               )}
             </section>
+
+            {isAdmin && adminWorkspaces.length > 0 && (
+              <section>
+                <SectionLabel divider margin="lg">Workspaces</SectionLabel>
+                <Card>
+                  <p className="font-mono text-xs text-white/50 mb-3">
+                    Enable the OpenRouter workspaces users can create keys in. With none enabled, keys go to the
+                    account default workspace. The selector appears once two or more are enabled.
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {adminWorkspaces.map((ws) => (
+                      <button
+                        key={ws.id}
+                        type="button"
+                        disabled={savingWorkspaces}
+                        onClick={() => void toggleWorkspace(ws.id)}
+                        className={`px-3 py-1.5 rounded font-mono text-[11px] uppercase tracking-wider border transition-colors ${
+                          ws.enabled
+                            ? 'bg-violet-500/20 text-violet-300 border-violet-500/40 hover:bg-violet-500/30'
+                            : 'text-white/40 border-white/10 bg-white/5 hover:text-white/60'
+                        } ${savingWorkspaces ? 'opacity-50 cursor-not-allowed' : ''}`}
+                      >
+                        {ws.enabled ? '✓ ' : ''}{ws.name}
+                      </button>
+                    ))}
+                  </div>
+                  {adminWorkspacesError && (
+                    <div className="mt-3 font-mono text-xs text-rose-400">{adminWorkspacesError}</div>
+                  )}
+                </Card>
+              </section>
+            )}
 
             <section>
               <SectionLabel divider margin="lg">Setup Instructions</SectionLabel>

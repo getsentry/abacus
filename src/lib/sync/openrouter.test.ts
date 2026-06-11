@@ -67,7 +67,7 @@ async function insertKey(hash: string, email: string, revoked = false) {
     hash,
     email,
     name: `Key for ${email}`,
-    workspace: 'default',
+    workspaceId: null,
     createdAt: new Date('2025-01-01'),
     revokedAt: revoked ? new Date('2025-01-10') : null,
   });
@@ -191,62 +191,35 @@ describe('OpenRouter Sync', () => {
       expect(Number(records[0].cost)).toBeCloseTo(0.05);           // 0.03 + 0.02
     });
 
-    it('fetches activity with the management key of the workspace on each row', async () => {
-      // Two workspaces configured, each with a distinct management key
-      vi.stubEnv('OPENROUTER_MANAGEMENT_KEY', '');
-      vi.stubEnv(
-        'OPENROUTER_MANAGEMENT_KEYS',
-        JSON.stringify({ 'WS-Alpha': 'sk-or-alpha', 'WS-Beta': 'sk-or-beta' })
-      );
-
-      // Insert one key per workspace
+    it('stamps organizationId with the workspace ID stored on each key row', async () => {
+      // One key per workspace, plus one in the account default workspace (NULL)
       await db.insert(openrouterKeys).values([
-        { hash: 'hash-alpha', email: 'alpha@example.com', name: 'Alpha Key', workspace: 'WS-Alpha', createdAt: new Date('2025-01-01'), revokedAt: null },
-        { hash: 'hash-beta',  email: 'beta@example.com',  name: 'Beta Key',  workspace: 'WS-Beta',  createdAt: new Date('2025-01-01'), revokedAt: null },
+        { hash: 'hash-alpha', email: 'alpha@example.com', name: 'Alpha Key', workspaceId: 'ws-alpha-id', createdAt: new Date('2025-01-01'), revokedAt: null },
+        { hash: 'hash-beta',  email: 'beta@example.com',  name: 'Beta Key',  workspaceId: null,          createdAt: new Date('2025-01-01'), revokedAt: null },
       ]);
 
-      const authHeaders: string[] = [];
-      server.use(
-        http.get(ACTIVITY_URL, ({ request }) => {
-          authHeaders.push(request.headers.get('authorization') ?? '');
-          const url = new URL(request.url);
-          const keyHash = url.searchParams.get('api_key_hash');
-          return HttpResponse.json({
-            data: [
-              createActivityItem({ date: '2025-01-15 00:00:00', model: `openai/gpt-${keyHash}` }),
-            ],
-          });
-        })
-      );
+      mockActivityEndpoint([
+        createActivityItem({ date: '2025-01-15 00:00:00', model: 'openai/gpt-4.1' }),
+      ]);
 
       const result = await syncOpenRouterUsage('2025-01-15', '2025-01-15');
 
       expect(result.success).toBe(true);
       expect(result.recordsImported).toBe(2);
 
-      // Each key was fetched using its workspace management key
-      expect(authHeaders).toContain('Bearer sk-or-alpha');
-      expect(authHeaders).toContain('Bearer sk-or-beta');
-
-      // Records carry the correct organizationId
       const alphaRec = await db.select().from(usageRecords).where(eq(usageRecords.email, 'alpha@example.com'));
-      expect(alphaRec[0].organizationId).toBe('WS-Alpha');
+      expect(alphaRec[0].organizationId).toBe('ws-alpha-id');
 
+      // Default-workspace key → NULL organizationId
       const betaRec = await db.select().from(usageRecords).where(eq(usageRecords.email, 'beta@example.com'));
-      expect(betaRec[0].organizationId).toBe('WS-Beta');
+      expect(betaRec[0].organizationId).toBeNull();
     });
 
     it('same email with keys in two workspaces produces two separate usage rows', async () => {
-      vi.stubEnv('OPENROUTER_MANAGEMENT_KEY', '');
-      vi.stubEnv(
-        'OPENROUTER_MANAGEMENT_KEYS',
-        JSON.stringify({ 'WS-One': 'sk-or-one', 'WS-Two': 'sk-or-two' })
-      );
-
-      // Same email, two different workspace keys
+      // Same email, keys in two different workspaces
       await db.insert(openrouterKeys).values([
-        { hash: 'hash-one', email: 'shared@example.com', name: 'Key One', workspace: 'WS-One', createdAt: new Date('2025-01-01'), revokedAt: null },
-        { hash: 'hash-two', email: 'shared@example.com', name: 'Key Two', workspace: 'WS-Two', createdAt: new Date('2025-01-01'), revokedAt: null },
+        { hash: 'hash-one', email: 'shared@example.com', name: 'Key One', workspaceId: 'ws-one-id', createdAt: new Date('2025-01-01'), revokedAt: null },
+        { hash: 'hash-two', email: 'shared@example.com', name: 'Key Two', workspaceId: 'ws-two-id', createdAt: new Date('2025-01-01'), revokedAt: null },
       ]);
 
       // Both return the same model/date/endpoint — the agg key differs only by workspace
@@ -268,34 +241,7 @@ describe('OpenRouter Sync', () => {
       const rows = await db.select().from(usageRecords).where(eq(usageRecords.email, 'shared@example.com'));
       expect(rows).toHaveLength(2);
       const orgIds = rows.map((r) => r.organizationId).sort();
-      expect(orgIds).toEqual(['WS-One', 'WS-Two']);
-    });
-
-    it('row with unconfigured workspace is reported as error; other keys still synced', async () => {
-      // Only 'WS-Configured' is in env; 'WS-Missing' is not
-      vi.stubEnv('OPENROUTER_MANAGEMENT_KEY', '');
-      vi.stubEnv('OPENROUTER_MANAGEMENT_KEYS', JSON.stringify({ 'WS-Configured': 'sk-or-cfg' }));
-
-      await db.insert(openrouterKeys).values([
-        { hash: 'hash-missing', email: 'missing@example.com', name: 'Bad Key', workspace: 'WS-Missing',    createdAt: new Date('2025-01-01'), revokedAt: null },
-        { hash: 'hash-good',   email: 'good@example.com',    name: 'Good Key', workspace: 'WS-Configured', createdAt: new Date('2025-01-01'), revokedAt: null },
-      ]);
-
-      mockActivityEndpoint([
-        createActivityItem({ date: '2025-01-15 00:00:00', model: 'openai/gpt-4.1' }),
-      ]);
-
-      const result = await syncOpenRouterUsage('2025-01-15', '2025-01-15');
-
-      // hash-missing throws from getOpenRouterWorkspaceKey → per-key error
-      // The error message format is: "Key <hash.slice(0,10)}...: <msg>"
-      expect(result.success).toBe(false);
-      expect(result.errors.some((e) => e.includes('hash-missi'))).toBe(true);
-
-      // hash-good was still synced
-      expect(result.recordsImported).toBe(1);
-      const goodRec = await db.select().from(usageRecords).where(eq(usageRecords.email, 'good@example.com'));
-      expect(goodRec[0].organizationId).toBe('WS-Configured');
+      expect(orgIds).toEqual(['ws-one-id', 'ws-two-id']);
     });
 
     it('includes revoked keys in fetch loop', async () => {
