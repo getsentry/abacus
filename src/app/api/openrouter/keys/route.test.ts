@@ -119,6 +119,7 @@ describe('GET /api/openrouter/keys', () => {
 
   it('returns only the current user keys', async () => {
     await mockAuthenticated();
+    vi.stubEnv('OPENROUTER_MANAGEMENT_KEY', 'sk-or-mgmt-single');
     await seedOpenRouterKeys([
       { hash: 'hash-user', email: 'test@example.com', name: 'Workstation' },
       { hash: 'hash-other', email: 'other@example.com', name: 'Shared' },
@@ -141,13 +142,73 @@ describe('GET /api/openrouter/keys', () => {
     expect(data[0]).toMatchObject({
       hash: 'hash-user',
       name: 'Workstation',
+      workspace: 'default',
       disabled: false,
       created_at: '2026-01-01T00:00:00.000Z',
     });
   });
 
+  it('merges keys from multiple workspaces and tags each item', async () => {
+    await mockAuthenticated();
+    vi.stubEnv('OPENROUTER_MANAGEMENT_KEYS', JSON.stringify({ alpha: 'sk-or-alpha', beta: 'sk-or-beta' }));
+    await seedOpenRouterKeys([
+      { hash: 'hash-alpha', email: 'test@example.com', name: 'Alpha Key' },
+      { hash: 'hash-beta', email: 'test@example.com', name: 'Beta Key' },
+    ]);
+
+    vi.mocked(listOpenRouterKeys)
+      .mockResolvedValueOnce(listFixture([keyData({ hash: 'hash-alpha', name: 'or alpha' })]))
+      .mockResolvedValueOnce(listFixture([keyData({ hash: 'hash-beta', name: 'or beta' })]));
+
+    const response = await GET(new Request('http://localhost/api/openrouter/keys'));
+
+    expect(response.status).toBe(200);
+    const data = await response.json();
+    expect(data).toHaveLength(2);
+    expect(data.find((k: { hash: string }) => k.hash === 'hash-alpha')).toMatchObject({ workspace: 'alpha' });
+    expect(data.find((k: { hash: string }) => k.hash === 'hash-beta')).toMatchObject({ workspace: 'beta' });
+    expect(listOpenRouterKeys).toHaveBeenCalledWith('alpha', { includeDisabled: true });
+    expect(listOpenRouterKeys).toHaveBeenCalledWith('beta', { includeDisabled: true });
+  });
+
+  it('returns partial results when one workspace fails', async () => {
+    await mockAuthenticated();
+    vi.stubEnv('OPENROUTER_MANAGEMENT_KEYS', JSON.stringify({ alpha: 'sk-or-alpha', beta: 'sk-or-beta' }));
+    await seedOpenRouterKeys([
+      { hash: 'hash-alpha', email: 'test@example.com', name: 'Alpha Key' },
+    ]);
+
+    vi.mocked(listOpenRouterKeys)
+      .mockResolvedValueOnce(listFixture([keyData({ hash: 'hash-alpha', name: 'or alpha' })]))
+      .mockRejectedValueOnce(buildOpenRouterError(500));
+
+    const response = await GET(new Request('http://localhost/api/openrouter/keys'));
+
+    expect(response.status).toBe(200);
+    const data = await response.json();
+    expect(data).toHaveLength(1);
+    expect(data[0]).toMatchObject({ hash: 'hash-alpha', workspace: 'alpha' });
+  });
+
+  it('returns error when all workspaces fail', async () => {
+    await mockAuthenticated();
+    vi.stubEnv('OPENROUTER_MANAGEMENT_KEYS', JSON.stringify({ alpha: 'sk-or-alpha', beta: 'sk-or-beta' }));
+    await seedOpenRouterKeys([
+      { hash: 'hash-alpha', email: 'test@example.com', name: 'Alpha Key' },
+    ]);
+
+    vi.mocked(listOpenRouterKeys)
+      .mockRejectedValueOnce(buildOpenRouterError(500))
+      .mockRejectedValueOnce(buildOpenRouterError(500));
+
+    const response = await GET(new Request('http://localhost/api/openrouter/keys'));
+
+    expect(response.status).toBe(502);
+  });
+
   it('returns all keys for admin with ?admin=true', async () => {
     vi.stubEnv('ADMIN_EMAILS', 'admin@example.com');
+    vi.stubEnv('OPENROUTER_MANAGEMENT_KEY', 'sk-or-mgmt-single');
     await mockAuthenticated({ email: 'admin@example.com' });
     await seedOpenRouterKeys([
       { hash: 'hash-admin', email: 'admin@example.com', name: 'Admin Key' },
@@ -178,6 +239,7 @@ describe('GET /api/openrouter/keys', () => {
 
   it('treats ADMIN_EMAILS env value case-insensitively and trims spaces', async () => {
     vi.stubEnv('ADMIN_EMAILS', '  Admin@Example.Com , other@x.com');
+    vi.stubEnv('OPENROUTER_MANAGEMENT_KEY', 'sk-or-mgmt-single');
     await mockAuthenticated({ email: 'admin@example.com' });
     await seedOpenRouterKeys([
       { hash: 'hash-admin', email: 'admin@example.com', name: 'Team Key' },
@@ -199,6 +261,7 @@ describe('GET /api/openrouter/keys', () => {
 
   it('maps OpenRouter 429 to 503', async () => {
     await mockAuthenticated();
+    vi.stubEnv('OPENROUTER_MANAGEMENT_KEY', 'sk-or-mgmt-single');
     await seedOpenRouterKeys([{ hash: 'hash-user', email: 'test@example.com', name: 'Workstation' }]);
 
     vi.mocked(listOpenRouterKeys).mockRejectedValue(buildOpenRouterError(429));
@@ -212,6 +275,7 @@ describe('GET /api/openrouter/keys', () => {
 
   it('maps OpenRouter 5xx to 502', async () => {
     await mockAuthenticated();
+    vi.stubEnv('OPENROUTER_MANAGEMENT_KEY', 'sk-or-mgmt-single');
     await seedOpenRouterKeys([{ hash: 'hash-user', email: 'test@example.com', name: 'Workstation' }]);
 
     vi.mocked(listOpenRouterKeys).mockRejectedValue(buildOpenRouterError(500));
@@ -270,8 +334,9 @@ describe('POST /api/openrouter/keys', () => {
     expect(data.error).toBe('name is required');
   });
 
-  it('creates key and returns raw secret', async () => {
+  it('creates key and returns raw secret (single workspace defaults)', async () => {
     await mockAuthenticated();
+    vi.stubEnv('OPENROUTER_MANAGEMENT_KEY', 'sk-or-mgmt-single');
 
     vi.mocked(createOpenRouterKey).mockResolvedValue(createKeysFixture());
 
@@ -288,6 +353,7 @@ describe('POST /api/openrouter/keys', () => {
       key: 'sk-or-v1-abc',
       hash: 'hash-new',
       name: 'Personal',
+      workspace: 'default',
       disabled: false,
       created_at: '2026-01-01T00:00:00.000Z',
     });
@@ -298,11 +364,67 @@ describe('POST /api/openrouter/keys', () => {
 
     const mapped = await db.select().from(openrouterKeys).where(eq(openrouterKeys.hash, 'hash-new'));
     expect(mapped).toHaveLength(1);
-    expect(mapped[0]).toMatchObject({ hash: 'hash-new', email: 'test@example.com', name: 'Personal' });
+    expect(mapped[0]).toMatchObject({ hash: 'hash-new', email: 'test@example.com', name: 'Personal', workspace: 'default' });
+  });
+
+  it('creates key in specified workspace when multi-workspace configured', async () => {
+    await mockAuthenticated();
+    vi.stubEnv('OPENROUTER_MANAGEMENT_KEYS', JSON.stringify({ alpha: 'sk-or-alpha', beta: 'sk-or-beta' }));
+
+    vi.mocked(createOpenRouterKey).mockResolvedValue(createKeysFixture());
+
+    const response = await POST(
+      new Request('http://localhost/api/openrouter/keys', {
+        method: 'POST',
+        body: JSON.stringify({ name: 'Beta Key', workspace: 'beta' }),
+      })
+    );
+
+    expect(response.status).toBe(200);
+    const data = await response.json();
+    expect(data.workspace).toBe('beta');
+    expect(createOpenRouterKey).toHaveBeenCalledWith('beta', { name: 'test@example.com - Beta Key' });
+  });
+
+  it('returns 400 when workspace is required but missing (multi-workspace)', async () => {
+    await mockAuthenticated();
+    vi.stubEnv('OPENROUTER_MANAGEMENT_KEYS', JSON.stringify({ alpha: 'sk-or-alpha', beta: 'sk-or-beta' }));
+
+    const response = await POST(
+      new Request('http://localhost/api/openrouter/keys', {
+        method: 'POST',
+        body: JSON.stringify({ name: 'Missing Workspace' }),
+      })
+    );
+
+    expect(response.status).toBe(400);
+    const data = await response.json();
+    expect(data.error).toContain('workspace is required');
+    expect(data.error).toContain('alpha');
+    expect(data.error).toContain('beta');
+  });
+
+  it('returns 400 when workspace is unknown', async () => {
+    await mockAuthenticated();
+    vi.stubEnv('OPENROUTER_MANAGEMENT_KEYS', JSON.stringify({ alpha: 'sk-or-alpha', beta: 'sk-or-beta' }));
+
+    const response = await POST(
+      new Request('http://localhost/api/openrouter/keys', {
+        method: 'POST',
+        body: JSON.stringify({ name: 'Bad Workspace', workspace: 'gamma' }),
+      })
+    );
+
+    expect(response.status).toBe(400);
+    const data = await response.json();
+    expect(data.error).toContain('gamma');
+    expect(data.error).toContain('alpha');
+    expect(data.error).toContain('beta');
   });
 
   it('returns 500 and cleans up when DB insert fails', async () => {
     await mockAuthenticated();
+    vi.stubEnv('OPENROUTER_MANAGEMENT_KEY', 'sk-or-mgmt-single');
     await seedOpenRouterKeys([{ hash: 'hash-new', email: 'other@example.com', name: 'Duplicate' }]);
 
     vi.mocked(createOpenRouterKey).mockResolvedValue(createKeysFixture());
@@ -388,9 +510,10 @@ describe('PATCH /api/openrouter/keys', () => {
     expect(data.error).toBe('Forbidden');
   });
 
-  it('allows admin to patch another user key', async () => {
+  it('allows admin to patch another user key (uses row.workspace)', async () => {
     vi.stubEnv('ADMIN_EMAILS', 'admin@example.com');
     await mockAuthenticated({ email: 'admin@example.com' });
+    // Seed with workspace = 'default' (inserted by seedOpenRouterKeys helper)
     await seedOpenRouterKeys([{ hash: 'hash-other', email: 'other@example.com', name: 'Other' }]);
 
     vi.mocked(updateOpenRouterKey).mockResolvedValue(updateFixture({ hash: 'hash-other', disabled: true }));
@@ -409,6 +532,7 @@ describe('PATCH /api/openrouter/keys', () => {
       disabled: true,
       created_at: '2026-01-01T00:00:00.000Z',
     });
+    // Workspace is derived from the DB row, not env config
     expect(updateOpenRouterKey).toHaveBeenCalledWith('default', 'hash-other', { disabled: true });
   });
 
@@ -467,6 +591,23 @@ describe('DELETE /api/openrouter/keys', () => {
     expect(data.error).toBe('Forbidden');
   });
 
+  it('returns 404 when row is missing for delete', async () => {
+    vi.stubEnv('ADMIN_EMAILS', 'admin@example.com');
+    await mockAuthenticated({ email: 'admin@example.com' });
+
+    const response = await DELETE(
+      new Request('http://localhost/api/openrouter/keys', {
+        method: 'DELETE',
+        body: JSON.stringify({ hash: 'hash-nonexistent' }),
+      })
+    );
+
+    expect(response.status).toBe(404);
+    const data = await response.json();
+    expect(data.error).toBe('Key not found');
+    expect(deleteOpenRouterKey).not.toHaveBeenCalled();
+  });
+
   it('maps OpenRouter 429 to 503 for delete', async () => {
     vi.stubEnv('ADMIN_EMAILS', 'admin@example.com');
     await mockAuthenticated({ email: 'admin@example.com' });
@@ -486,7 +627,7 @@ describe('DELETE /api/openrouter/keys', () => {
     expect(data.error).toContain('rate limit');
   });
 
-  it('deletes key for admin', async () => {
+  it('deletes key for admin using row.workspace', async () => {
     vi.stubEnv('ADMIN_EMAILS', 'admin@example.com');
     await mockAuthenticated({ email: 'admin@example.com' });
     await seedOpenRouterKeys([{ hash: 'hash-admin', email: 'test@example.com', name: 'User Key' }]);
@@ -503,6 +644,7 @@ describe('DELETE /api/openrouter/keys', () => {
     expect(response.status).toBe(200);
     const data = await response.json();
     expect(data).toEqual({ success: true });
+    // Workspace is derived from the DB row (seeded as 'default')
     expect(deleteOpenRouterKey).toHaveBeenCalledWith('default', 'hash-admin');
 
     const mapped = await db.select().from(openrouterKeys).where(eq(openrouterKeys.hash, 'hash-admin'));

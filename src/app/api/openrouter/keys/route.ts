@@ -12,6 +12,7 @@ import {
 } from '@/lib/openrouter';
 import {
   getOpenRouterWorkspaces,
+  getOpenRouterWorkspaceNames,
   NO_OPENROUTER_WORKSPACES_ERROR,
 } from '@/lib/openrouter-workspaces';
 
@@ -118,18 +119,32 @@ async function getHandler(request: Request) {
   const dbRowByHash = new Map(dbRows.map((row) => [row.hash, row]));
 
   const workspaces = getOpenRouterWorkspaces();
-  const workspace = workspaces[0]?.name ?? 'default';
-
-  let listResponse;
-  try {
-    listResponse = await listOpenRouterKeys(workspace, { includeDisabled: true });
-  } catch (error) {
-    return mapOpenRouterError(error);
+  if (!workspaces.length) {
+    return mapOpenRouterError(new Error(NO_OPENROUTER_WORKSPACES_ERROR));
   }
 
-  const keys = listResponse.data
-    .map((item) => normalizeListItem(item))
-    .filter((key) => dbRowByHash.has(key.hash));
+  // Collect keys from all workspaces; one failure must not abort the others
+  const allItems: Array<ReturnType<typeof normalizeListItem> & { workspace: string }> = [];
+  let lastError: unknown = null;
+  let successCount = 0;
+
+  for (const ws of workspaces) {
+    try {
+      const listResponse = await listOpenRouterKeys(ws.name, { includeDisabled: true });
+      for (const item of listResponse.data) {
+        allItems.push({ ...normalizeListItem(item), workspace: ws.name });
+      }
+      successCount++;
+    } catch (error) {
+      lastError = error;
+    }
+  }
+
+  if (successCount === 0) {
+    return mapOpenRouterError(lastError);
+  }
+
+  const keys = allItems.filter((key) => dbRowByHash.has(key.hash));
 
   if (adminView) {
     const grouped: Record<string, Array<(typeof keys)[number] & { name: string }>> = {};
@@ -180,7 +195,29 @@ async function postHandler(request: Request) {
   }
 
   const workspaces = getOpenRouterWorkspaces();
-  const workspace = workspaces[0]?.name ?? 'default';
+  if (!workspaces.length) {
+    return mapOpenRouterError(new Error(NO_OPENROUTER_WORKSPACES_ERROR));
+  }
+
+  const workspaceNames = workspaces.map((w) => w.name);
+  let workspace: string;
+
+  if (body.workspace) {
+    if (!workspaceNames.includes(body.workspace)) {
+      return NextResponse.json(
+        { error: `Invalid workspace "${body.workspace}". Valid workspaces: ${workspaceNames.join(', ')}` },
+        { status: 400 }
+      );
+    }
+    workspace = body.workspace;
+  } else if (workspaces.length === 1) {
+    workspace = workspaces[0].name;
+  } else {
+    return NextResponse.json(
+      { error: `workspace is required. Valid workspaces: ${workspaceNames.join(', ')}` },
+      { status: 400 }
+    );
+  }
 
   let created: Awaited<ReturnType<typeof createOpenRouterKey>>;
 
@@ -221,6 +258,7 @@ async function postHandler(request: Request) {
     key: created.key,
     hash: created.data.hash,
     name,
+    workspace,
     disabled: created.data.disabled,
     created_at: created.data.createdAt,
   });
@@ -262,12 +300,9 @@ async function patchHandler(request: Request) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
-  const workspaces = getOpenRouterWorkspaces();
-  const workspace = workspaces[0]?.name ?? 'default';
-
   let updated: Awaited<ReturnType<typeof updateOpenRouterKey>>;
   try {
-    updated = await updateOpenRouterKey(workspace, hash, { disabled });
+    updated = await updateOpenRouterKey(row.workspace, hash, { disabled });
   } catch (error) {
     return mapOpenRouterError(error);
   }
@@ -295,11 +330,13 @@ async function deleteHandler(request: Request) {
     return NextResponse.json({ error: 'hash is required' }, { status: 400 });
   }
 
-  const workspaces = getOpenRouterWorkspaces();
-  const workspace = workspaces[0]?.name ?? 'default';
+  const [row] = await db.select().from(openrouterKeys).where(eq(openrouterKeys.hash, hash));
+  if (!row) {
+    return NextResponse.json({ error: 'Key not found' }, { status: 404 });
+  }
 
   try {
-    await deleteOpenRouterKey(workspace, hash);
+    await deleteOpenRouterKey(row.workspace, hash);
   } catch (error) {
     return mapOpenRouterError(error);
   }
