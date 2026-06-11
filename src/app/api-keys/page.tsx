@@ -110,6 +110,12 @@ export default function ApiKeysPage() {
   const { copy, copied } = useClipboard();
 
   const showWorkspace = workspaces.length >= 2;
+
+  const AdminBadge = () => (
+    <span className="inline-flex items-center px-1.5 py-0.5 rounded font-mono text-[9px] uppercase tracking-wider bg-amber-500/10 text-amber-400 border border-amber-500/20 align-middle">
+      admin
+    </span>
+  );
   const totalMyKeys = keys.length;
   const totalAllKeys = useMemo(
     () => Object.values(groupedKeys).reduce((acc, list) => acc + list.length, 0),
@@ -423,11 +429,12 @@ wire_api = "chat"`;
                   type="button"
                   onClick={() => void handleDelete(key.hash)}
                   disabled={keyPending}
-                  className={`px-2.5 py-1.5 rounded font-mono text-[10px] uppercase tracking-wider border text-rose-400 bg-rose-500/10 border-rose-500/30 hover:bg-rose-500/20 transition-colors ${
+                  className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded font-mono text-[10px] uppercase tracking-wider border text-rose-400 bg-rose-500/10 border-rose-500/30 hover:bg-rose-500/20 transition-colors ${
                     keyPending ? 'opacity-50 cursor-not-allowed' : ''
                   }`}
                 >
                   Delete
+                  <AdminBadge />
                 </button>
               )}
             </div>
@@ -493,7 +500,9 @@ wire_api = "chat"`;
             </div>
 
             {isAdmin && (
-              <div className="inline-flex border border-white/10 rounded-lg overflow-hidden">
+              <div className="inline-flex items-center gap-2">
+                <AdminBadge />
+                <div className="inline-flex border border-white/10 rounded-lg overflow-hidden">
                 <button
                   type="button"
                   onClick={() => setView('mine')}
@@ -516,6 +525,7 @@ wire_api = "chat"`;
                 >
                   All Keys ({totalAllKeys})
                 </button>
+              </div>
               </div>
             )}
           </div>
@@ -630,7 +640,7 @@ wire_api = "chat"`;
 
             {isAdmin && adminWorkspaces.length > 0 && (
               <section>
-                <SectionLabel divider margin="lg">Workspaces</SectionLabel>
+                <SectionLabel divider margin="lg">Workspaces <AdminBadge /></SectionLabel>
                 <Card>
                   <p className="font-mono text-xs text-white/50 mb-3">
                     Enable the OpenRouter workspaces users can create keys in. With none enabled, keys go to the
