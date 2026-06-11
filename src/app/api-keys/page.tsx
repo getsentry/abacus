@@ -2,7 +2,7 @@
 
 import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
-import { AlertTriangle, Check, ClipboardCopy, Copy, KeyRound, Loader2, Plus, Shield } from 'lucide-react';
+import { AlertTriangle, Check, ClipboardCopy, Copy, KeyRound, Loader2, Plus } from 'lucide-react';
 import { AppHeader } from '@/components/AppHeader';
 import { AnimatedCard, Card } from '@/components/Card';
 import { PageContainer } from '@/components/PageContainer';
@@ -527,18 +527,14 @@ wire_api = "chat"`;
           <div className="space-y-8">
             <SectionLabel divider margin="lg">Create new key</SectionLabel>
             <AnimatedCard padding="lg">
-              <div className="space-y-4 max-w-xl">
-                <div className="inline-flex items-center gap-2 text-xs text-white/60">
-                  <Shield className="w-4 h-4" />
-                  <span className="font-mono">Provisioning key with your management key.</span>
-                </div>
+              <div className={`space-y-4 ${workspaces.length >= 2 ? 'max-w-2xl' : 'max-w-xl'}`}>
                 <form onSubmit={(event) => void handleCreate(event)} className="flex flex-col sm:flex-row gap-3">
                   <input
                     type="text"
                     value={keyName}
                     onChange={(event) => setKeyName(event.target.value)}
                     placeholder="Key name (e.g. Claude Code)"
-                    className="w-full bg-[#0a0a0c] border border-white/10 rounded px-3 py-2 text-sm font-mono text-white/90 placeholder:text-white/30 focus:outline-none focus:border-white/30"
+                    className="w-full sm:flex-1 sm:min-w-0 bg-[#0a0a0c] border border-white/10 rounded px-3 py-2 text-sm font-mono text-white/90 placeholder:text-white/30 focus:outline-none focus:border-white/30"
                   />
                   {workspaces.length >= 2 && (
                     <select
@@ -556,7 +552,7 @@ wire_api = "chat"`;
                   <button
                     type="submit"
                     disabled={submitting || !keyName.trim()}
-                    className={`inline-flex items-center justify-center gap-2 rounded px-4 py-2 font-mono text-xs uppercase tracking-wider border transition-colors ${
+                    className={`inline-flex items-center justify-center gap-2 rounded px-4 py-2 font-mono text-xs uppercase tracking-wider border transition-colors whitespace-nowrap flex-shrink-0 ${
                       submitting || !keyName.trim()
                         ? 'text-white/30 bg-white/5 border-white/10 cursor-not-allowed'
                         : 'text-amber-400 bg-amber-500/20 border-amber-500/30 hover:bg-amber-500/30'
@@ -722,7 +718,7 @@ wire_api = "chat"`;
               </div>
 
               <div className="rounded border border-white/10 bg-black/40 p-3">
-                <pre className="text-xs font-mono text-emerald-200 break-all">{revealedKey}</pre>
+                <pre className="text-xs font-mono text-emerald-200 whitespace-pre-wrap break-all">{revealedKey}</pre>
               </div>
               <div className="mt-2 font-mono text-xs text-amber-400">This key will not be shown again</div>
 
