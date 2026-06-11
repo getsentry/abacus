@@ -37,8 +37,10 @@ export const auth = betterAuth({
         ]
       : [],
 
-  // Origins allowed to complete the proxied OAuth flow
-  trustedOrigins: ['http://localhost:3000', 'https://*.vercel.app'],
+  // Origins allowed to complete the proxied OAuth flow. Vercel preview
+  // deployments are served on both *.vercel.app and the *.sentry.dev
+  // custom domain (e.g. abacus-git-<branch>.sentry.dev).
+  trustedOrigins: ['http://localhost:3000', 'https://*.vercel.app', 'https://*.sentry.dev'],
 
   socialProviders: {
     google: {
