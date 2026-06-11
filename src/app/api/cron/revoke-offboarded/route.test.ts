@@ -48,12 +48,17 @@ function mockDistinctEmails(emails: string[]) {
   });
 }
 
-function mockEmailKeys(keysByEmail: Array<string[]>) {
+type KeyRow = { hash: string; workspace: string };
+
+function mockEmailKeys(keysByEmail: Array<string[] | KeyRow[]>) {
   getMockDb().select.mockReset();
-  keysByEmail.forEach((hashes) => {
+  keysByEmail.forEach((keys) => {
+    const rows: KeyRow[] = keys.map((k) =>
+      typeof k === 'string' ? { hash: k, workspace: 'default' } : k
+    );
     getMockDb().select.mockReturnValueOnce({
       from: vi.fn().mockReturnValue({
-        where: vi.fn().mockResolvedValue(hashes.map((hash) => ({ hash }))),
+        where: vi.fn().mockResolvedValue(rows),
       }),
     });
   });
@@ -366,6 +371,25 @@ describe('GET /api/cron/revoke-offboarded', () => {
     expect(data.errors).toHaveLength(5);
     expect(data.errors[0]).toContain('Could not check directory status for user0@example.com');
     expect(data.errors[4]).toContain('Could not check directory status for user4@example.com');
+  });
+
+  it('routes disable call through the workspace stored on each key row', async () => {
+    mockDistinctEmails(['multiws@example.com']);
+    mockEmailKeys([
+      [
+        { hash: 'hash-ws-a', workspace: 'Workspace A' },
+        { hash: 'hash-ws-b', workspace: 'Workspace B' },
+      ],
+    ]);
+    vi.mocked(checkAccountStatus).mockResolvedValue('inactive');
+
+    const response = await GET(authorizedRequest);
+    const data = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(data.keysDisabled).toBe(2);
+    expect(updateOpenRouterKey).toHaveBeenCalledWith('Workspace A', 'hash-ws-a', { disabled: true });
+    expect(updateOpenRouterKey).toHaveBeenCalledWith('Workspace B', 'hash-ws-b', { disabled: true });
   });
 
   it('returns structured summary with checked/inactive/keysDisabled/skipped/errors', async () => {

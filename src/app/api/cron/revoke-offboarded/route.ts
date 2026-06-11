@@ -3,7 +3,6 @@ import { NextResponse } from 'next/server';
 import { wrapRouteHandlerWithSentry } from '@sentry/nextjs';
 import { db, openrouterKeys } from '@/lib/db';
 import { updateOpenRouterKey } from '@/lib/openrouter';
-import { getOpenRouterWorkspaces } from '@/lib/openrouter-workspaces';
 import { checkAccountStatus, isGoogleDirectoryConfigured } from '@/lib/google-directory';
 
 export const maxDuration = 300;
@@ -66,14 +65,11 @@ async function handleEmail(email: string): Promise<JobSummary> {
   summary.inactive += 1;
 
   const keys = await db
-    .select({ hash: openrouterKeys.hash })
+    .select({ hash: openrouterKeys.hash, workspace: openrouterKeys.workspace })
     .from(openrouterKeys)
     .where(and(eq(openrouterKeys.email, email), isNull(openrouterKeys.revokedAt)));
 
-  const workspaces = getOpenRouterWorkspaces();
-  const workspace = workspaces[0]?.name ?? 'default';
-
-  for (const { hash } of keys) {
+  for (const { hash, workspace } of keys) {
     try {
       await updateOpenRouterKey(workspace, hash, { disabled: true });
       await db

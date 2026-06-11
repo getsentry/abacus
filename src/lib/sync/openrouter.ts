@@ -135,22 +135,21 @@ export async function syncOpenRouterUsage(startDate: string, endDate: string): P
   // Load all openrouter_keys rows, including revoked ones.
   // Revoked keys can have pre-revocation usage within the 30-day window.
   const keys = await db
-    .select({ hash: openrouterKeys.hash, email: openrouterKeys.email })
+    .select({ hash: openrouterKeys.hash, email: openrouterKeys.email, workspace: openrouterKeys.workspace })
     .from(openrouterKeys);
-
-  // Mechanical workspace resolution for this todo — real per-row routing lands in todo 3.
-  const workspace = workspaces[0].name;
 
   if (keys.length === 0) {
     // No keys provisioned — nothing to sync; success (empty is not an error)
     return result;
   }
 
-  // Aggregate in memory per (email, date, rawModel, endpointId) before inserting.
-  // A user with multiple keys would otherwise collide on the dedup tuple and overwrite rows.
-  type AggKey = string; // Format: "email|date|rawModel|endpointId"
+  // Aggregate in memory per (email, workspace, date, rawModel, endpointId) before inserting.
+  // A user with multiple keys in the same workspace, or across workspaces, must not be merged
+  // across workspace boundaries — different workspaces produce separate organizationId rows.
+  type AggKey = string; // Format: "email|workspace|date|rawModel|endpointId"
   type AggValue = {
     email: string;
+    workspace: string;
     date: string;
     rawModel: string;
     endpointId: string;
@@ -163,7 +162,7 @@ export async function syncOpenRouterUsage(startDate: string, endDate: string): P
 
   for (const key of keys) {
     try {
-      const items = await getOpenRouterActivity(workspace, { apiKeyHash: key.hash });
+      const items = await getOpenRouterActivity(key.workspace, { apiKeyHash: key.hash });
 
       for (const item of items) {
         // The API returns date as "YYYY-MM-DD HH:MM:SS" — extract the date part
@@ -173,7 +172,7 @@ export async function syncOpenRouterUsage(startDate: string, endDate: string): P
         if (itemDate < startDate || itemDate > endDate) continue;
 
         const rawModel = item.model; // Full slug e.g. "anthropic/claude-sonnet-4.5"
-        const aggKey: AggKey = `${key.email}|${itemDate}|${rawModel}|${item.endpointId}`;
+        const aggKey: AggKey = `${key.email}|${key.workspace}|${itemDate}|${rawModel}|${item.endpointId}`;
 
         const existing = aggregated.get(aggKey);
         if (existing) {
@@ -184,6 +183,7 @@ export async function syncOpenRouterUsage(startDate: string, endDate: string): P
         } else {
           aggregated.set(aggKey, {
             email: key.email,
+            workspace: key.workspace,
             date: itemDate,
             rawModel,
             endpointId: item.endpointId,
@@ -235,6 +235,7 @@ export async function syncOpenRouterUsage(startDate: string, endDate: string): P
         // and mixing OpenRouter credits with external billing would corrupt cost reporting.
         cost: rec.usage,
         toolRecordId: rec.endpointId,
+        organizationId: rec.workspace, // Workspace name — ties each row to its OpenRouter workspace
       });
       result.recordsImported++;
     } catch (err) {
