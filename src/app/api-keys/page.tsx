@@ -15,6 +15,10 @@ interface OpenRouterKey {
   label: string;
   disabled: boolean;
   created_at?: string | null;
+  usage?: number;
+  usage_daily?: number;
+  usage_weekly?: number;
+  usage_monthly?: number;
 }
 
 type GroupedOpenRouterKeys = Record<string, OpenRouterKey[]>;
@@ -39,6 +43,13 @@ function formatDate(value: string | null | undefined): string {
     minute: '2-digit',
     timeZoneName: 'short',
   });
+}
+
+function formatSpend(value: number | undefined): string {
+  const amount = value ?? 0;
+  if (amount === 0) return '$0';
+  if (amount < 0.01) return '<$0.01';
+  return `$${amount.toFixed(2)}`;
 }
 
 function maskLabel(label: string) {
@@ -261,7 +272,7 @@ wire_api = "chat"`;
     if (items.length === 0) {
       return (
         <tr>
-          <td colSpan={4} className="px-4 py-6 text-center">
+          <td colSpan={5} className="px-4 py-6 text-center">
             <span className="font-mono text-sm text-white/40">No keys found.</span>
           </td>
         </tr>
@@ -276,6 +287,16 @@ wire_api = "chat"`;
           <td className="px-4 py-3">
             <div className="font-mono text-xs text-white/70">{key.name || 'Unnamed key'}</div>
             <div className="font-mono text-[11px] text-white/50 mt-1">{maskLabel(key.label || 'sk-or-v1...')}</div>
+          </td>
+          <td className="px-4 py-3 text-right whitespace-nowrap">
+            <div className="font-mono text-xs text-white/70" title="OpenRouter credit spend (USD): current UTC day / week / month">
+              <span className="text-white/90">{formatSpend(key.usage_daily)}</span>
+              <span className="text-white/30"> / </span>
+              <span>{formatSpend(key.usage_weekly)}</span>
+              <span className="text-white/30"> / </span>
+              <span>{formatSpend(key.usage_monthly)}</span>
+            </div>
+            <div className="font-mono text-[10px] uppercase tracking-wider text-white/40 mt-1">day / wk / mo</div>
           </td>
           <td className="px-4 py-3 text-right w-40">
             <div className="font-mono text-xs text-white/70">{formatDate(key.created_at)}</div>
@@ -353,6 +374,7 @@ wire_api = "chat"`;
                   <thead>
                     <tr className="border-b border-white/5 bg-white/[0.02]">
                       <th className="px-4 py-3 text-left font-mono text-[10px] uppercase tracking-wider text-white/50">Name / Label</th>
+                      <th className="px-4 py-3 text-right font-mono text-[10px] uppercase tracking-wider text-white/50">Spend</th>
                       <th className="px-4 py-3 text-right font-mono text-[10px] uppercase tracking-wider text-white/50">Created</th>
                       <th className="px-4 py-3 text-center font-mono text-[10px] uppercase tracking-wider text-white/50">Status</th>
                       <th className="px-4 py-3 text-right font-mono text-[10px] uppercase tracking-wider text-white/50">Controls</th>
@@ -469,6 +491,7 @@ wire_api = "chat"`;
                           <thead>
                             <tr className="border-b border-white/5 bg-white/[0.02]">
                               <th className="px-4 py-3 text-left font-mono text-[10px] uppercase tracking-wider text-white/50">Name / Label</th>
+                              <th className="px-4 py-3 text-right font-mono text-[10px] uppercase tracking-wider text-white/50">Spend</th>
                               <th className="px-4 py-3 text-right font-mono text-[10px] uppercase tracking-wider text-white/50">Created</th>
                               <th className="px-4 py-3 text-center font-mono text-[10px] uppercase tracking-wider text-white/50">Status</th>
                               <th className="px-4 py-3 text-right font-mono text-[10px] uppercase tracking-wider text-white/50">Controls</th>

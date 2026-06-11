@@ -63,11 +63,26 @@ function mapOpenRouterError(error: unknown): NextResponse<{ error: string }> {
   return NextResponse.json({ error: 'OpenRouter request failed.' }, { status: 502 });
 }
 
-function normalizeListItem(item: { createdAt?: string | null; hash: string; name: string; disabled: boolean; label: string }) {
-  const { createdAt, ...rest } = item;
+function normalizeListItem(item: {
+  createdAt?: string | null;
+  hash: string;
+  name: string;
+  disabled: boolean;
+  label: string;
+  usage?: number;
+  usageDaily?: number;
+  usageWeekly?: number;
+  usageMonthly?: number;
+}) {
+  const { createdAt, usage, usageDaily, usageWeekly, usageMonthly, ...rest } = item;
   return {
     ...rest,
     created_at: createdAt ?? null,
+    // OpenRouter credit spend in USD, as reported live by the keys API
+    usage: usage ?? 0,
+    usage_daily: usageDaily ?? 0,
+    usage_weekly: usageWeekly ?? 0,
+    usage_monthly: usageMonthly ?? 0,
   };
 }
 
