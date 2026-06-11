@@ -1,4 +1,5 @@
 import { betterAuth } from 'better-auth';
+import { oAuthProxy } from 'better-auth/plugins';
 import { Pool } from '@neondatabase/serverless';
 import { headers } from 'next/headers';
 import { NextResponse } from 'next/server';
@@ -12,6 +13,21 @@ const pool = new Pool({
 export const auth = betterAuth({
   database: pool,
   basePath: '/api/auth',
+
+  // Proxy OAuth through production for localhost and Vercel preview
+  // deployments: Google does not allow wildcard redirect URIs, so only the
+  // production callback URL is registered. The plugin is a no-op when the
+  // request origin matches productionURL. Requires OAUTH_PROXY_SECRET to be
+  // set to the SAME value in production, preview, and local environments.
+  plugins: [
+    oAuthProxy({
+      productionURL: 'https://abacus.sentry.dev',
+      secret: process.env.OAUTH_PROXY_SECRET,
+    }),
+  ],
+
+  // Origins allowed to complete the proxied OAuth flow
+  trustedOrigins: ['http://localhost:3000', 'https://*.vercel.app'],
 
   socialProviders: {
     google: {

@@ -19,6 +19,7 @@ These variables are required for Abacus to function:
 | `GOOGLE_CLIENT_SECRET` | Google OAuth client secret |
 | `NEXT_PUBLIC_DOMAIN` | Email domain to restrict access (e.g., `sentry.io`) |
 | `CRON_SECRET` | Secret for authenticating cron job requests. Generate with: `openssl rand -hex 32` |
+| `OAUTH_PROXY_SECRET` | Shared secret for the OAuth proxy that enables Google login on localhost and Vercel preview deployments. Must be the **same value** in production, preview, and local environments (unlike `BETTER_AUTH_SECRET`, which should differ per environment). Generate with: `openssl rand -hex 32` |
 
 ## Provider Variables
 
