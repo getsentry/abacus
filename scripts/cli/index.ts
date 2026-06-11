@@ -68,8 +68,9 @@ Commands:
   anthropic:status      Show Anthropic sync state
   cursor:status         Show Cursor sync state
   openrouter:status     Show OpenRouter sync state
-  openrouter:create-key <email> <name>
+  openrouter:create-key <email> <name> [--workspace <workspace>]
                         Create an OpenRouter API key for a user and store the mapping
+                        --workspace is optional when exactly 1 workspace is configured, required when 2+
   github:status         Show GitHub commits sync state
   github:sync [repo] [options]
                         Sync GitHub commits (filters to default branch, skips merge commits)
@@ -121,9 +122,12 @@ async function main() {
       case 'cursor:status':
         await cmdCursorStatus();
         break;
-      case 'openrouter:create-key':
-        await cmdOpenRouterCreateKey(args[1], args[2]);
+      case 'openrouter:create-key': {
+        const wsIdx = args.indexOf('--workspace');
+        const workspaceFlag = wsIdx >= 0 ? args[wsIdx + 1] : undefined;
+        await cmdOpenRouterCreateKey(args[1], args[2], workspaceFlag);
         break;
+      }
 
       case 'openrouter:status':
         await cmdOpenRouterStatus();

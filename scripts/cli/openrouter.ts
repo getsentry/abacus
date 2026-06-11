@@ -3,21 +3,52 @@ import { createOpenRouterKey, deleteOpenRouterKey } from '../../src/lib/openrout
 import { getOpenRouterWorkspaces } from '../../src/lib/openrouter-workspaces';
 import { db, openrouterKeys } from '../../src/lib/db';
 
-export async function cmdOpenRouterCreateKey(email: string | undefined, name: string | undefined) {
+export async function cmdOpenRouterCreateKey(
+  email: string | undefined,
+  name: string | undefined,
+  workspaceFlag: string | undefined
+) {
   const normalizedEmail = email?.trim().toLowerCase();
   const normalizedName = name?.trim();
 
   if (!normalizedEmail || !normalizedEmail.includes('@') || !normalizedName) {
-    console.error('Usage: pnpm cli openrouter:create-key <email> <name>');
+    console.error('Usage: pnpm cli openrouter:create-key <email> <name> [--workspace <workspace>]');
     console.error('Example: pnpm cli openrouter:create-key jane@sentry.io "Claude Code"');
     process.exitCode = 1;
     return;
   }
 
   const workspaces = getOpenRouterWorkspaces();
-  const workspace = workspaces[0]?.name ?? 'default';
 
-  console.log(`🔑 Creating OpenRouter key "${normalizedName}" for ${normalizedEmail}...`);
+  let workspace: string;
+  if (workspaceFlag) {
+    // Validate the provided workspace name
+    const match = workspaces.find((w) => w.name === workspaceFlag);
+    if (!match) {
+      const validNames = workspaces.map((w) => w.name).join(', ') || 'none';
+      console.error(`Error: Unknown workspace "${workspaceFlag}". Valid workspaces: ${validNames}`);
+      process.exitCode = 1;
+      return;
+    }
+    workspace = match.name;
+  } else if (workspaces.length === 1) {
+    // Exactly one workspace — use it as the default
+    workspace = workspaces[0].name;
+  } else if (workspaces.length === 0) {
+    console.error('Error: No OpenRouter workspaces configured.');
+    process.exitCode = 1;
+    return;
+  } else {
+    // Two or more workspaces — --workspace is required
+    const validNames = workspaces.map((w) => w.name).join(', ');
+    console.error(`Error: --workspace is required when multiple workspaces are configured.`);
+    console.error(`Valid workspaces: ${validNames}`);
+    console.error('Usage: pnpm cli openrouter:create-key <email> <name> --workspace <workspace>');
+    process.exitCode = 1;
+    return;
+  }
+
+  console.log(`🔑 Creating OpenRouter key "${normalizedName}" for ${normalizedEmail} in workspace "${workspace}"...`);
 
   // Same flow as POST /api/openrouter/keys: create on OpenRouter first,
   // then store the hash → email mapping; clean up the key if the insert fails.
@@ -45,9 +76,10 @@ export async function cmdOpenRouterCreateKey(email: string | undefined, name: st
   }
 
   console.log('\n✓ Key created and mapped\n');
-  console.log(`  Email: ${normalizedEmail}`);
-  console.log(`  Name:  ${normalizedName}`);
-  console.log(`  Hash:  ${created.data.hash}`);
+  console.log(`  Email:     ${normalizedEmail}`);
+  console.log(`  Name:      ${normalizedName}`);
+  console.log(`  Workspace: ${workspace}`);
+  console.log(`  Hash:      ${created.data.hash}`);
   console.log(`\n  Key (shown ONCE, share it securely):\n\n  ${created.key}\n`);
 }
 
