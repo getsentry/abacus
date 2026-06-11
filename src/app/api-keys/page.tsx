@@ -19,6 +19,7 @@ interface OpenRouterKey {
   usage_daily?: number;
   usage_weekly?: number;
   usage_monthly?: number;
+  workspace?: string | null;
 }
 
 type GroupedOpenRouterKeys = Record<string, OpenRouterKey[]>;
@@ -94,9 +95,12 @@ export default function ApiKeysPage() {
 
   const [revealedKey, setRevealedKey] = useState<string | null>(null);
   const [showModal, setShowModal] = useState(false);
+  const [workspaces, setWorkspaces] = useState<string[]>([]);
+  const [selectedWorkspace, setSelectedWorkspace] = useState<string>('');
 
   const { copy, copied } = useClipboard();
 
+  const showWorkspace = workspaces.length >= 2;
   const totalMyKeys = keys.length;
   const totalAllKeys = useMemo(
     () => Object.values(groupedKeys).reduce((acc, list) => acc + list.length, 0),
@@ -131,6 +135,19 @@ wire_api = "chat"`;
 
     throw new Error(message);
   };
+
+  const loadWorkspaces = useCallback(async () => {
+    try {
+      const response = await fetch('/api/openrouter/workspaces');
+      if (!response.ok) return;
+      const data = await response.json();
+      const names: string[] = Array.isArray(data?.workspaces) ? data.workspaces : [];
+      setWorkspaces(names);
+      setSelectedWorkspace((prev) => prev || (names[0] ?? ''));
+    } catch {
+      // non-critical; page works without workspace selector
+    }
+  }, []);
 
   const loadMyKeys = useCallback(async () => {
     const response = await fetch('/api/openrouter/keys');
@@ -181,7 +198,8 @@ wire_api = "chat"`;
 
   useEffect(() => {
     void loadKeys();
-  }, [loadKeys]);
+    void loadWorkspaces();
+  }, [loadKeys, loadWorkspaces]);
   function withPending(hash: string, task: () => Promise<void>) {
     return async () => {
       setPending((prev) => {
@@ -252,7 +270,7 @@ wire_api = "chat"`;
       const response = await fetch('/api/openrouter/keys', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: trimmed }),
+        body: JSON.stringify(workspaces.length >= 2 ? { name: trimmed, workspace: selectedWorkspace } : { name: trimmed }),
       });
 
       await withError(response, 'Failed to create key');
@@ -272,7 +290,7 @@ wire_api = "chat"`;
     if (items.length === 0) {
       return (
         <tr>
-          <td colSpan={5} className="px-4 py-6 text-center">
+          <td colSpan={showWorkspace ? 6 : 5} className="px-4 py-6 text-center">
             <span className="font-mono text-sm text-white/40">No keys found.</span>
           </td>
         </tr>
@@ -301,6 +319,11 @@ wire_api = "chat"`;
           <td className="px-4 py-3 text-right w-40">
             <div className="font-mono text-xs text-white/70">{formatDate(key.created_at)}</div>
           </td>
+          {showWorkspace && (
+            <td className="px-4 py-3">
+              <span className="font-mono text-xs text-white/60">{key.workspace ?? '—'}</span>
+            </td>
+          )}
           <td className="px-4 py-3 text-center w-28">
             <span className={`px-2 py-0.5 rounded text-[11px] uppercase tracking-wider font-mono border ${statusTextClass(Boolean(key.disabled))}`}>
               {key.disabled ? 'Disabled' : 'Active'}
@@ -376,6 +399,7 @@ wire_api = "chat"`;
                       <th className="px-4 py-3 text-left font-mono text-[10px] uppercase tracking-wider text-white/50">Name / Label</th>
                       <th className="px-4 py-3 text-right font-mono text-[10px] uppercase tracking-wider text-white/50">Spend</th>
                       <th className="px-4 py-3 text-right font-mono text-[10px] uppercase tracking-wider text-white/50">Created</th>
+                      {showWorkspace && <th className="px-4 py-3 text-left font-mono text-[10px] uppercase tracking-wider text-white/50">Workspace</th>}
                       <th className="px-4 py-3 text-center font-mono text-[10px] uppercase tracking-wider text-white/50">Status</th>
                       <th className="px-4 py-3 text-right font-mono text-[10px] uppercase tracking-wider text-white/50">Controls</th>
                     </tr>
@@ -451,6 +475,19 @@ wire_api = "chat"`;
                     placeholder="Key name (e.g. Claude Code)"
                     className="w-full bg-[#0a0a0c] border border-white/10 rounded px-3 py-2 text-sm font-mono text-white/90 placeholder:text-white/30 focus:outline-none focus:border-white/30"
                   />
+                  {workspaces.length >= 2 && (
+                    <select
+                      value={selectedWorkspace}
+                      onChange={(e) => setSelectedWorkspace(e.target.value)}
+                      className="bg-[#0a0a0c] border border-white/10 rounded px-3 py-2 text-sm font-mono text-white/70 focus:outline-none focus:border-white/30 flex-shrink-0"
+                    >
+                      {workspaces.map((ws) => (
+                        <option key={ws} value={ws} className="bg-[#0a0a0c]">
+                          {ws}
+                        </option>
+                      ))}
+                    </select>
+                  )}
                   <button
                     type="submit"
                     disabled={submitting || !keyName.trim()}
@@ -493,6 +530,7 @@ wire_api = "chat"`;
                               <th className="px-4 py-3 text-left font-mono text-[10px] uppercase tracking-wider text-white/50">Name / Label</th>
                               <th className="px-4 py-3 text-right font-mono text-[10px] uppercase tracking-wider text-white/50">Spend</th>
                               <th className="px-4 py-3 text-right font-mono text-[10px] uppercase tracking-wider text-white/50">Created</th>
+                              {showWorkspace && <th className="px-4 py-3 text-left font-mono text-[10px] uppercase tracking-wider text-white/50">Workspace</th>}
                               <th className="px-4 py-3 text-center font-mono text-[10px] uppercase tracking-wider text-white/50">Status</th>
                               <th className="px-4 py-3 text-right font-mono text-[10px] uppercase tracking-wider text-white/50">Controls</th>
                             </tr>
