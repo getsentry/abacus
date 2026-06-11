@@ -291,7 +291,7 @@ describe('POST /api/openrouter/keys', () => {
       created_at: '2026-01-01T00:00:00.000Z',
     });
 
-    expect(createOpenRouterKey).toHaveBeenCalledWith({
+    expect(createOpenRouterKey).toHaveBeenCalledWith('default', {
       name: 'test@example.com - Personal',
     });
 
@@ -317,7 +317,7 @@ describe('POST /api/openrouter/keys', () => {
     expect(response.status).toBe(500);
     const data = await response.json();
     expect(data.error).toBe('Failed to store key mapping');
-    expect(deleteOpenRouterKey).toHaveBeenCalledWith('hash-new');
+    expect(deleteOpenRouterKey).toHaveBeenCalledWith('default', 'hash-new');
   });
 });
 
@@ -408,7 +408,7 @@ describe('PATCH /api/openrouter/keys', () => {
       disabled: true,
       created_at: '2026-01-01T00:00:00.000Z',
     });
-    expect(updateOpenRouterKey).toHaveBeenCalledWith('hash-other', { disabled: true });
+    expect(updateOpenRouterKey).toHaveBeenCalledWith('default', 'hash-other', { disabled: true });
   });
 
   it('maps OpenRouter 5xx to 502 for patch', async () => {
@@ -502,7 +502,7 @@ describe('DELETE /api/openrouter/keys', () => {
     expect(response.status).toBe(200);
     const data = await response.json();
     expect(data).toEqual({ success: true });
-    expect(deleteOpenRouterKey).toHaveBeenCalledWith('hash-admin');
+    expect(deleteOpenRouterKey).toHaveBeenCalledWith('default', 'hash-admin');
 
     const mapped = await db.select().from(openrouterKeys).where(eq(openrouterKeys.hash, 'hash-admin'));
     expect(mapped).toHaveLength(0);

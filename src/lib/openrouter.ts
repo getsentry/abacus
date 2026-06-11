@@ -1,11 +1,9 @@
 import { OpenRouter } from '@openrouter/sdk';
 import { OpenRouterError } from '@openrouter/sdk/models/errors';
+import { getOpenRouterWorkspaceKey } from './openrouter-workspaces';
 
-function getClient() {
-  const apiKey = process.env.OPENROUTER_MANAGEMENT_KEY;
-  if (!apiKey) {
-    throw new Error('OPENROUTER_MANAGEMENT_KEY is not set');
-  }
+function getClient(workspace: string) {
+  const apiKey = getOpenRouterWorkspaceKey(workspace);
 
   return new OpenRouter({
     apiKey,
@@ -32,13 +30,11 @@ export interface CreateOpenRouterKeyParams {
   includeByokInLimit?: boolean;
   creatorUserId?: string | null;
   expiresAt?: Date | null;
-  workspaceId?: string;
 }
 
 export interface ListOpenRouterKeysOptions {
   offset?: number | null;
   includeDisabled?: boolean;
-  workspaceId?: string;
 }
 
 export interface UpdateOpenRouterKeyParams {
@@ -55,9 +51,10 @@ export type UpdateOpenRouterKeyResult = Awaited<ReturnType<InstanceType<typeof O
 export type DeleteOpenRouterKeyResult = Awaited<ReturnType<InstanceType<typeof OpenRouter>['apiKeys']['delete']>>;
 
 export async function createOpenRouterKey(
+  workspace: string,
   params: CreateOpenRouterKeyParams
 ): Promise<CreateOpenRouterKeyResult> {
-  const client = getClient();
+  const client = getClient(workspace);
 
   return client.apiKeys.create({
     requestBody: {
@@ -67,24 +64,25 @@ export async function createOpenRouterKey(
       includeByokInLimit: params.includeByokInLimit,
       creatorUserId: params.creatorUserId,
       expiresAt: params.expiresAt,
-      workspaceId: params.workspaceId,
     },
   });
 }
 
 export async function listOpenRouterKeys(
+  workspace: string,
   options?: ListOpenRouterKeysOptions
 ): Promise<ListOpenRouterKeysResult> {
-  const client = getClient();
+  const client = getClient(workspace);
 
   return client.apiKeys.list(options);
 }
 
 export async function updateOpenRouterKey(
+  workspace: string,
   hash: string,
   params: UpdateOpenRouterKeyParams
 ): Promise<UpdateOpenRouterKeyResult> {
-  const client = getClient();
+  const client = getClient(workspace);
 
   return client.apiKeys.update({
     hash,
@@ -95,12 +93,14 @@ export async function updateOpenRouterKey(
       limitReset: params.limitReset,
       includeByokInLimit: params.includeByokInLimit,
     },
-
   });
 }
 
-export async function deleteOpenRouterKey(hash: string): Promise<DeleteOpenRouterKeyResult> {
-  const client = getClient();
+export async function deleteOpenRouterKey(
+  workspace: string,
+  hash: string
+): Promise<DeleteOpenRouterKeyResult> {
+  const client = getClient(workspace);
 
   return client.apiKeys.delete({ hash });
 }
@@ -119,8 +119,11 @@ export type OpenRouterActivityItem = {
   byokUsageInference: number; // USD (external/BYOK credits — excluded from cost)
 };
 
-export async function getOpenRouterActivity(params: { apiKeyHash?: string }): Promise<OpenRouterActivityItem[]> {
-  const client = getClient();
+export async function getOpenRouterActivity(
+  workspace: string,
+  params: { apiKeyHash?: string }
+): Promise<OpenRouterActivityItem[]> {
+  const client = getClient(workspace);
   const response = await client.analytics.getUserActivity({ apiKeyHash: params.apiKeyHash });
   return response.data as OpenRouterActivityItem[];
 }

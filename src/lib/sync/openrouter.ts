@@ -5,8 +5,9 @@ import { db, syncState, usageRecords, openrouterKeys } from '../db';
 import { eq, min } from 'drizzle-orm';
 import { getOpenRouterActivity } from '../openrouter';
 import { NotFoundResponseError } from '@openrouter/sdk/models/errors';
+import { getOpenRouterWorkspaces, NO_OPENROUTER_WORKSPACES_ERROR } from '../openrouter-workspaces';
 
-export const NO_OPENROUTER_KEY_ERROR = 'OPENROUTER_MANAGEMENT_KEY is not set';
+export const NO_OPENROUTER_KEY_ERROR = NO_OPENROUTER_WORKSPACES_ERROR;
 
 const SYNC_STATE_ID = 'openrouter';
 
@@ -113,7 +114,8 @@ export async function resetOpenRouterBackfillComplete(): Promise<void> {
  * Manual CLI calls should avoid overlapping dates.
  */
 export async function syncOpenRouterUsage(startDate: string, endDate: string): Promise<SyncResult> {
-  if (!process.env.OPENROUTER_MANAGEMENT_KEY) {
+  const workspaces = getOpenRouterWorkspaces();
+  if (workspaces.length === 0) {
     return {
       success: false,
       recordsImported: 0,
@@ -135,6 +137,9 @@ export async function syncOpenRouterUsage(startDate: string, endDate: string): P
   const keys = await db
     .select({ hash: openrouterKeys.hash, email: openrouterKeys.email })
     .from(openrouterKeys);
+
+  // Mechanical workspace resolution for this todo — real per-row routing lands in todo 3.
+  const workspace = workspaces[0].name;
 
   if (keys.length === 0) {
     // No keys provisioned — nothing to sync; success (empty is not an error)
@@ -158,7 +163,7 @@ export async function syncOpenRouterUsage(startDate: string, endDate: string): P
 
   for (const key of keys) {
     try {
-      const items = await getOpenRouterActivity({ apiKeyHash: key.hash });
+      const items = await getOpenRouterActivity(workspace, { apiKeyHash: key.hash });
 
       for (const item of items) {
         // The API returns date as "YYYY-MM-DD HH:MM:SS" — extract the date part
@@ -257,7 +262,7 @@ export async function syncOpenRouterUsage(startDate: string, endDate: string): P
  * Safe to call more often — returns early if yesterday is already synced.
  */
 export async function syncOpenRouterCron(): Promise<SyncResult> {
-  if (!process.env.OPENROUTER_MANAGEMENT_KEY) {
+  if (getOpenRouterWorkspaces().length === 0) {
     return {
       success: false,
       recordsImported: 0,
@@ -305,7 +310,7 @@ export async function syncOpenRouterCron(): Promise<SyncResult> {
  * no deeper history to retrieve; subsequent cron runs keep the window current.
  */
 export async function backfillOpenRouterUsage(): Promise<SyncResult> {
-  if (!process.env.OPENROUTER_MANAGEMENT_KEY) {
+  if (getOpenRouterWorkspaces().length === 0) {
     return {
       success: false,
       recordsImported: 0,

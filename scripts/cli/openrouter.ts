@@ -1,5 +1,6 @@
 import { getOpenRouterSyncState, getOpenRouterBackfillState } from '../../src/lib/sync/openrouter';
 import { createOpenRouterKey, deleteOpenRouterKey } from '../../src/lib/openrouter';
+import { getOpenRouterWorkspaces } from '../../src/lib/openrouter-workspaces';
 import { db, openrouterKeys } from '../../src/lib/db';
 
 export async function cmdOpenRouterCreateKey(email: string | undefined, name: string | undefined) {
@@ -13,11 +14,14 @@ export async function cmdOpenRouterCreateKey(email: string | undefined, name: st
     return;
   }
 
+  const workspaces = getOpenRouterWorkspaces();
+  const workspace = workspaces[0]?.name ?? 'default';
+
   console.log(`🔑 Creating OpenRouter key "${normalizedName}" for ${normalizedEmail}...`);
 
   // Same flow as POST /api/openrouter/keys: create on OpenRouter first,
   // then store the hash → email mapping; clean up the key if the insert fails.
-  const created = await createOpenRouterKey({
+  const created = await createOpenRouterKey(workspace, {
     name: `${normalizedEmail} - ${normalizedName}`,
   });
 
@@ -29,7 +33,7 @@ export async function cmdOpenRouterCreateKey(email: string | undefined, name: st
     });
   } catch (error) {
     try {
-      await deleteOpenRouterKey(created.data.hash);
+      await deleteOpenRouterKey(workspace, created.data.hash);
     } catch (cleanupError) {
       console.error('Failed to cleanup OpenRouter key after DB insert failure', {
         hash: created.data.hash,

@@ -10,6 +10,10 @@ import {
   listOpenRouterKeys,
   updateOpenRouterKey,
 } from '@/lib/openrouter';
+import {
+  getOpenRouterWorkspaces,
+  NO_OPENROUTER_WORKSPACES_ERROR,
+} from '@/lib/openrouter-workspaces';
 
 function isAdmin(email: string): boolean {
   return (process.env.ADMIN_EMAILS || '')
@@ -52,7 +56,7 @@ function mapOpenRouterError(error: unknown): NextResponse<{ error: string }> {
     return NextResponse.json({ error: 'OpenRouter service is temporarily unavailable.' }, { status: 502 });
   }
 
-  if (error instanceof Error && error.message === 'OPENROUTER_MANAGEMENT_KEY is not set') {
+  if (error instanceof Error && error.message === NO_OPENROUTER_WORKSPACES_ERROR) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
@@ -113,9 +117,12 @@ async function getHandler(request: Request) {
 
   const dbRowByHash = new Map(dbRows.map((row) => [row.hash, row]));
 
+  const workspaces = getOpenRouterWorkspaces();
+  const workspace = workspaces[0]?.name ?? 'default';
+
   let listResponse;
   try {
-    listResponse = await listOpenRouterKeys({ includeDisabled: true });
+    listResponse = await listOpenRouterKeys(workspace, { includeDisabled: true });
   } catch (error) {
     return mapOpenRouterError(error);
   }
@@ -172,10 +179,13 @@ async function postHandler(request: Request) {
     return NextResponse.json({ error: 'name is required' }, { status: 400 });
   }
 
+  const workspaces = getOpenRouterWorkspaces();
+  const workspace = workspaces[0]?.name ?? 'default';
+
   let created: Awaited<ReturnType<typeof createOpenRouterKey>>;
 
   try {
-    created = await createOpenRouterKey({
+    created = await createOpenRouterKey(workspace, {
       name: `${userEmail} - ${name}`,
     });
   } catch (error) {
@@ -190,7 +200,7 @@ async function postHandler(request: Request) {
     });
   } catch {
     try {
-      await deleteOpenRouterKey(created.data.hash);
+      await deleteOpenRouterKey(workspace, created.data.hash);
     } catch (cleanupError) {
       console.error('Failed to cleanup OpenRouter key after DB insert failure', {
         hash: created.data.hash,
@@ -251,9 +261,12 @@ async function patchHandler(request: Request) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
+  const workspaces = getOpenRouterWorkspaces();
+  const workspace = workspaces[0]?.name ?? 'default';
+
   let updated: Awaited<ReturnType<typeof updateOpenRouterKey>>;
   try {
-    updated = await updateOpenRouterKey(hash, { disabled });
+    updated = await updateOpenRouterKey(workspace, hash, { disabled });
   } catch (error) {
     return mapOpenRouterError(error);
   }
@@ -281,8 +294,11 @@ async function deleteHandler(request: Request) {
     return NextResponse.json({ error: 'hash is required' }, { status: 400 });
   }
 
+  const workspaces = getOpenRouterWorkspaces();
+  const workspace = workspaces[0]?.name ?? 'default';
+
   try {
-    await deleteOpenRouterKey(hash);
+    await deleteOpenRouterKey(workspace, hash);
   } catch (error) {
     return mapOpenRouterError(error);
   }

@@ -155,7 +155,7 @@ describe('GET /api/cron/revoke-offboarded', () => {
       skipped: 0,
       errors: [],
     });
-    expect(updateOpenRouterKey).toHaveBeenCalledWith('hash-suspended', { disabled: true });
+    expect(updateOpenRouterKey).toHaveBeenCalledWith('default', 'hash-suspended', { disabled: true });
     expect(getMockDb().update).toHaveBeenCalledTimes(1);
   });
 
@@ -175,7 +175,7 @@ describe('GET /api/cron/revoke-offboarded', () => {
       skipped: 0,
       errors: [],
     });
-    expect(updateOpenRouterKey).toHaveBeenCalledWith('hash-archived', { disabled: true });
+    expect(updateOpenRouterKey).toHaveBeenCalledWith('default', 'hash-archived', { disabled: true });
   });
 
   it('disables keys for deleted user (404 from Directory)', async () => {
@@ -194,7 +194,7 @@ describe('GET /api/cron/revoke-offboarded', () => {
       skipped: 0,
       errors: [],
     });
-    expect(updateOpenRouterKey).toHaveBeenCalledWith('hash-deleted', { disabled: true });
+    expect(updateOpenRouterKey).toHaveBeenCalledWith('default', 'hash-deleted', { disabled: true });
   });
 
   it('disables multiple keys for same inactive user', async () => {
@@ -214,8 +214,8 @@ describe('GET /api/cron/revoke-offboarded', () => {
       errors: [],
     });
     expect(updateOpenRouterKey).toHaveBeenCalledTimes(3);
-    expect(updateOpenRouterKey).toHaveBeenNthCalledWith(1, 'hash-a', { disabled: true });
-    expect(updateOpenRouterKey).toHaveBeenNthCalledWith(3, 'hash-c', { disabled: true });
+    expect(updateOpenRouterKey).toHaveBeenNthCalledWith(1, 'default', 'hash-a', { disabled: true });
+    expect(updateOpenRouterKey).toHaveBeenNthCalledWith(3, 'default', 'hash-c', { disabled: true });
   });
 
   it('does not disable keys for active user', async () => {
@@ -299,7 +299,7 @@ describe('GET /api/cron/revoke-offboarded', () => {
       errors: ['Could not check directory status for bad@example.com: directory fail'],
     });
 
-    expect(updateOpenRouterKey).toHaveBeenCalledWith('hash-good', { disabled: true });
+    expect(updateOpenRouterKey).toHaveBeenCalledWith('default', 'hash-good', { disabled: true });
   });
 
   it('continues processing when OpenRouter disable fails for one key', async () => {
@@ -307,7 +307,7 @@ describe('GET /api/cron/revoke-offboarded', () => {
     mockEmailKeys([['hash-good', 'hash-bad', 'hash-good-2']]);
 
     vi.mocked(checkAccountStatus).mockResolvedValue('inactive');
-    vi.mocked(updateOpenRouterKey).mockImplementation(async (hash) => {
+    vi.mocked(updateOpenRouterKey).mockImplementation(async (workspace, hash) => {
       if (hash === 'hash-bad') {
         throw new Error('openrouter 429');
       }
