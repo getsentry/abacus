@@ -13,13 +13,21 @@ Abacus tracks OpenRouter usage by reading daily activity for each provisioned ke
 
 <Steps>
 
-1. Open [OpenRouter → Settings → Keys](https://openrouter.ai/settings/keys) and generate a **Management API key** (starts with `sk-or-v1-`).
+1. Open [OpenRouter → Settings → Keys](https://openrouter.ai/settings/keys) and generate a **Management API key** (starts with `sk-or-v1-`) for each workspace you want to track.
 
-2. Set the environment variable:
+2. Set the environment variable. Use the single-key form for one workspace, or the JSON map for multiple:
 
+   **Single workspace:**
    ```bash
    OPENROUTER_MANAGEMENT_KEY=sk-or-v1-...
    ```
+
+   **Multiple workspaces:**
+   ```bash
+   OPENROUTER_MANAGEMENT_KEYS='{"Coding Agents":"sk-or-v1-...","Tools":"sk-or-v1-..."}'
+   ```
+
+   See [Multi-Workspace Configuration](#multi-workspace-configuration) for details.
 
 3. Provision API keys for each team member via the OpenRouter API or dashboard. Abacus records each key's hash and associates it with a user email — see [provisioning documentation](/abacus/providers/openrouter/#key-provisioning).
 
@@ -74,6 +82,45 @@ Reset to allow re-backfilling:
 ```bash
 pnpm cli backfill:reset openrouter
 ```
+
+## Multi-Workspace Configuration
+
+Abacus supports tracking usage across multiple OpenRouter workspaces. Each workspace maps to one management key; the workspace name is a display label used for segmentation in reports and the UI.
+
+### Environment Variable
+
+Set `OPENROUTER_MANAGEMENT_KEYS` as a JSON object mapping workspace names to management keys:
+
+```bash
+# In .env/.env.local — single-quote the JSON to avoid shell interpretation:
+OPENROUTER_MANAGEMENT_KEYS='{"Coding Agents":"sk-or-v1-...","Tools":"sk-or-v1-..."}'
+```
+
+In the **Vercel environment variable UI**, paste the raw JSON without surrounding shell quotes:
+
+```
+{"Coding Agents":"sk-or-v1-...","Tools":"sk-or-v1-..."}
+```
+
+### Single-Key Fallback
+
+The original `OPENROUTER_MANAGEMENT_KEY` variable is still fully supported. When set alone it creates a single workspace named `default`. When both variables are present, `OPENROUTER_MANAGEMENT_KEYS` takes precedence.
+
+### Migration Note for Existing Deployments
+
+<Aside type="caution">
+  Migration 0019 backfilled all existing key rows and usage records to workspace `'Coding Agents'`. If your deployment previously used `OPENROUTER_MANAGEMENT_KEY`, you must switch to the multi-workspace form with the same workspace name:
+
+  ```bash
+  OPENROUTER_MANAGEMENT_KEYS='{"Coding Agents":"sk-or-v1-..."}'
+  ```
+
+  Keeping `OPENROUTER_MANAGEMENT_KEY` alone will result in a `default` workspace that does not match the backfilled `Coding Agents` records, causing errors when operating on those rows.
+</Aside>
+
+### UI Behavior
+
+The workspace selector and workspace column in the key management UI are only shown when two or more workspaces are configured. With a single workspace the interface is identical to the previous single-key experience.
 
 ## Key Provisioning
 

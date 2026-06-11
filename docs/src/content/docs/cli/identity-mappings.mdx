@@ -61,3 +61,26 @@ Prompts you to enter the email address for each unmapped key.
 ## Web UI
 
 Unmapped API keys also appear in the Abacus web interface. Look for the "Mapping Assistant" on the status page to assign keys through the UI.
+
+## OpenRouter Key Provisioning
+
+Provision a new OpenRouter API key for a team member directly from the CLI:
+
+```bash
+# Single workspace — workspace is selected automatically
+pnpm cli openrouter:create-key jane@example.com "Claude Code"
+
+# Multiple workspaces — --workspace is required
+pnpm cli openrouter:create-key jane@example.com "Claude Code" --workspace "Coding Agents"
+pnpm cli openrouter:create-key jane@example.com "Tooling" --workspace "Tools"
+```
+
+| Argument / Option | Description |
+|-------------------|-------------|
+| `<email>` | Team member's email address |
+| `<name>` | Display name for the API key on OpenRouter |
+| `--workspace <name>` | Workspace to provision the key in. Optional when exactly one workspace is configured; required when two or more are configured. |
+
+<Aside type="note">
+  `--workspace` must match a workspace name defined in `OPENROUTER_MANAGEMENT_KEYS` exactly (case-sensitive). Run `pnpm cli openrouter:status` to see configured workspace names.
+</Aside>

@@ -50,7 +50,19 @@ openssl rand -hex 32
 ```
 
 <Aside type="note">
-  To activate OpenRouter syncing, set `OPENROUTER_MANAGEMENT_KEY` in your Vercel project environment variables. This is a manual post-merge step — the cron will skip gracefully if the key is absent.
+  To activate OpenRouter syncing, set `OPENROUTER_MANAGEMENT_KEY` (single workspace) or `OPENROUTER_MANAGEMENT_KEYS` (multiple workspaces) in your Vercel project environment variables. This is a manual post-merge step — the cron will skip gracefully if neither key is set.
+
+  When setting `OPENROUTER_MANAGEMENT_KEYS` in the Vercel environment variable UI, paste the raw JSON **without** surrounding shell quotes:
+
+  ```
+  {"Coding Agents":"sk-or-v1-...","Tools":"sk-or-v1-..."}
+  ```
+
+  In `.env` files (local development), wrap the JSON in single quotes to prevent shell interpretation:
+
+  ```bash
+  OPENROUTER_MANAGEMENT_KEYS='{"Coding Agents":"sk-or-v1-...","Tools":"sk-or-v1-..."}'
+  ```
 </Aside>
 
 ### Manual Triggering

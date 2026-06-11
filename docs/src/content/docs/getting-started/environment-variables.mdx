@@ -45,9 +45,16 @@ See [Cursor setup](/abacus/providers/cursor/) for details.
 
 | Variable | Description |
 |----------|-------------|
-| `OPENROUTER_MANAGEMENT_KEY` | OpenRouter Management API key (starts with `sk-or-v1-`). Powers both key provisioning and hourly usage sync. |
+| `OPENROUTER_MANAGEMENT_KEY` | OpenRouter Management API key (starts with `sk-or-v1-`). Single-workspace setup → workspace named `default`. Powers key provisioning and usage sync. |
+| `OPENROUTER_MANAGEMENT_KEYS` | JSON map of workspace name → management key for tracking multiple OpenRouter workspaces. Takes precedence over `OPENROUTER_MANAGEMENT_KEY` when both are set. |
 
-See [OpenRouter setup](/abacus/providers/openrouter/) for details.
+Example for multiple workspaces:
+
+```bash
+OPENROUTER_MANAGEMENT_KEYS='{"Coding Agents":"sk-or-v1-...","Tools":"sk-or-v1-..."}'
+```
+
+See [OpenRouter multi-workspace setup](/abacus/providers/openrouter/#multi-workspace-configuration) for details.
 
 ### GitHub Commits
 
