@@ -21,7 +21,9 @@ function parseWorkspaces(raw: string): OpenRouterWorkspace[] {
   try {
     parsed = JSON.parse(raw);
   } catch {
-    throw new Error(`OPENROUTER_MANAGEMENT_KEYS is not valid JSON: ${raw}`);
+    throw new Error(
+      'OPENROUTER_MANAGEMENT_KEYS is not valid JSON (expected a JSON object mapping workspace names to management keys)'
+    );
   }
 
   if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {

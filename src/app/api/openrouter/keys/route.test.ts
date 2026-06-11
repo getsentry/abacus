@@ -171,7 +171,7 @@ describe('GET /api/openrouter/keys', () => {
     expect(listOpenRouterKeys).toHaveBeenCalledWith('beta', { includeDisabled: true });
   });
 
-  it('returns partial results when one workspace fails', async () => {
+  it('returns partial results with workspaceErrors when one workspace fails', async () => {
     await mockAuthenticated();
     vi.stubEnv('OPENROUTER_MANAGEMENT_KEYS', JSON.stringify({ alpha: 'sk-or-alpha', beta: 'sk-or-beta' }));
     await seedOpenRouterKeys([
@@ -180,14 +180,20 @@ describe('GET /api/openrouter/keys', () => {
 
     vi.mocked(listOpenRouterKeys)
       .mockResolvedValueOnce(listFixture([keyData({ hash: 'hash-alpha', name: 'or alpha' })]))
-      .mockRejectedValueOnce(buildOpenRouterError(500));
+      .mockRejectedValueOnce(new Error('OpenRouter service is temporarily unavailable'));
 
     const response = await GET(new Request('http://localhost/api/openrouter/keys'));
 
     expect(response.status).toBe(200);
     const data = await response.json();
-    expect(data).toHaveLength(1);
-    expect(data[0]).toMatchObject({ hash: 'hash-alpha', workspace: 'alpha' });
+    // Partial failure returns { keys, workspaceErrors }
+    expect(Array.isArray(data.keys)).toBe(true);
+    expect(data.keys).toHaveLength(1);
+    expect(data.keys[0]).toMatchObject({ hash: 'hash-alpha', workspace: 'alpha' });
+    expect(Array.isArray(data.workspaceErrors)).toBe(true);
+    expect(data.workspaceErrors).toHaveLength(1);
+    expect(data.workspaceErrors[0]).toMatchObject({ workspace: 'beta' });
+    expect(data.workspaceErrors[0].message).toBeTruthy();
   });
 
   it('returns error when all workspaces fail', async () => {

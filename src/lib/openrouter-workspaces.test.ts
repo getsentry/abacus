@@ -72,6 +72,20 @@ describe('getOpenRouterWorkspaces', () => {
     expect(() => getOpenRouterWorkspaces()).toThrow('OPENROUTER_MANAGEMENT_KEYS is not valid JSON');
   });
 
+  it('does not include key material in malformed JSON error message (P1 secret-leak regression)', () => {
+    process.env.OPENROUTER_MANAGEMENT_KEYS = 'sk-or-v1-secret-key-in-bad-json';
+
+    let message = '';
+    try {
+      getOpenRouterWorkspaces();
+    } catch (err) {
+      message = err instanceof Error ? err.message : String(err);
+    }
+
+    expect(message).toContain('OPENROUTER_MANAGEMENT_KEYS is not valid JSON');
+    expect(message).not.toContain('sk-or-');
+  });
+
   it('throws when JSON is an array (not an object)', () => {
     process.env.OPENROUTER_MANAGEMENT_KEYS = '["sk-or-key"]';
 

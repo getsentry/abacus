@@ -9,6 +9,11 @@ import { PageContainer } from '@/components/PageContainer';
 import { SectionLabel } from '@/components/SectionLabel';
 import { ErrorState, LoadingState } from '@/components/PageState';
 
+interface WorkspaceError {
+  workspace: string;
+  message: string;
+}
+
 interface OpenRouterKey {
   hash: string;
   name: string;
@@ -97,6 +102,7 @@ export default function ApiKeysPage() {
   const [showModal, setShowModal] = useState(false);
   const [workspaces, setWorkspaces] = useState<string[]>([]);
   const [selectedWorkspace, setSelectedWorkspace] = useState<string>('');
+  const [workspaceErrors, setWorkspaceErrors] = useState<WorkspaceError[]>([]);
 
   const { copy, copied } = useClipboard();
 
@@ -153,7 +159,16 @@ wire_api = "chat"`;
     const response = await fetch('/api/openrouter/keys');
     await withError(response, 'Failed to fetch keys');
     const data = await response.json();
-    setKeys(Array.isArray(data) ? data : []);
+    if (Array.isArray(data)) {
+      setKeys(data);
+      setWorkspaceErrors([]);
+    } else if (data && typeof data === 'object' && Array.isArray(data.keys)) {
+      setKeys(data.keys);
+      setWorkspaceErrors(Array.isArray(data.workspaceErrors) ? data.workspaceErrors : []);
+    } else {
+      setKeys([]);
+      setWorkspaceErrors([]);
+    }
   }, []);
 
   const loadAdminKeys = useCallback(async (): Promise<boolean> => {
@@ -191,6 +206,7 @@ wire_api = "chat"`;
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load keys');
+      setWorkspaceErrors([]);
     } finally {
       setLoading(false);
     }
@@ -541,6 +557,21 @@ wire_api = "chat"`;
                         </table>
                       </div>
                     </AnimatedCard>
+                  )}
+                  {workspaceErrors.length > 0 && (
+                    <Card>
+                      <div className="flex items-start gap-2 text-xs text-amber-400">
+                        <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                        <div>
+                          <div className="font-mono font-semibold mb-1">Some workspaces failed to load</div>
+                          {workspaceErrors.map((e) => (
+                            <div key={e.workspace} className="font-mono text-amber-400/80">
+                              {e.workspace}: {e.message}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </Card>
                   )}
                   <Card>
                     <div className="inline-flex items-center gap-2 text-xs text-white/60">

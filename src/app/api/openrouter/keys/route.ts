@@ -127,6 +127,7 @@ async function getHandler(request: Request) {
   const allItems: Array<ReturnType<typeof normalizeListItem> & { workspace: string }> = [];
   let lastError: unknown = null;
   let successCount = 0;
+  const workspaceErrors: Array<{ workspace: string; message: string }> = [];
 
   for (const ws of workspaces) {
     try {
@@ -137,6 +138,9 @@ async function getHandler(request: Request) {
       successCount++;
     } catch (error) {
       lastError = error;
+      const message =
+        error instanceof Error ? error.message : 'Unknown error';
+      workspaceErrors.push({ workspace: ws.name, message });
     }
   }
 
@@ -167,15 +171,19 @@ async function getHandler(request: Request) {
     return NextResponse.json(grouped);
   }
 
-  return NextResponse.json(
-    keys.map((key) => {
-      const row = dbRowByHash.get(key.hash);
-      return {
-        ...key,
-        name: row?.name ?? key.name,
-      };
-    })
-  );
+  const result = keys.map((key) => {
+    const row = dbRowByHash.get(key.hash);
+    return {
+      ...key,
+      name: row?.name ?? key.name,
+    };
+  });
+
+  if (workspaceErrors.length > 0) {
+    return NextResponse.json({ keys: result, workspaceErrors });
+  }
+
+  return NextResponse.json(result);
 }
 
 async function postHandler(request: Request) {

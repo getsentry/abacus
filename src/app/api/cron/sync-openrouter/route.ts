@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { wrapRouteHandlerWithSentry } from '@sentry/nextjs';
 import { runOpenRouterSync, getOpenRouterSyncState } from '@/lib/sync';
+import { getOpenRouterWorkspaces } from '@/lib/openrouter-workspaces';
 
 /**
  * OpenRouter Cron Sync - runs daily at 00:30 UTC.
@@ -25,13 +26,13 @@ async function handler(request: Request) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  // Check if provider is configured
-  if (!process.env.OPENROUTER_MANAGEMENT_KEY) {
+  // Check if provider is configured (supports both OPENROUTER_MANAGEMENT_KEY and OPENROUTER_MANAGEMENT_KEYS)
+  if (getOpenRouterWorkspaces().length === 0) {
     return NextResponse.json({
       success: true,
       service: 'openrouter',
       skipped: true,
-      reason: 'OPENROUTER_MANAGEMENT_KEY is not set',
+      reason: 'No OpenRouter management keys configured (set OPENROUTER_MANAGEMENT_KEY or OPENROUTER_MANAGEMENT_KEYS)',
     });
   }
 
