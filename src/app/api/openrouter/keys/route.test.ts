@@ -97,6 +97,7 @@ async function seedOpenRouterKeys(keys: Array<{ hash: string; email: string; nam
       hash: key.hash,
       email: key.email,
       name: key.name,
+      workspace: 'default',
     }))
   );
 }

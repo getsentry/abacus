@@ -197,6 +197,7 @@ async function postHandler(request: Request) {
       hash: created.data.hash,
       email: userEmail,
       name,
+      workspace,
     });
   } catch {
     try {

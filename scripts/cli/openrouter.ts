@@ -30,6 +30,7 @@ export async function cmdOpenRouterCreateKey(email: string | undefined, name: st
       hash: created.data.hash,
       email: normalizedEmail,
       name: normalizedName,
+      workspace,
     });
   } catch (error) {
     try {

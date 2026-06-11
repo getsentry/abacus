@@ -39,6 +39,7 @@ export const openrouterKeys = pgTable('openrouter_keys', {
   hash: varchar('hash', { length: 255 }).primaryKey(),
   email: varchar('email', { length: 255 }).notNull(),
   name: varchar('name', { length: 255 }).notNull(),
+  workspace: varchar('workspace', { length: 255 }).notNull(),
   createdAt: timestamp('created_at').defaultNow(),
   revokedAt: timestamp('revoked_at'),
 }, (table) => [index('idx_openrouter_keys_email').on(table.email)]);

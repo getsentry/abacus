@@ -67,6 +67,7 @@ async function insertKey(hash: string, email: string, revoked = false) {
     hash,
     email,
     name: `Key for ${email}`,
+    workspace: 'default',
     createdAt: new Date('2025-01-01'),
     revokedAt: revoked ? new Date('2025-01-10') : null,
   });
