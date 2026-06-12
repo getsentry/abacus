@@ -75,6 +75,162 @@ function copyWithFallback(copy: (value: string) => Promise<void>, value: string)
   };
 }
 
+function AdminBadge() {
+  return (
+    <span className="inline-flex items-center px-1.5 py-0.5 rounded font-mono text-[9px] uppercase tracking-wider bg-amber-500/10 text-amber-400 border border-amber-500/20 align-middle">
+      admin
+    </span>
+  );
+}
+
+interface KeyRowsProps {
+  items: OpenRouterKey[];
+  showWorkspace: boolean;
+  isAdmin: boolean;
+  pending: Set<string>;
+  onToggle: (key: OpenRouterKey) => void;
+  onDelete: (hash: string) => void;
+}
+
+function KeyRows({ items, showWorkspace, isAdmin, pending, onToggle, onDelete }: KeyRowsProps) {
+  if (items.length === 0) {
+    return (
+      <tr>
+        <td colSpan={showWorkspace ? 6 : 5} className="px-4 py-6 text-center">
+          <span className="font-mono text-sm text-white/40">No keys found.</span>
+        </td>
+      </tr>
+    );
+  }
+
+  return items.map((key) => {
+    const keyPending = pending.has(key.hash);
+
+    return (
+      <tr key={key.hash} className="border-b border-white/5 last:border-0 hover:bg-white/[0.02] transition-colors">
+        <td className="px-4 py-3">
+          <div className="font-mono text-xs text-white/70">{key.name || 'Unnamed key'}</div>
+          <div className="font-mono text-[11px] text-white/50 mt-1">{maskLabel(key.label || 'sk-or-v1...')}</div>
+        </td>
+        <td className="px-4 py-3 text-right whitespace-nowrap">
+          <div className="font-mono text-xs text-white/70" title="OpenRouter credit spend (USD): current UTC day / week / month">
+            <span className="text-white/90">{formatSpend(key.usage_daily)}</span>
+            <span className="text-white/30"> / </span>
+            <span>{formatSpend(key.usage_weekly)}</span>
+            <span className="text-white/30"> / </span>
+            <span>{formatSpend(key.usage_monthly)}</span>
+          </div>
+          <div className="font-mono text-[10px] uppercase tracking-wider text-white/40 mt-1">day / wk / mo</div>
+        </td>
+        <td className="px-4 py-3 text-right w-40">
+          <div className="font-mono text-xs text-white/70">{formatDate(key.created_at)}</div>
+        </td>
+        {showWorkspace && (
+          <td className="px-4 py-3">
+            <span className="font-mono text-xs text-white/60">{key.workspace ?? '—'}</span>
+          </td>
+        )}
+        <td className="px-4 py-3 text-center w-28">
+          <span className={`px-2 py-0.5 rounded text-[11px] uppercase tracking-wider font-mono border ${statusTextClass(Boolean(key.disabled))}`}>
+            {key.disabled ? 'Disabled' : 'Active'}
+          </span>
+        </td>
+        <td className="px-4 py-3 text-right w-44">
+          <div className="flex items-center justify-end gap-2">
+            <button
+              type="button"
+              onClick={() => onToggle(key)}
+              disabled={keyPending}
+              className={`px-2.5 py-1.5 rounded font-mono text-[10px] uppercase tracking-wider border transition-colors ${
+                key.disabled
+                  ? 'text-emerald-400 border-emerald-500/30 bg-emerald-500/10 hover:bg-emerald-500/20'
+                  : 'text-amber-400 border-amber-500/30 bg-amber-500/10 hover:bg-amber-500/20'
+              } ${keyPending ? 'opacity-50 cursor-not-allowed' : ''}`}
+            >
+              {keyPending ? (
+                <span className="inline-flex items-center gap-1.5">
+                  <Loader2 className="w-3 h-3 animate-spin" />
+                  Updating
+                </span>
+              ) : key.disabled ? (
+                'Enable'
+              ) : (
+                'Disable'
+              )}
+            </button>
+
+            {isAdmin && (
+              <button
+                type="button"
+                onClick={() => onDelete(key.hash)}
+                disabled={keyPending}
+                className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded font-mono text-[10px] uppercase tracking-wider border text-rose-400 bg-rose-500/10 border-rose-500/30 hover:bg-rose-500/20 transition-colors ${
+                  keyPending ? 'opacity-50 cursor-not-allowed' : ''
+                }`}
+              >
+                Delete
+                <AdminBadge />
+              </button>
+            )}
+          </div>
+        </td>
+      </tr>
+    );
+  });
+}
+
+interface AllKeysListProps {
+  groupedKeys: GroupedOpenRouterKeys;
+  showWorkspace: boolean;
+  isAdmin: boolean;
+  pending: Set<string>;
+  onToggle: (key: OpenRouterKey) => void;
+  onDelete: (hash: string) => void;
+}
+
+function AllKeysList({ groupedKeys, showWorkspace, isAdmin, pending, onToggle, onDelete }: AllKeysListProps) {
+  const entries = Object.entries(groupedKeys);
+  if (entries.length === 0) {
+    return (
+      <AnimatedCard>
+        <div className="text-center py-8 font-mono text-white/40">No team keys found.</div>
+      </AnimatedCard>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      {entries
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([email, items], index) => (
+          <AnimatedCard key={email} padding="none" delay={index * 0.05} className="overflow-hidden">
+            <div className="px-4 py-3 border-b border-white/10 flex items-center gap-2">
+              <span className="font-mono text-sm text-white">{email}</span>
+              <span className="font-mono text-xs text-white/40">({items.length})</span>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b border-white/5 bg-white/[0.02]">
+                    <th className="px-4 py-3 text-left font-mono text-[10px] uppercase tracking-wider text-white/50">Name / Label</th>
+                    <th className="px-4 py-3 text-right font-mono text-[10px] uppercase tracking-wider text-white/50">Spend</th>
+                    <th className="px-4 py-3 text-right font-mono text-[10px] uppercase tracking-wider text-white/50">Created</th>
+                    {showWorkspace && <th className="px-4 py-3 text-left font-mono text-[10px] uppercase tracking-wider text-white/50">Workspace</th>}
+                    <th className="px-4 py-3 text-center font-mono text-[10px] uppercase tracking-wider text-white/50">Status</th>
+                    <th className="px-4 py-3 text-right font-mono text-[10px] uppercase tracking-wider text-white/50">Controls</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <KeyRows items={items} showWorkspace={showWorkspace} isAdmin={isAdmin} pending={pending} onToggle={onToggle} onDelete={onDelete} />
+                </tbody>
+              </table>
+            </div>
+          </AnimatedCard>
+        ))}
+    </div>
+  );
+}
+
 function useClipboard() {
   const [copied, setCopied] = useState<string | null>(null);
 
@@ -111,11 +267,6 @@ export default function ApiKeysPage() {
 
   const showWorkspace = workspaces.length >= 2;
 
-  const AdminBadge = () => (
-    <span className="inline-flex items-center px-1.5 py-0.5 rounded font-mono text-[9px] uppercase tracking-wider bg-amber-500/10 text-amber-400 border border-amber-500/20 align-middle">
-      admin
-    </span>
-  );
   const totalMyKeys = keys.length;
   const totalAllKeys = useMemo(
     () => Object.values(groupedKeys).reduce((acc, list) => acc + list.length, 0),
@@ -357,135 +508,7 @@ wire_api = "chat"`;
     }
   }
 
-  function KeyRows({ items }: { items: OpenRouterKey[] }) {
-    if (items.length === 0) {
-      return (
-        <tr>
-          <td colSpan={showWorkspace ? 6 : 5} className="px-4 py-6 text-center">
-            <span className="font-mono text-sm text-white/40">No keys found.</span>
-          </td>
-        </tr>
-      );
-    }
-
-    return items.map((key) => {
-      const keyPending = pending.has(key.hash);
-
-      return (
-        <tr key={key.hash} className="border-b border-white/5 last:border-0 hover:bg-white/[0.02] transition-colors">
-          <td className="px-4 py-3">
-            <div className="font-mono text-xs text-white/70">{key.name || 'Unnamed key'}</div>
-            <div className="font-mono text-[11px] text-white/50 mt-1">{maskLabel(key.label || 'sk-or-v1...')}</div>
-          </td>
-          <td className="px-4 py-3 text-right whitespace-nowrap">
-            <div className="font-mono text-xs text-white/70" title="OpenRouter credit spend (USD): current UTC day / week / month">
-              <span className="text-white/90">{formatSpend(key.usage_daily)}</span>
-              <span className="text-white/30"> / </span>
-              <span>{formatSpend(key.usage_weekly)}</span>
-              <span className="text-white/30"> / </span>
-              <span>{formatSpend(key.usage_monthly)}</span>
-            </div>
-            <div className="font-mono text-[10px] uppercase tracking-wider text-white/40 mt-1">day / wk / mo</div>
-          </td>
-          <td className="px-4 py-3 text-right w-40">
-            <div className="font-mono text-xs text-white/70">{formatDate(key.created_at)}</div>
-          </td>
-          {showWorkspace && (
-            <td className="px-4 py-3">
-              <span className="font-mono text-xs text-white/60">{key.workspace ?? '—'}</span>
-            </td>
-          )}
-          <td className="px-4 py-3 text-center w-28">
-            <span className={`px-2 py-0.5 rounded text-[11px] uppercase tracking-wider font-mono border ${statusTextClass(Boolean(key.disabled))}`}>
-              {key.disabled ? 'Disabled' : 'Active'}
-            </span>
-          </td>
-          <td className="px-4 py-3 text-right w-44">
-            <div className="flex items-center justify-end gap-2">
-              <button
-                type="button"
-                onClick={() => void handleToggle(key)}
-                disabled={keyPending}
-                className={`px-2.5 py-1.5 rounded font-mono text-[10px] uppercase tracking-wider border transition-colors ${
-                  key.disabled
-                    ? 'text-emerald-400 border-emerald-500/30 bg-emerald-500/10 hover:bg-emerald-500/20'
-                    : 'text-amber-400 border-amber-500/30 bg-amber-500/10 hover:bg-amber-500/20'
-                } ${keyPending ? 'opacity-50 cursor-not-allowed' : ''}`}
-              >
-                {keyPending ? (
-                  <span className="inline-flex items-center gap-1.5">
-                    <Loader2 className="w-3 h-3 animate-spin" />
-                    Updating
-                  </span>
-                ) : key.disabled ? (
-                  'Enable'
-                ) : (
-                  'Disable'
-                )}
-              </button>
-
-              {isAdmin && (
-                <button
-                  type="button"
-                  onClick={() => void handleDelete(key.hash)}
-                  disabled={keyPending}
-                  className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded font-mono text-[10px] uppercase tracking-wider border text-rose-400 bg-rose-500/10 border-rose-500/30 hover:bg-rose-500/20 transition-colors ${
-                    keyPending ? 'opacity-50 cursor-not-allowed' : ''
-                  }`}
-                >
-                  Delete
-                  <AdminBadge />
-                </button>
-              )}
-            </div>
-          </td>
-        </tr>
-      );
-    });
-  }
-
-  function AllKeysList() {
-    const entries = Object.entries(groupedKeys);
-    if (entries.length === 0) {
-      return (
-        <AnimatedCard>
-          <div className="text-center py-8 font-mono text-white/40">No team keys found.</div>
-        </AnimatedCard>
-      );
-    }
-
-    return (
-      <div className="space-y-4">
-        {entries
-          .sort(([a], [b]) => a.localeCompare(b))
-          .map(([email, items], index) => (
-            <AnimatedCard key={email} padding="none" delay={index * 0.05} className="overflow-hidden">
-              <div className="px-4 py-3 border-b border-white/10 flex items-center gap-2">
-                <span className="font-mono text-sm text-white">{email}</span>
-                <span className="font-mono text-xs text-white/40">({items.length})</span>
-              </div>
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead>
-                    <tr className="border-b border-white/5 bg-white/[0.02]">
-                      <th className="px-4 py-3 text-left font-mono text-[10px] uppercase tracking-wider text-white/50">Name / Label</th>
-                      <th className="px-4 py-3 text-right font-mono text-[10px] uppercase tracking-wider text-white/50">Spend</th>
-                      <th className="px-4 py-3 text-right font-mono text-[10px] uppercase tracking-wider text-white/50">Created</th>
-                      {showWorkspace && <th className="px-4 py-3 text-left font-mono text-[10px] uppercase tracking-wider text-white/50">Workspace</th>}
-                      <th className="px-4 py-3 text-center font-mono text-[10px] uppercase tracking-wider text-white/50">Status</th>
-                      <th className="px-4 py-3 text-right font-mono text-[10px] uppercase tracking-wider text-white/50">Controls</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <KeyRows items={items} />
-                  </tbody>
-                </table>
-              </div>
-            </AnimatedCard>
-          ))}
-      </div>
-    );
-  }
+  const keyRowProps = { showWorkspace, isAdmin, pending, onToggle: handleToggle, onDelete: handleDelete };
 
   return (
     <div className="min-h-screen bg-[#050507] text-white grid-bg">
@@ -591,7 +614,7 @@ wire_api = "chat"`;
               ) : (
                 <div className="space-y-4">
                   {view === 'all' && isAdmin ? (
-                    <AllKeysList />
+                    <AllKeysList groupedKeys={groupedKeys} {...keyRowProps} />
                   ) : (
                     <AnimatedCard padding="none" className="overflow-hidden">
                       <div className="overflow-x-auto">
@@ -607,7 +630,7 @@ wire_api = "chat"`;
                             </tr>
                           </thead>
                           <tbody>
-                            <KeyRows items={view === 'mine' ? keys : []} />
+                            <KeyRows items={view === 'mine' ? keys : []} {...keyRowProps} />
                           </tbody>
                         </table>
                       </div>
