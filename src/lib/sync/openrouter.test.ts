@@ -179,9 +179,10 @@ describe('OpenRouter Sync', () => {
     it('clamps the start date to the 30-day activity window', async () => {
       mockOpenRouterAPI();
 
-      const result = await syncOpenRouterUsage('2025-01-01', '2026-01-20');
+      const result = await syncOpenRouterUsage('2025-01-01', '2026-01-19');
 
-      expect(result.syncedRange).toEqual({ startDate: '2025-12-22', endDate: '2026-01-20' });
+      // Window is the 30 completed UTC days before today (2026-01-20)
+      expect(result.syncedRange).toEqual({ startDate: '2025-12-21', endDate: '2026-01-19' });
     });
 
     it('reports API failures', async () => {
@@ -195,17 +196,19 @@ describe('OpenRouter Sync', () => {
   });
 
   describe('syncOpenRouterCron', () => {
-    it('syncs the full window first, then resumes from the last synced date', async () => {
+    it('syncs the 30 completed days first, then resumes from the last synced date', async () => {
       mockOpenRouterAPI({ activityByUser: { user_1: [activityItem()] } });
 
       const first = await syncOpenRouterCron();
       expect(first.success).toBe(true);
-      expect(first.syncedRange).toEqual({ startDate: '2025-12-22', endDate: '2026-01-20' });
-      expect((await getOpenRouterSyncState()).lastSyncedDate).toBe('2026-01-20');
+      // Today (2026-01-20) is excluded: OpenRouter only returns completed UTC days
+      expect(first.syncedRange).toEqual({ startDate: '2025-12-21', endDate: '2026-01-19' });
+      expect((await getOpenRouterSyncState()).lastSyncedDate).toBe('2026-01-19');
 
-      vi.setSystemTime(new Date('2026-01-21T12:00:00Z'));
+      vi.setSystemTime(new Date('2026-01-21T00:15:00Z'));
       const second = await syncOpenRouterCron();
-      expect(second.syncedRange).toEqual({ startDate: '2026-01-19', endDate: '2026-01-21' });
+      expect(second.syncedRange).toEqual({ startDate: '2026-01-18', endDate: '2026-01-20' });
+      expect((await getOpenRouterSyncState()).lastSyncedDate).toBe('2026-01-20');
     });
 
     it('does not advance sync state on failure', async () => {
