@@ -7,7 +7,7 @@ sidebar:
 
 import { Aside } from '@astrojs/starlight/components';
 
-Sync token consumption data from Claude Code (Anthropic) and Cursor.
+Sync token consumption data from Claude Code (Anthropic), Cursor, and OpenRouter.
 
 ## Sync Recent Data
 
@@ -20,6 +20,7 @@ pnpm cli sync
 # Sync specific provider
 pnpm cli sync anthropic --days 30
 pnpm cli sync cursor --days 7
+pnpm cli sync openrouter --days 30  # OpenRouter keeps 30 days; no backfill
 
 # Skip API key mapping sync (faster)
 pnpm cli sync --skip-mappings

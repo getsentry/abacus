@@ -19,6 +19,7 @@ Track and analyze AI coding tool usage across your team. Supports multiple provi
 |----------|-------------|----------|
 | **Claude Code** | Anthropic Admin API | Token usage, costs, model breakdown, API key mapping |
 | **Cursor** | Cursor Admin API or CSV | Token usage, costs, model breakdown |
+| **OpenRouter** | OpenRouter Activity API | Per-member token usage, costs, model breakdown (optionally per workspace) |
 | **GitHub Commits** | GitHub App webhook + API | AI Attributed commit tracking (Co-Authored-By detection) |
 
 Each provider is optional—configure only the ones you use.

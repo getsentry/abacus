@@ -130,8 +130,12 @@ function BackfillBadge({ status }: { status: 'complete' | 'in_progress' | 'not_s
 
 
 function ProviderCard({ provider, index }: { provider: ProviderStatus; index: number }) {
-  const borderColor = provider.color === 'amber' ? 'border-l-amber-500/70 hover:border-l-amber-500' : 'border-l-cyan-500/70 hover:border-l-cyan-500';
-  const dotColor = provider.color === 'amber' ? 'bg-amber-500' : 'bg-cyan-500';
+  const colors: Record<string, { border: string; dot: string }> = {
+    amber: { border: 'border-l-amber-500/70 hover:border-l-amber-500', dot: 'bg-amber-500' },
+    violet: { border: 'border-l-violet-500/70 hover:border-l-violet-500', dot: 'bg-violet-500' },
+    cyan: { border: 'border-l-cyan-500/70 hover:border-l-cyan-500', dot: 'bg-cyan-500' },
+  };
+  const { border: borderColor, dot: dotColor } = colors[provider.color] || colors.cyan;
 
   return (
     <motion.div

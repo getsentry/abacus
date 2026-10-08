@@ -3,10 +3,11 @@ import { wrapRouteHandlerWithSentry } from '@sentry/nextjs';
 import { getAnthropicSyncState, getAnthropicBackfillState } from '@/lib/sync/anthropic';
 import { getCursorSyncState, getCursorBackfillState } from '@/lib/sync/cursor';
 import { getGitHubBackfillState } from '@/lib/sync/github';
+import { getOpenRouterSyncState, getOpenRouterBackfillState } from '@/lib/sync/openrouter';
 import { getUnmappedGitHubUsers } from '@/lib/sync/github-mappings';
 import { getUnattributedStats, getLifetimeStats, getUnmappedToolRecords } from '@/lib/queries';
 import { checkAuth } from '@/lib/auth';
-import { getAnthropicKeys, getCursorKeys } from '@/lib/sync/provider-keys';
+import { getAnthropicKeys, getCursorKeys, getOpenRouterKey } from '@/lib/sync/provider-keys';
 
 type SyncStatus = 'up_to_date' | 'behind' | 'never_synced';
 type BackfillStatus = 'complete' | 'in_progress' | 'not_started';
@@ -104,6 +105,33 @@ async function handler() {
     crons.push(
       { path: '/api/cron/sync-cursor', schedule: 'Hourly', type: 'forward' },
       { path: '/api/cron/backfill-cursor', schedule: 'Every 6 hours', type: 'backfill' }
+    );
+  }
+
+  // OpenRouter
+  if (getOpenRouterKey()) {
+    const [openRouterSync, openRouterBackfill] = await Promise.all([
+      getOpenRouterSyncState(),
+      getOpenRouterBackfillState()
+    ]);
+
+    providers.openrouter = {
+      id: 'openrouter',
+      name: 'OpenRouter',
+      color: 'violet',
+      configured: true,
+      forwardSync: {
+        lastSyncedDate: openRouterSync.lastSyncAt,
+        status: getForwardSyncStatus(openRouterSync.lastSyncAt)
+      },
+      backfill: {
+        oldestDate: openRouterBackfill.oldestDate,
+        status: getBackfillStatus(openRouterBackfill.oldestDate, openRouterBackfill.isComplete)
+      }
+    };
+
+    crons.push(
+      { path: '/api/cron/sync-openrouter', schedule: 'Every 6 hours', type: 'forward' }
     );
   }
 
