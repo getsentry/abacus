@@ -10,7 +10,7 @@
     },
     {
       "path": "/api/cron/sync-openrouter",
-      "schedule": "0 */6 * * *"
+      "schedule": "15 */6 * * *"
     },
     {
       "path": "/api/cron/sync-github-mappings",

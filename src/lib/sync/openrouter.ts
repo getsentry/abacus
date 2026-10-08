@@ -29,7 +29,10 @@ const TOOL = 'openrouter';
 const PAGE_LIMIT = 100;
 const MEMBER_CONCURRENCY = 5;
 
-/** OpenRouter only retains activity for the last 30 days (UTC). */
+/**
+ * OpenRouter's activity API returns the last 30 *completed* UTC days.
+ * The current UTC day is never included; data for a day appears once it ends.
+ */
 export const OPENROUTER_ACTIVITY_WINDOW_DAYS = 30;
 
 interface OpenRouterMember {
@@ -130,11 +133,18 @@ function toDateStr(date: Date): string {
   return date.toISOString().split('T')[0];
 }
 
-/** Oldest date still available from the OpenRouter activity API. */
+/** Oldest date still available from the OpenRouter activity API (today - 30). */
 export function getActivityWindowStart(now: Date = new Date()): string {
   const start = new Date(now);
-  start.setUTCDate(start.getUTCDate() - (OPENROUTER_ACTIVITY_WINDOW_DAYS - 1));
+  start.setUTCDate(start.getUTCDate() - OPENROUTER_ACTIVITY_WINDOW_DAYS);
   return toDateStr(start);
+}
+
+/** Most recent completed UTC day, i.e. the newest date the activity API can return. */
+export function getLatestCompletedDay(now: Date = new Date()): string {
+  const end = new Date(now);
+  end.setUTCDate(end.getUTCDate() - 1);
+  return toDateStr(end);
 }
 
 function deriveOrganizationId(workspaceId?: string): string | undefined {
@@ -376,11 +386,12 @@ export async function syncOpenRouterUsage(startDate: string, endDate: string): P
 
 /**
  * Sync OpenRouter usage for the cron job.
+ * OpenRouter only publishes completed UTC days, so the sync ends at yesterday.
  * First run imports the full 30-day window; later runs re-sync from the day
- * before the last synced date through today so partial days get completed.
+ * before the last synced date, which also picks up any late corrections.
  */
 export async function syncOpenRouterCron(): Promise<SyncResult> {
-  const today = toDateStr(new Date());
+  const latestDay = getLatestCompletedDay();
   const { lastSyncedDate } = await getOpenRouterSyncState();
 
   let startDate = getActivityWindowStart();
@@ -391,9 +402,9 @@ export async function syncOpenRouterCron(): Promise<SyncResult> {
     if (resumeStr > startDate) startDate = resumeStr;
   }
 
-  const result = await syncOpenRouterUsage(startDate, today);
+  const result = await syncOpenRouterUsage(startDate, latestDay);
   if (result.success) {
-    await updateOpenRouterSyncState(today);
+    await updateOpenRouterSyncState(latestDay);
   }
   return result;
 }
