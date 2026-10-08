@@ -12,6 +12,8 @@ export const NO_ANTHROPIC_KEYS_ERROR =
   'No Anthropic admin keys configured (set ANTHROPIC_ADMIN_KEY or ANTHROPIC_ADMIN_KEYS)';
 export const NO_CURSOR_KEYS_ERROR =
   'No Cursor admin keys configured (set CURSOR_ADMIN_KEY or CURSOR_ADMIN_KEYS)';
+export const NO_OPENROUTER_KEY_ERROR =
+  'No OpenRouter management key configured (set OPENROUTER_MANAGEMENT_KEY)';
 
 export interface ProviderKey {
   key: string;
@@ -68,4 +70,22 @@ export function getAnthropicKeys(): ProviderKey[] {
  */
 export function getCursorKeys(): ProviderKey[] {
   return getProviderKeys('CURSOR_ADMIN_KEYS', 'CURSOR_ADMIN_KEY');
+}
+
+/**
+ * Get the OpenRouter management key, if configured.
+ */
+export function getOpenRouterKey(): string | null {
+  return process.env.OPENROUTER_MANAGEMENT_KEY?.trim() || null;
+}
+
+/**
+ * Get the OpenRouter workspaces to import (IDs or slugs, comma-separated).
+ * An empty list means activity from all workspaces is imported.
+ */
+export function getOpenRouterWorkspaces(): string[] {
+  return (process.env.OPENROUTER_WORKSPACES || '')
+    .split(',')
+    .map((w) => w.trim())
+    .filter((w) => w.length > 0);
 }

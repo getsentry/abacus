@@ -1,21 +1,22 @@
 import { sql } from '@vercel/postgres';
 import { syncAnthropicUsage, backfillAnthropicUsage, resetAnthropicBackfillComplete } from '../../src/lib/sync/anthropic';
 import { syncCursorUsage, backfillCursorUsage, resetCursorBackfillComplete } from '../../src/lib/sync/cursor';
+import { syncOpenRouterUsage } from '../../src/lib/sync/openrouter';
 import { backfillGitHubUsage, resetGitHubBackfillComplete } from '../../src/lib/sync/github';
 import { syncApiKeyMappingsSmart } from '../../src/lib/sync/anthropic-mappings';
-import { getAnthropicKeys, getCursorKeys } from '../../src/lib/sync/provider-keys';
+import { getAnthropicKeys, getCursorKeys, getOpenRouterKey } from '../../src/lib/sync/provider-keys';
 
 interface SyncOptions {
   days?: number;
   fromDate?: string;
   toDate?: string;
-  tools?: ('anthropic' | 'cursor')[];
+  tools?: ('anthropic' | 'cursor' | 'openrouter')[];
   skipMappings?: boolean;
   orgName?: string;  // Filter to specific org/team by name
 }
 
 export async function cmdSync(options: SyncOptions = {}) {
-  const { days = 7, fromDate, toDate, tools = ['anthropic', 'cursor'], skipMappings = false, orgName } = options;
+  const { days = 7, fromDate, toDate, tools = ['anthropic', 'cursor', 'openrouter'], skipMappings = false, orgName } = options;
 
   // Use explicit dates if provided, otherwise calculate from days
   const endDate = toDate || new Date().toISOString().split('T')[0];
@@ -31,11 +32,15 @@ export async function cmdSync(options: SyncOptions = {}) {
       console.log('⚠️  Skipping Cursor: CURSOR_ADMIN_KEY not configured');
       return false;
     }
+    if (tool === 'openrouter' && !getOpenRouterKey()) {
+      console.log('⚠️  Skipping OpenRouter: OPENROUTER_MANAGEMENT_KEY not configured');
+      return false;
+    }
     return true;
   });
 
   if (configuredTools.length === 0) {
-    console.log('\n❌ No providers configured. Set ANTHROPIC_ADMIN_KEY and/or CURSOR_ADMIN_KEY.');
+    console.log('\n❌ No providers configured. Set ANTHROPIC_ADMIN_KEY, CURSOR_ADMIN_KEY, and/or OPENROUTER_MANAGEMENT_KEY.');
     return;
   }
 
@@ -68,6 +73,16 @@ export async function cmdSync(options: SyncOptions = {}) {
     console.log(`  Imported: ${cursorResult.recordsImported}, Skipped: ${cursorResult.recordsSkipped}`);
     if (cursorResult.errors.length > 0) {
       console.log(`  Errors: ${cursorResult.errors.slice(0, 3).join(', ')}`);
+    }
+  }
+
+  if (configuredTools.includes('openrouter')) {
+    console.log('');
+    console.log('Syncing OpenRouter usage (last 30 days max)...');
+    const openRouterResult = await syncOpenRouterUsage(startDate, endDate);
+    console.log(`  Imported: ${openRouterResult.recordsImported}, Skipped: ${openRouterResult.recordsSkipped}`);
+    if (openRouterResult.errors.length > 0) {
+      console.log(`  Errors: ${openRouterResult.errors.slice(0, 3).join(', ')}`);
     }
   }
 

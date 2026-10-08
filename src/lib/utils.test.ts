@@ -34,6 +34,7 @@ describe('normalizeModelName', () => {
 
   it('strips bracketed suffixes like [1m]', () => {
     expect(normalizeModelName('claude-sonnet-4-5-20250929[1m]')).toBe('sonnet-4.5');
+    expect(normalizeModelName('claude-sonnet-4.5')).toBe('sonnet-4.5');
     expect(normalizeModelName('sonnet-4[test]')).toBe('sonnet-4');
   });
 

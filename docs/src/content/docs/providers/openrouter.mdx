@@ -1,0 +1,54 @@
+---
+title: OpenRouter
+description: Track OpenRouter usage per organization member, optionally scoped to specific workspaces
+sidebar:
+  order: 4
+---
+
+import { Steps, Aside } from '@astrojs/starlight/components';
+
+OpenRouter usage is imported from the [Activity API](https://openrouter.ai/docs/api/api-reference/analytics/get-user-activity) and attributed to organization members by email.
+
+## Setup
+
+<Steps>
+
+1. Create a [management key](https://openrouter.ai/settings/management-keys) for your OpenRouter organization
+
+2. Set the environment variable:
+
+   ```bash
+   OPENROUTER_MANAGEMENT_KEY=sk-or-v1-...
+   ```
+
+3. Optionally, limit the import to specific [workspaces](https://openrouter.ai/docs/guides/features/workspaces) by ID or slug (comma-separated):
+
+   ```bash
+   OPENROUTER_WORKSPACES=engineering
+   ```
+
+   Leave it unset to import activity from all workspaces.
+
+</Steps>
+
+## Sync Behavior
+
+| Setting | Value |
+|---------|-------|
+| Schedule | Every 6 hours |
+| Data | Daily token counts, model, member email, cost (including BYOK) |
+| History | Last 30 days (OpenRouter's activity retention) |
+
+The first sync imports the full 30-day window. Later syncs re-import from the day before the last sync through today, so partial days are completed on the next run.
+
+When workspaces are configured, only members of those workspaces are imported and records are tagged with the workspace (`openrouter:<workspace-id>`).
+
+<Aside type="note">
+  Usage is attributed per organization member. Activity from workspace-owned system keys is not attributed to a member and is not imported.
+</Aside>
+
+## Manual Sync
+
+```bash
+pnpm cli sync openrouter --days 30
+```

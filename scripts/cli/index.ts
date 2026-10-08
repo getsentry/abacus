@@ -48,7 +48,8 @@ Usage:
 Commands:
   db:migrate            Run pending database migrations
   sync [tool] [--days N] [--from DATE] [--to DATE] [--org NAME] [--skip-mappings]
-                        Sync recent usage data (tool: anthropic|cursor, default: both)
+                        Sync recent usage data (tool: anthropic|cursor|openrouter, default: all)
+                        OpenRouter only retains the last 30 days
                         Use --from/--to for precise date range (YYYY-MM-DD)
                         Use --org to filter to specific org/team by name
   backfill <tool> --from YYYY-MM-DD
@@ -92,6 +93,7 @@ Examples:
   npm run cli sync --days 30
   npm run cli sync cursor --days 7
   npm run cli sync cursor --from 2026-01-09 --to 2026-01-10
+  npm run cli sync openrouter --days 30
   npm run cli backfill cursor --from 2024-01-01
   npm run cli github:sync getsentry/sentry --days 30
   npm run cli github:sync --reset --from 2024-01-01   # Full reset and backfill
@@ -178,13 +180,11 @@ async function main() {
         const toDate = toIdx >= 0 ? args[toIdx + 1] : undefined;
         const orgName = orgIdx >= 0 ? args[orgIdx + 1] : undefined;
         const skipMappings = args.includes('--skip-mappings');
-        // Parse tool filter: sync [anthropic|cursor] --days N
+        // Parse tool filter: sync [anthropic|cursor|openrouter] --days N
         const toolArg = args[1];
-        let tools: ('anthropic' | 'cursor')[] = ['anthropic', 'cursor'];
-        if (toolArg === 'anthropic') {
-          tools = ['anthropic'];
-        } else if (toolArg === 'cursor') {
-          tools = ['cursor'];
+        let tools: ('anthropic' | 'cursor' | 'openrouter')[] = ['anthropic', 'cursor', 'openrouter'];
+        if (toolArg === 'anthropic' || toolArg === 'cursor' || toolArg === 'openrouter') {
+          tools = [toolArg];
         }
         await cmdSync({ days, fromDate, toDate, tools, skipMappings, orgName });
         break;
